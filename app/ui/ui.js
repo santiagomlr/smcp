@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
-const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "files", "terminal", "apps"];
+const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps"];
+const ACTIVITY_SHOWN = 30;
 const openEditors = new Set();
 let state = null;
 let syncing = false;
@@ -534,6 +535,43 @@ function renderSettings() {
   for (const node of document.querySelectorAll("[data-privacy]")) node.hidden = permissions[node.dataset.privacy];
   $("paused-banner").hidden = !policy.paused;
   $("version").textContent = tr("Version {version}", { version: state.version });
+  if (activeTab === "settings") renderActivity();
+}
+
+const OUTCOME_LABELS = { ok: "Done", error: "Failed", denied: "Blocked", failed: "Failed" };
+
+/** The last calls, newest first. Only names, times and outcomes: the log holds nothing else. */
+async function renderActivity() {
+  const result = await window.api.auditList();
+  const list = $("activity");
+  if (!result.ok) {
+    list.replaceChildren();
+    $("activity-status").textContent = tr(result.error);
+    return;
+  }
+  const entries = result.value;
+  const time = new Intl.DateTimeFormat(SMCP_I18N.locale(), { dateStyle: "short", timeStyle: "short" });
+  list.replaceChildren(
+    ...entries.slice(0, ACTIVITY_SHOWN).map((entry) =>
+      element(
+        "li",
+        { className: `activity-${entry.outcome}` },
+        element("span", { className: "activity-tool", textContent: entry.tool }),
+        element("small", {
+          textContent: [
+            time.format(new Date(entry.at)),
+            tr(entry.source === "remote" ? "Remote" : "This computer"),
+            entry.client,
+            tr(OUTCOME_LABELS[entry.outcome] ?? "Failed"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        }),
+      ),
+    ),
+  );
+  $("activity-status").textContent = entries.length ? tr("{count} recent calls", { count: entries.length }) : tr("No calls yet.");
+  $("activity-clear").disabled = !entries.length;
 }
 
 function renderSummary() {
@@ -806,6 +844,7 @@ function selectTab(name) {
   void view.offsetWidth; // Restart the entrance animation.
   view.classList.add("entering");
   moveIndicator();
+  if (name === "settings") renderActivity();
 }
 
 window.api.onSelectTab(selectTab);
@@ -870,6 +909,11 @@ $("redo-onboarding").onclick = () => {
   renderedStep = null;
   onboardingKey = null;
   refresh();
+};
+$("activity-clear").onclick = async () => {
+  const result = await window.api.auditClear();
+  showError(result.ok ? "" : result.error);
+  renderActivity();
 };
 $("copy-diagnostics").onclick = async () => {
   const result = await window.api.copyDiagnostics();

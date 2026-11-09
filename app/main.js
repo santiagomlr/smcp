@@ -35,7 +35,7 @@ import {
   removeFromDesktop,
   serverEntry,
 } from "./core/clients.js";
-import { calendarEvents, calendarStatus, requestCalendar } from "./core/calendar.js";
+import { calendarEvents, calendarStatus, eventKit, requestCalendar } from "./core/calendar.js";
 import { disableFunnel, enableFunnel, isFunnelOn, readBaseUrl } from "./core/funnel.js";
 import { createAccountStore, createGmail } from "./core/gmail.js";
 import { readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
@@ -47,11 +47,15 @@ import { createUpdater, RELEASES_PAGE } from "./core/updater.js";
 import { logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
 import { audioSupported, downloadModel } from "./core/whisper.js";
 import { buildRemoteServer } from "../src/remote-tools.js";
+import { clearAudit, readAudit } from "../src/audit.js";
+import { EVENTS, REMINDERS } from "../src/eventkit.js";
 import { startHelper } from "../src/helper.js";
 import { denialFor, GROUPS, readPolicy, WHATSAPP_ABILITIES, writePolicy } from "../src/policy.js";
 import { modelReady } from "../src/whisper.js";
 import { listVaultChoices, setVault, vaultLocation } from "../src/vaults.js";
-import { localJxa, localScreenshot } from "../src/tools/apps.js";
+import { localAppleNotes } from "../src/tools/applenotes.js";
+import { localJxa, localScreenshot, localScreenText } from "../src/tools/apps.js";
+import { formatDay, formatLocal } from "../src/tools/calendar.js";
 import { localConfirm } from "../src/tools/whatsapp.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -74,8 +78,8 @@ let lastState = null;
 const startedInBackground = process.argv.includes("--background") || app.getLoginItemSettings().wasOpenedAtLogin;
 
 /** The same dialog as ever, worded in the app's language. The AI supplies only the body. */
-function confirmInApp(body, title = "SMCP: send WhatsApp") {
-  return localConfirm(body, tr(title), { cancel: tr("Cancel"), send: tr("Send") });
+function confirmInApp(body, title = "SMCP: send WhatsApp", button = "Send") {
+  return localConfirm(body, tr(title), { cancel: tr("Cancel"), send: tr(button) });
 }
 
 const gmail = createGmail({
@@ -533,6 +537,60 @@ function allowed(tool, annotations, fn) {
   };
 }
 
+const text = (value, max) => (typeof value === "string" ? value.slice(0, max) : undefined);
+const ids = (value) => (Array.isArray(value) ? value.filter((id) => typeof id === "string").slice(0, 50) : []);
+
+/** The window is built here from the values themselves, so nothing can word it differently. */
+async function createEventConfirmed(args) {
+  const title = text(args.title, 200);
+  const start = Number(args.start);
+  const end = Number(args.end);
+  if (!title?.trim() || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error(tr("The event is not valid."));
+  const allDay = args.allDay === true;
+  const calendars = await eventKit.calendars(EVENTS);
+  const calendar = args.calendar ? calendars.find((item) => item.id === args.calendar) : null;
+  if (args.calendar && !calendar) throw new Error("No calendar has that id. Use calendar_list_calendars.");
+  if (calendar && !calendar.writable) throw new Error("That calendar cannot be written.");
+  const location = text(args.location, 300);
+  const notes = text(args.notes, 2000);
+  const when = allDay
+    ? formatDay(start) === formatDay(end) ? formatDay(start) : `${formatDay(start)} → ${formatDay(end)}`
+    : `${formatLocal(start).replace("T", " ").slice(0, 16)} → ${formatLocal(end).replace("T", " ").slice(0, 16)}`;
+  const lines = [
+    `${tr("Event")}: ${title}`,
+    `${tr("When")}: ${when}${allDay ? ` (${tr("all day")})` : ""}`,
+    `${tr("Calendar")}: ${calendar ? `${calendar.title} (${calendar.account})` : tr("default")}`,
+    ...(location ? [`${tr("Where")}: ${location}`] : []),
+    ...(notes ? ["", `${tr("Notes")}:`, notes] : []),
+  ];
+  if (!(await confirmInApp(lines.join("\n"), "SMCP: add event", "Add"))) {
+    return { created: false, reason: "Not confirmed in the macOS window. Nothing was added." };
+  }
+  return { created: true, ...(await eventKit.createEvent({ title, start, end, allDay, calendar: args.calendar, location, notes })) };
+}
+
+const CALENDAR_OPS = {
+  calendars: { name: "calendar_list_calendars", run: () => eventKit.calendars(EVENTS) },
+  events: { name: "calendar_list_events", run: (a) => eventKit.events({ from: a.from, to: a.to, calendars: ids(a.calendars) }) },
+  createEvent: { name: "calendar_create_event", write: true, run: createEventConfirmed },
+  reminderLists: { name: "reminders_list_lists", run: () => eventKit.calendars(REMINDERS) },
+  reminders: { name: "reminders_list", run: (a) => eventKit.reminders({ lists: ids(a.lists), includeCompleted: a.includeCompleted === true }) },
+  createReminder: {
+    name: "reminders_create",
+    write: true,
+    run: (a) => {
+      const title = text(a.title, 300);
+      if (!title?.trim()) throw new Error("The reminder needs a title.");
+      const due = a.due === null || a.due === undefined ? null : Number(a.due);
+      if (due !== null && !Number.isFinite(due)) throw new Error("Not a valid date.");
+      return eventKit.createReminder({ title, list: text(a.list, 200), notes: text(a.notes, 5000), due, dueHasTime: a.dueHasTime === true });
+    },
+  },
+  completeReminder: { name: "reminders_complete", write: true, run: (a) => eventKit.completeReminder({ id: String(a.id ?? "").slice(0, 300) }) },
+};
+
+const APPLE_NOTES_OPS = { search: "applenotes_search", recent: "applenotes_recent", read: "applenotes_read" };
+
 /** The only actions the MCP server can ask this app to perform. */
 function startActionHelper() {
   const whenRunning = (fn) => (params) => {
@@ -552,6 +610,20 @@ function startActionHelper() {
     gmailSearch: allowed("gmail_search", READS, (params) => gmail.search(params)),
     gmailRead: allowed("gmail_read", READS, (params) => gmail.read(params)),
     gmailSend: allowed("gmail_send", SENDS, (params) => gmail.send(params)),
+    gmailReply: allowed("gmail_reply", SENDS, (params) => gmail.reply(params)),
+    gmailDraft: allowed("gmail_draft", { readOnlyHint: false }, (params) => gmail.draft(params)),
+    gmailAttachment: allowed("gmail_read_attachment", READS, (params) => gmail.attachment(params)),
+    calendar: ({ op, args }) => {
+      const entry = CALENDAR_OPS[op];
+      if (!entry || !IS_MAC) throw new Error("Unknown operation.");
+      return allowed(entry.name, entry.write ? SENDS : READS, () => entry.run(args ?? {}))();
+    },
+    applenotes: ({ name, params }) => {
+      const tool = APPLE_NOTES_OPS[name];
+      if (!tool || !IS_MAC) throw new Error("Unknown operation.");
+      return allowed(tool, READS, () => localAppleNotes(name, params ?? {}))();
+    },
+    screenText: allowed("screen_read_text", READS, (params) => localScreenText(params ?? {})),
   });
 }
 
@@ -953,6 +1025,8 @@ function registerIpc() {
   handle("calendar-status", () => (IS_MAC ? calendarStatus() : "restricted"));
   handle("calendar-request", requestCalendar);
   handle("calendar-events", (from, to) => calendarEvents({ from, to }));
+  handle("audit-list", () => readAudit({ limit: 200 }));
+  handle("audit-clear", () => clearAudit());
   handle("tasks-set-hub", setTasksHub);
   handle("tasks-set-host", setTasksHost);
   handle("vault-add", addVault);

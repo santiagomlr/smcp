@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { confirmGate } from "../confirm-gate.js";
 import { viaHelper } from "../helper.js";
+import { runJxa } from "../jxa.js";
 import { errorResult, externalResult, run, textResult } from "../util.js";
 
 const SCREENSHOT_MAX_PIXELS = "1600";
@@ -223,6 +224,74 @@ export async function localScreenshot({ window_id }) {
   }
 }
 
+const OCR_SCRIPT = `
+ObjC.import("Foundation");
+ObjC.import("AppKit");
+ObjC.import("Vision");
+function main(a) {
+  const handler = $.VNImageRequestHandler.alloc.initWithURLOptions($.NSURL.fileURLWithPath(a.path), $({}));
+  const request = $.VNRecognizeTextRequest.alloc.init;
+  request.setRecognitionLevel(0);
+  request.setUsesLanguageCorrection(true);
+  if (a.languages.length) request.setRecognitionLanguages($(a.languages));
+  const error = Ref();
+  if (!handler.performRequestsError($([request]), error)) throw new Error("Vision could not read the image.");
+  const frame = $.NSScreen.mainScreen.frame;
+  const width = Number(frame.size.width);
+  const height = Number(frame.size.height);
+  const results = request.results;
+  const lines = [];
+  for (let i = 0; results && !results.isNil() && i < results.count; i++) {
+    const observation = results.objectAtIndex(i);
+    const candidates = observation.topCandidates(1);
+    if (!candidates || candidates.count === 0) continue;
+    const best = candidates.objectAtIndex(0);
+    const box = observation.boundingBox;
+    const x = Number(box.origin.x), y = Number(box.origin.y), w = Number(box.size.width), h = Number(box.size.height);
+    const line = { text: best.string.js, confidence: Math.round(Number(best.confidence) * 100) / 100 };
+    // Vision measures from the bottom left; the screen, and ui_click, from the top left.
+    if (a.fullScreen) line.center = [Math.round((x + w / 2) * width), Math.round((1 - (y + h / 2)) * height)];
+    lines.push(line);
+  }
+  return lines;
+}`;
+
+/** Reads the text on the screen with macOS's own text recognition, so no image leaves this computer. */
+export async function screenText({ window_id, languages }) {
+  try {
+    return await viaHelper("screenText", { window_id, languages }, () => localScreenText({ window_id, languages }));
+  } catch (error) {
+    return errorResult(error.message);
+  }
+}
+
+export async function localScreenText({ window_id, languages = ["es-ES", "en-US"] }, { exec = run, jxa = runJxa } = {}) {
+  if (window_id !== undefined && !Number.isInteger(window_id)) return errorResult("Invalid window_id.");
+  const wanted = (Array.isArray(languages) ? languages : []).filter((code) => /^[a-z]{2,3}(-[A-Z][A-Za-z]{1,3})?$/.test(code)).slice(0, 6);
+  const dir = await mkdtemp(join(tmpdir(), "smcp-"));
+  const file = join(dir, "shot.png");
+  try {
+    const args = ["-x", "-t", "png"];
+    if (window_id !== undefined) args.push("-l", String(window_id));
+    const shot = await exec("/usr/sbin/screencapture", [...args, file], { timeoutMs: 15_000 });
+    if (shot.code !== 0) {
+      return errorResult(
+        "Could not capture. Open SMCP > Settings > macOS Permissions and turn on Screen Recording.\n" + String(shot.stderr ?? "").trim().slice(0, 300),
+      );
+    }
+    const lines = await jxa("", OCR_SCRIPT, { path: file, languages: wanted, fullScreen: window_id === undefined }, {
+      timeoutMs: 60_000,
+      exec,
+      failure: "Could not read the text on the screen.",
+    });
+    return externalResult({ lines, text: lines.map((line) => line.text).join("\n") });
+  } catch (error) {
+    return errorResult(error.message);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 export function registerApps(server) {
   const readOnly = { readOnlyHint: true, openWorldHint: false };
   const acting = { readOnlyHint: false, destructiveHint: true, openWorldHint: true };
@@ -341,5 +410,19 @@ export function registerApps(server) {
       annotations: readOnly,
     },
     screenshot,
+  );
+
+  server.registerTool(
+    "screen_read_text",
+    {
+      description:
+        "Reads the text on the main screen, or in a window by its macOS window_id, with the Mac's own text recognition. Much lighter than a screenshot. On the main screen, each line has a `center` to use with ui_click.",
+      inputSchema: {
+        window_id: z.number().int().min(0).optional(),
+        languages: z.array(z.string().max(10)).max(6).default(["es-ES", "en-US"]).describe("Recognition languages, most likely first."),
+      },
+      annotations: readOnly,
+    },
+    screenText,
   );
 }

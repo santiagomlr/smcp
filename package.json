@@ -12,7 +12,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "node --test test/",
+    "test": "SMCP_AUDIT=\"${TMPDIR:-/tmp}/smcp-test-audit.jsonl\" node --test test/*.test.js",
     "whatsapp:install": "bash scripts/install-wacli.sh",
     "whatsapp:login": "node src/whatsapp-login.js",
     "whatsapp:audio-install": "bash scripts/install-whisper.sh",

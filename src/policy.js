@@ -1,15 +1,41 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { recordCall } from "./audit.js";
 import { errorResult } from "./util.js";
 
-export const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "files", "terminal", "apps"];
+export const GROUPS = [
+  "whatsapp",
+  "gmail",
+  "notes",
+  "tasks",
+  "calendar",
+  "reminders",
+  "applenotes",
+  "files",
+  "clipboard",
+  "terminal",
+  "apps",
+];
 
 const DEFAULTS = {
   paused: false,
   readOnly: false,
   // Terminal and app control could work around the send confirmation, so a person has to switch them on.
-  disabled: { whatsapp: false, gmail: false, notes: false, tasks: false, files: false, terminal: true, apps: true },
+  // Apple Notes and the clipboard hold private text nobody connected on purpose, so they start off too.
+  disabled: {
+    whatsapp: false,
+    gmail: false,
+    notes: false,
+    tasks: false,
+    calendar: false,
+    reminders: false,
+    applenotes: true,
+    files: false,
+    clipboard: true,
+    terminal: true,
+    apps: true,
+  },
   // Writing is something a person opts into when linking. Even then, every message still needs the confirmation window.
   whatsapp: { read: true, send: false, audio: false },
 };
@@ -31,7 +57,10 @@ export const WHATSAPP_TOOL_ABILITIES = {
   whatsapp_read_messages: ["read"],
   whatsapp_search_messages: ["read"],
   whatsapp_sync: ["read"],
+  whatsapp_chat_digest: ["read"],
+  whatsapp_search_transcripts: ["read"],
   whatsapp_send: ["send"],
+  whatsapp_send_file: ["send"],
   whatsapp_transcribe_audio: ["audio"],
 };
 
@@ -94,8 +123,13 @@ export function toolGroup(name) {
   if (name.startsWith("gmail_")) return "gmail";
   if (name.startsWith("notes_")) return "notes";
   if (name.startsWith("tasks_")) return "tasks";
+  if (name.startsWith("calendar_")) return "calendar";
+  if (name.startsWith("reminders_")) return "reminders";
+  if (name.startsWith("applenotes_")) return "applenotes";
   if (name.startsWith("file_")) return "files";
+  if (name.startsWith("clipboard_")) return "clipboard";
   if (name === "run_command") return "terminal";
+  if (name === "daily_brief") return "brief";
   return "apps";
 }
 
@@ -103,6 +137,8 @@ export function toolGroup(name) {
 export function denialFor(name, annotations, policy) {
   if (policy.paused) return "SMCP is paused. You can resume it from the app.";
   const group = toolGroup(name);
+  // The brief has no switch of its own: each of its sections asks for the permission of the tool it reuses.
+  if (group === "brief") return null;
   if (policy.disabled[group]) return `This permission (${group}) is turned off in the SMCP settings.`;
   if (policy.readOnly && annotations?.readOnlyHint !== true && annotations?.destructiveHint !== false) {
     return "SMCP is in read-only mode, so this action did not run.";
@@ -110,13 +146,36 @@ export function denialFor(name, annotations, policy) {
   return group === "whatsapp" ? whatsappDenial(name, policy.whatsapp) : null;
 }
 
-/** Wraps registerTool so the policy is re-read on every call; changes apply at once. */
-export function guarded(server) {
+/**
+ * Wraps registerTool so the policy is re-read on every call; changes apply at once.
+ * Every call is also written to the activity log, without its arguments or results.
+ */
+export function guarded(server, { source = "local", record = recordCall } = {}) {
+  const clientName = () => {
+    try {
+      return server.server?.getClientVersion?.()?.name ?? null;
+    } catch {
+      return null;
+    }
+  };
   return {
     registerTool(name, config, handler) {
       return server.registerTool(name, config, async (...args) => {
+        const started = Date.now();
         const denial = denialFor(name, config.annotations, readPolicy());
-        return denial ? errorResult(denial) : handler(...args);
+        let result;
+        try {
+          result = denial ? errorResult(denial) : await handler(...args);
+          return result;
+        } finally {
+          record({
+            tool: name,
+            source,
+            client: clientName(),
+            outcome: denial ? "denied" : result === undefined ? "failed" : result.isError ? "error" : "ok",
+            ms: Date.now() - started,
+          });
+        }
       });
     },
   };

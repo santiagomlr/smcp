@@ -1,7 +1,7 @@
 import { accessSync, constants } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { appendFile, chmod, mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { confirmGate } from "../confirm-gate.js";
@@ -16,9 +16,71 @@ const PHONE = /^\+?[0-9][0-9 ()-]{5,24}$/;
 const MESSAGE_ID = /^[0-9A-Za-z_-]{6,128}$/;
 const LANGUAGE = /^(auto|[a-z]{2})$/;
 const TRANSCRIBE_TIMEOUT_MS = 5 * 60 * 1000;
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_CAPTION_CHARS = 1000;
+const DIGEST_PAGE = 200;
+const DIGEST_TEXT_CHARS = 1000;
 
 export function storeDir() {
   return process.env.WACLI_STORE_DIR || join(homedir(), ".smcp", "wacli");
+}
+
+/** Transcripts of voice notes, kept so they can be searched later. Deleted with the WhatsApp session. */
+export function transcriptsPath() {
+  return process.env.SMCP_TRANSCRIPTS || join(homedir(), ".smcp", "transcripts.jsonl");
+}
+
+export async function saveTranscript(entry, path = transcriptsPath()) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  await appendFile(path, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+  await chmod(path, 0o600);
+}
+
+/** The newest transcript of each message wins, so transcribing again replaces the old text. */
+export async function readTranscripts(path = transcriptsPath()) {
+  let text;
+  try {
+    text = await readFile(path, "utf8");
+  } catch {
+    return [];
+  }
+  const byMessage = new Map();
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line);
+      if (entry?.chat && entry?.id && typeof entry.transcript === "string") byMessage.set(`${entry.chat}/${entry.id}`, entry);
+    } catch {
+      // A damaged line is skipped.
+    }
+  }
+  return [...byMessage.values()];
+}
+
+const fold = (text) => String(text ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Every word must appear, ignoring accents. Newest first. */
+export function searchTranscripts(entries, { query, chat, limit = 20 }) {
+  const terms = fold(query).split(/\s+/).filter(Boolean);
+  return entries
+    .filter((entry) => (!chat || entry.chat === chat) && terms.every((term) => fold(entry.transcript).includes(term)))
+    .sort((a, b) => String(b.timestamp ?? "").localeCompare(String(a.timestamp ?? "")))
+    .slice(0, limit);
+}
+
+/** One short line per message, oldest first, so a whole stretch of a chat fits in little space. */
+export function compactMessage(message) {
+  const text = message.Text || message.DisplayText || message.MediaCaption || "";
+  return {
+    id: message.MsgID,
+    at: message.Timestamp,
+    from: message.FromMe ? "me" : message.SenderName || message.SenderJID || "",
+    ...(text ? { text: text.length > DIGEST_TEXT_CHARS ? `${text.slice(0, DIGEST_TEXT_CHARS)}…` : text } : {}),
+    ...(message.MediaType ? { media: message.MediaType } : {}),
+    ...(message.Filename ? { file: message.Filename } : {}),
+    ...(message.ReactionEmoji ? { reaction: message.ReactionEmoji } : {}),
+    ...(message.QuotedMsgID ? { reply_to: message.QuotedMsgID } : {}),
+  };
 }
 
 export function wacliBin() {
@@ -86,7 +148,7 @@ function parseJson(text) {
 }
 
 /** Dependencies are injectable so tests never touch a real account or open a dialog. */
-export function createWhatsApp({ exec = run, confirm = confirmWithDialog } = {}) {
+export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transcripts = transcriptsPath(), resolvePath } = {}) {
   const wacli = (args, timeoutMs = 30_000) =>
     exec(wacliBin(), [`--store=${storeDir()}`, ...args], { timeoutMs });
 
@@ -172,17 +234,83 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog } = {})
       if (heard.timedOut) return errorResult("The audio took too long to transcribe.");
       if (heard.code !== 0) return errorResult("Could not transcribe the audio.");
       const text = heard.stdout.replace(/\[BLANK_AUDIO\]/g, "").trim();
-      return externalResult({ chat, id, sender: message.SenderName, timestamp: message.Timestamp, transcript: text || "(no speech detected)" });
+      const entry = { chat, id, sender: message.SenderName, timestamp: message.Timestamp, transcript: text || "(no speech detected)" };
+      if (text) await saveTranscript(entry, transcripts).catch(() => {});
+      return externalResult(entry);
     } finally {
       await rm(folder, { recursive: true, force: true });
     }
   };
 
-  return { read, send, transcribe, wacli };
+  /** Same checks and the same window as a text message, plus the file's name and size. */
+  const sendFile = async ({ to, path, caption = "" }) => {
+    const recipient = to.trim();
+    if (!isValidRecipient(recipient)) {
+      return errorResult("`to` must be a JID or a phone number. Use whatsapp_search_contacts or whatsapp_list_chats to get it.");
+    }
+    if (caption.length > MAX_CAPTION_CHARS) return errorResult(`The caption can have up to ${MAX_CAPTION_CHARS} characters.`);
+    let file;
+    try {
+      const resolve = resolvePath ?? (await import("./files.js")).resolveSafe;
+      file = await resolve(path);
+    } catch (error) {
+      return errorResult(error.code === "ENOENT" ? "That file does not exist." : error.message);
+    }
+    const info = await stat(file).catch(() => null);
+    if (!info?.isFile()) return errorResult("That path is not a file.");
+    if (info.size > MAX_FILE_BYTES) return errorResult("That file is larger than 100 MB.");
+
+    const name = await displayName(recipient);
+    const header = name ? `To: ${name} (${recipient})` : `To: ${recipient}`;
+    const size = info.size >= 1024 * 1024 ? `${(info.size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(info.size / 1024))} KB`;
+    const shown = `${header}\n\nFile: ${basename(file)} (${size})\nFolder: ${dirname(file).replace(homedir(), "~")}${caption ? `\n\nCaption:\n${caption}` : ""}`;
+    if (!(await confirm(shown))) {
+      return textResult({ sent: false, reason: "Not confirmed in the macOS window. Nothing was sent." });
+    }
+    const args = ["--json", "send", "file", `--to=${recipient}`, `--file=${file}`, "--max-size-mb=100"];
+    if (caption) args.push(`--caption=${caption}`);
+    const result = await wacli(args, 300_000);
+    if (!succeeded(result)) {
+      return errorResult(`${wacliFailure(result, "Send file")}\nThe outcome may be uncertain: check the chat before retrying.`);
+    }
+    return textResult(parseJson(result.stdout) ?? result.stdout);
+  };
+
+  /** Walks the pages of a stretch of a chat and returns it oldest first, in compact lines. */
+  const digest = async ({ chat, after, before, limit = 500 }) => {
+    const collected = [];
+    let cursor;
+    while (collected.length < limit) {
+      const args = ["--read-only", "--json", "messages", "list", `--chat=${chat}`, `--limit=${Math.min(DIGEST_PAGE, limit - collected.length)}`];
+      if (after) args.push(`--after=${after}`);
+      if (before) args.push(`--before=${before}`);
+      if (cursor) args.push(`--cursor=${cursor}`);
+      const result = await wacli(args);
+      if (!succeeded(result)) return errorResult(wacliFailure(result, "Read messages"));
+      const data = parseJson(result.stdout)?.data ?? {};
+      const page = Array.isArray(data.messages) ? data.messages : [];
+      collected.push(...page.filter((message) => !message.ReactionToID && !message.Revoked));
+      cursor = data.page?.next_cursor;
+      if (!cursor || !page.length) break;
+    }
+    const messages = collected.slice(0, limit).reverse().map(compactMessage);
+    return externalResult({
+      chat,
+      count: messages.length,
+      from: messages[0]?.at ?? null,
+      to: messages.at(-1)?.at ?? null,
+      complete: !cursor || collected.length < limit,
+      messages,
+    });
+  };
+
+  const findTranscripts = async (args) => externalResult({ transcripts: searchTranscripts(await readTranscripts(transcripts), args) });
+
+  return { read, send, sendFile, digest, findTranscripts, transcribe, wacli };
 }
 
 export function registerWhatsApp(server) {
-  const { read, send, transcribe, wacli } = createWhatsApp();
+  const { read, send, sendFile, digest, findTranscripts, transcribe, wacli } = createWhatsApp();
   const readOnly = { readOnlyHint: true, openWorldHint: false };
   const limit = (fallback) => z.number().int().min(1).max(200).default(fallback);
 
@@ -291,6 +419,51 @@ export function registerWhatsApp(server) {
       if (!succeeded(result)) return errorResult(wacliFailure(result, "Sync"));
       return textResult({ synced: true, truncated_output: result.truncated });
     },
+  );
+
+  server.registerTool(
+    "whatsapp_chat_digest",
+    {
+      description:
+        "Returns a stretch of a chat between two dates, oldest first, as one short line per message, ready to summarize. Walks every page on its own, up to `limit` messages.",
+      inputSchema: {
+        chat: z.string().regex(JID).describe("Chat JID."),
+        after: z.string().max(40).describe("Earliest date, for example 2026-11-01."),
+        before: z.string().max(40).optional().describe("Latest date. By default, now."),
+        limit: z.number().int().min(1).max(2000).default(500),
+      },
+      annotations: readOnly,
+    },
+    digest,
+  );
+
+  server.registerTool(
+    "whatsapp_search_transcripts",
+    {
+      description: "Searches the text of voice notes already transcribed with whatsapp_transcribe_audio. Every word must appear; accents are ignored.",
+      inputSchema: {
+        query: z.string().min(1).max(200),
+        chat: z.string().regex(JID).optional(),
+        limit: z.number().int().min(1).max(100).default(20),
+      },
+      annotations: readOnly,
+    },
+    findTranscripts,
+  );
+
+  server.registerTool(
+    "whatsapp_send_file",
+    {
+      description:
+        "Sends a file from this computer (photo, video, PDF, document) with an optional caption. Opens a macOS window with the recipient, the file name and size, and sends only if the person presses Send.",
+      inputSchema: {
+        to: z.string().max(100).describe("JID or phone number with country code."),
+        path: z.string().min(1).max(1000).describe("Absolute path or one that starts with ~/."),
+        caption: z.string().max(MAX_CAPTION_CHARS).optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    sendFile,
   );
 
   server.registerTool(

@@ -1,6 +1,6 @@
 # SMCP
 
-SMCP connects your AI to your computer: WhatsApp, Gmail, Obsidian notes, tasks, files, the terminal and app control. It needs no SMCP account, runs no servers of its own and collects no telemetry.
+SMCP connects your AI to your computer: WhatsApp, Gmail, Obsidian notes, tasks, calendar, reminders, Apple Notes, files, the clipboard, the terminal and app control. It needs no SMCP account, runs no servers of its own and collects no telemetry.
 
 It lives in the menu bar and connects to Claude Code, Claude Desktop, Cursor, VS Code and Antigravity. Claude mobile, Claude web and ChatGPT connect through a private URL.
 
@@ -16,15 +16,32 @@ Get the latest version from [Releases](https://github.com/santiagomlr/smcp/relea
 
 | Area | Tools | From your phone |
 |---|---|---|
-| WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_transcribe_audio` | Everything except sending and listening to audio |
-| Gmail, multiple accounts | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_send` | Everything except sending |
-| Notes, Obsidian or Markdown | `notes_list_vaults`, `notes_search`, `notes_recent`, `notes_read`, `notes_write` | Everything except writing |
+| Your day | `daily_brief` | Yes |
+| WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_chat_digest`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_send_file`, `whatsapp_transcribe_audio`, `whatsapp_search_transcripts` | Everything except sending and listening to audio |
+| Gmail, multiple accounts | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_read_attachment`, `gmail_send`, `gmail_reply`, `gmail_draft` | Everything except sending and drafts |
+| Notes, Obsidian or Markdown | `notes_list_vaults`, `notes_search`, `notes_semantic_search`, `notes_recent`, `notes_read`, `notes_write` | Everything except writing |
 | Tasks | `tasks_available`, `tasks_search`, `tasks_list_projects`, `tasks_claude_queue`, `tasks_hygiene`, `tasks_forecast`, `tasks_review_list`, `tasks_mark_reviewed`, `tasks_create`, `tasks_update`, `tasks_append_note`, `tasks_complete` | Read only |
+| Calendar | `calendar_list_calendars`, `calendar_list_events`, `calendar_free_slots`, `calendar_create_event` | Everything except adding events |
+| Reminders | `reminders_list_lists`, `reminders_list`, `reminders_create`, `reminders_complete` | Read only |
+| Apple Notes | `applenotes_search`, `applenotes_recent`, `applenotes_read` | Yes |
 | Files | `file_list`, `file_read`, `file_search`, `file_write` | Everything except writing |
+| Clipboard | `clipboard_read`, `clipboard_write` | Not available |
 | Terminal | `run_command` | Not available |
-| Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot` | Not available |
+| Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot`, `screen_read_text` | Not available |
 
-Terminal and Apps start turned off. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
+Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
+
+**Your day:** `daily_brief` gathers today's events, reminders due, available tasks, unread WhatsApp chats and recent unread email in one call. Each part follows its own permission, so an area you turned off is left out.
+
+**Calendar and Reminders** read every account on your Mac (iCloud, Google, Exchange) through the system calendar. `calendar_free_slots` finds free time within working hours. Adding an event opens a confirmation window like sending does. The first time, macOS asks whether SMCP may use your calendar or reminders.
+
+**Search by meaning:** `notes_semantic_search` finds notes about an idea even when the words differ. It uses the language model built into macOS, so nothing is downloaded and nothing leaves your computer. The first search of a large vault indexes it in steps.
+
+**Documents:** `file_read` and `gmail_read_attachment` turn PDFs and Word, RTF and HTML files into text with tools that come with macOS. `screen_read_text` reads the text on the screen with the Mac's own text recognition, which is much lighter than a screenshot.
+
+**Gmail drafts** go to your Drafts folder without sending anything, so you can review them in Gmail. `gmail_reply` fills in the recipients and the subject from the original.
+
+**WhatsApp:** `whatsapp_chat_digest` returns a stretch of a chat between two dates, ready to summarize. `whatsapp_send_file` sends a photo or document with the same confirmation window, showing the file's name and size. Voice notes you transcribe are kept so `whatsapp_search_transcripts` can search them later.
 
 When you link WhatsApp, you choose what the AI can do: **read your chats** and **write with your approval**. Reading starts on and writing starts off. You can change this in Settings, and the change applies on the next call, including from your phone. Turning writing on never skips the confirmation window. Installations from before this option keep both on.
 
@@ -36,7 +53,7 @@ Open **SMCP**. The first time, setup walks you through each step, and you can sk
 
 - **Menu bar:** today's tasks, quick capture, devices and connections. A green dot means active; red means paused.
 - **Connections:** AI apps, remote access, WhatsApp, Gmail, notes and Tailscale machines.
-- **Settings:** language, pause, read only, permissions by area, macOS permissions, updates and where your tasks live.
+- **Settings:** language, pause, read only, permissions by area, recent activity, macOS permissions, updates and where your tasks live.
 - **Tasks ↗:** Today, Inbox, Upcoming and your projects. Type and press Enter to add. Each task shows who does it, **Me** or **Claude**.
 
 ## Updates
@@ -80,6 +97,9 @@ Everything is in `~/.smcp/`, with permissions for your user only.
 | `tasks.json` | Tasks, with a daily backup in `tasks.json.bak` |
 | `wacli/` | WhatsApp session and messages, unencrypted |
 | `whisper/` | Audio model, if you turned it on |
+| `transcripts.jsonl` | Text of the voice notes you transcribed. Deleted when you disconnect WhatsApp |
+| `notes-index.json` | Search-by-meaning index of your vaults, with short previews. A vault you turn off leaves it |
+| `audit.jsonl` | Recent activity: which tool ran, when, from where and how it ended. Never what it read or sent |
 | `gmail.json` | Accounts, with passwords encrypted by the system keychain |
 | `vaults.json` | Vaults that are turned on |
 | `config.json` | Pause, read only, permissions by area and what the AI can do with WhatsApp |
@@ -89,11 +109,13 @@ Whatever the AI reads is sent to that AI's provider.
 
 ## Security
 
-- **Sending:** every WhatsApp message and email opens a macOS window showing the recipient and the text. It only goes out if you press Send. This can't be turned off in settings.
+- **Sending:** every WhatsApp message, file and email opens a macOS window showing the recipient and the text or file. It only goes out if you press Send. Adding a calendar event asks the same way. This can't be turned off in settings.
+- **Recent activity:** Settings lists the last calls your AI made, with the time, whether it came from this computer or remotely, and whether it worked or was blocked. You can clear it at any time.
+- **Clipboard:** off until you turn it on, because it often holds passwords and codes.
 - **Remote access:** uses [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). The URL is public, but it requires OAuth and a pairing code that only appears in the app. The code works once, lasts 10 minutes and is invalidated after 5 attempts.
 - **Tasks across computers:** go through Tailscale Serve, without opening the firewall, and only accept your own Tailscale account.
 - **Notes:** off until you turn them on. The tools can't leave the vault or enter hidden folders.
-- **Files:** credentials and `~/.smcp` are blocked. This is a barrier against accidents: `run_command` doesn't have this limit.
+- **Files:** credentials and `~/.smcp` are blocked, for reading and for sending through WhatsApp. This is a barrier against accidents: `run_command` doesn't have this limit.
 - **Don't set** `run_command`, `ui_click`, `ui_type` or `ui_key` **to "always allow".** A malicious message could try to trick the AI into using them.
 
 ## Limitations

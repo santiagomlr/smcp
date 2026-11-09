@@ -2,6 +2,7 @@ import { appendFile, mkdir, open, readdir, readlink, realpath, stat, writeFile }
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { z } from "zod";
+import { documentKind, documentText } from "../documents.js";
 import { errorResult, externalResult, textResult } from "../util.js";
 import { storeDir } from "./whatsapp.js";
 
@@ -102,10 +103,26 @@ export async function listDir({ path, limit }) {
   return externalResult({ path: dir, total: entries.length, truncated: entries.length > limit, items });
 }
 
+/** PDFs and Word files come back as their text; offset and max_bytes then count characters. */
+async function readDocument(file, info, offset, max) {
+  const { text, pages } = await documentText(file);
+  const chunk = text.slice(offset, offset + max);
+  return externalResult({
+    path: file,
+    size: info.size,
+    ...(pages === undefined ? {} : { pages }),
+    converted_from: documentKind(file),
+    offset,
+    next_offset: offset + chunk.length < text.length ? offset + chunk.length : null,
+    content: chunk,
+  });
+}
+
 export async function readText({ path, offset, max_bytes }) {
   const file = await resolveSafe(path);
   const info = await stat(file);
   if (!info.isFile()) throw new Error("That path is not a file.");
+  if (["pdf", "textutil"].includes(documentKind(file))) return readDocument(file, info, offset, max_bytes);
   const handleFile = await open(file, "r");
   try {
     const buffer = Buffer.alloc(Math.min(max_bytes, Math.max(info.size - offset, 0)));
@@ -178,7 +195,7 @@ export function registerFiles(server) {
   server.registerTool(
     "file_read",
     {
-      description: "Reads a text file. For large files, use next_offset to keep reading.",
+      description: "Reads a text file. PDFs and Word, RTF and HTML documents come back as their text. For large files, use next_offset to keep reading.",
       inputSchema: {
         path: z.string(),
         offset: z.number().int().min(0).default(0),

@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld("api", {
   calendarStatus: () => call("calendar-status"),
   calendarRequest: () => call("calendar-request"),
   calendarEvents: (from, to) => call("calendar-events", from, to),
+  auditList: () => call("audit-list"),
+  auditClear: () => call("audit-clear"),
   tasksSetHub: (enabled) => call("tasks-set-hub", enabled),
   tasksSetHost: (host) => call("tasks-set-host", host),
   vaultAdd: () => call("vault-add"),
