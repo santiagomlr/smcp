@@ -1,5 +1,6 @@
 # Checks that SMCP works on macOS, Windows and Linux for every pull request and every change to main:
-# runs the tests, starts the app from source, builds the package for that system and starts the packaged app.
+# runs the tests (macOS and Linux), starts the app from source, builds the package for that system
+# and starts the packaged app.
 # It never touches the signing key and publishes nothing.
 name: CI
 
@@ -60,7 +61,11 @@ jobs:
       - name: Install dependencies
         run: bash scripts/retry.sh npm ci
 
+      # The unit tests cover the local MCP server, which runs on macOS and Linux: zsh, Unix sockets and
+      # private (0600) file permissions, which Windows does not have. On Windows SMCP is a panel with no
+      # local server, and the steps below check that panel starts, packages and starts again once packaged.
       - name: Tests
+        if: runner.os != 'Windows'
         run: npm test
 
       - name: Start the app from source

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir, networkInterfaces, userInfo } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { createSocket } from "node:dgram";
 import { run } from "../../src/util.js";
 
@@ -104,7 +104,7 @@ export function linuxSshCommand({ user, ip, identity }, { home = homedir(), path
   const ssh = ["ssh", ...(key ? ["-i", key] : []), `${user}@${ip}`];
   const dirs = path.split(":").filter((dir) => dir.startsWith("/"));
   for (const [name, flags] of LINUX_TERMINALS) {
-    const bin = dirs.map((dir) => join(dir, name)).find((candidate) => exists(candidate));
+    const bin = dirs.map((dir) => posix.join(dir, name)).find((candidate) => exists(candidate));
     if (bin) return { command: bin, args: [...flags, ...ssh] };
   }
   return null;
