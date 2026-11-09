@@ -21,12 +21,77 @@ function row(on, name, meta, action) {
   return item;
 }
 
+/** A row button that shows its progress and outcome, since the panel has no other place for errors. */
+function actionButton(label, busyLabel, run, meta) {
+  const button = element("button", { type: "button", textContent: label });
+  button.onclick = async () => {
+    button.disabled = true;
+    button.textContent = busyLabel;
+    const result = await run();
+    if (result.ok) {
+      button.textContent = result.done;
+      meta.textContent = "";
+    } else {
+      button.textContent = label;
+      button.disabled = false;
+      meta.textContent = tr("Failed");
+      meta.title = result.error;
+    }
+    resize();
+  };
+  return button;
+}
+
+async function wake(name) {
+  const result = await window.api.wake(name);
+  return result.ok ? { ok: true, done: tr("Sent") } : result;
+}
+
+async function update(name) {
+  const result = await window.api.updateMachine(name);
+  if (!result.ok) return result;
+  return { ok: true, done: result.value?.status === "latest" ? tr("Up to date") : tr("Updating…") };
+}
+
 function machineRow(machine) {
-  const wake = machine.canWake
-    ? element("button", { type: "button", textContent: tr("Wake"), onclick: () => window.api.wake(machine.name) })
-    : null;
-  const meta = machine.self ? tr("This computer") : machine.online ? tr("Online") : wake ? "" : tr("Offline");
-  return row(machine.online, machine.alias || machine.name, meta, wake);
+  const meta = machine.self
+    ? tr("This computer")
+    : machine.outdated && !machine.canUpdate
+      ? tr("Update available")
+      : machine.online
+        ? tr("Online")
+        : machine.canWake
+          ? ""
+          : tr("Offline");
+  const item = row(machine.online, machine.alias || machine.name, meta);
+  const metaNode = item.querySelector(".panel-meta");
+  if (machine.smcp) metaNode.title = `SMCP ${machine.smcp.version}`;
+  if (machine.canWake) item.append(actionButton(tr("Wake"), tr("Waking…"), () => wake(machine.name), metaNode));
+  if (machine.canUpdate) {
+    metaNode.textContent = "";
+    item.append(actionButton(tr("Update"), tr("Updating…"), () => update(machine.name), metaNode));
+  }
+  return item;
+}
+
+/** A line under the header while this computer has a newer SMCP waiting. */
+function renderUpdate(update) {
+  const box = $("p-update");
+  const available = update?.status === "available";
+  const installing = update?.status === "installing";
+  box.hidden = !available && !installing;
+  if (box.hidden) return;
+  $("p-update-text").textContent = installing ? tr("Updating SMCP…") : tr("SMCP {version} is available", { version: update.latest });
+  const button = $("p-update-button");
+  button.hidden = installing;
+  button.disabled = false;
+  button.textContent = update.canInstall ? tr("Update") : tr("Download");
+  button.onclick = async () => {
+    if (!update.canInstall) return window.api.openLink("releases");
+    button.disabled = true;
+    button.textContent = tr("Updating…");
+    await window.api.updatesInstall();
+  };
 }
 
 function connectionRows(state) {
@@ -156,7 +221,8 @@ async function refresh() {
   status.classList.toggle("paused", paused);
   $("p-pause").checked = paused;
   await loadTasks();
-  const key = JSON.stringify([state.tailscale.machines, state.clients, state.whatsapp.linked, state.gmail, state.notes, state.remote.enabled, state.remote.clients.length, state.remote.supported]);
+  renderUpdate(state.update);
+  const key = JSON.stringify([state.tailscale.machines, state.update, state.clients, state.whatsapp.linked, state.gmail, state.notes, state.remote.enabled, state.remote.clients.length, state.remote.supported]);
   if (key === lastKey) return resize();
   lastKey = key;
   const machines = state.tailscale.machines;

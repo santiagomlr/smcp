@@ -38,12 +38,13 @@ import {
 import { calendarEvents, calendarStatus, eventKit, requestCalendar } from "./core/calendar.js";
 import { disableFunnel, enableFunnel, isFunnelOn, readBaseUrl } from "./core/funnel.js";
 import { createAccountStore, createGmail } from "./core/gmail.js";
-import { readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
+import { magicPacket, readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
+import { callPeer, createPeerHub, PEER_LOCAL_PORT, PEER_PORT, peerInfo } from "./core/peers.js";
 import { createRemote, REMOTE_PORT } from "./core/remote.js";
 import { createRemoteTasks, createTasksHub, disableServe, enableServe, tailscaleLogin } from "./core/tasks-hub.js";
 import { createTaskStore, TASK_OPERATIONS } from "./core/tasks.js";
 import { coalesce, retry, whenChanged } from "./core/throttle.js";
-import { createUpdater, RELEASES_PAGE } from "./core/updater.js";
+import { createUpdater, isNewer, RELEASES_PAGE } from "./core/updater.js";
 import { logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
 import { audioSupported, downloadModel } from "./core/whisper.js";
 import { buildRemoteServer } from "../src/remote-tools.js";
@@ -95,6 +96,9 @@ const gmail = createGmail({
 
 let localTasks = null;
 let tasksHub = null;
+let peerHub = null;
+/** What each of the user's other computers running SMCP last said about itself, by machine name. */
+const peers = new Map();
 
 const settingsPath = () => join(app.getPath("userData"), "settings.json");
 
@@ -156,12 +160,22 @@ async function readState() {
         )
       ).filter((client) => client.installed || client.connected)
     : [];
-  const machines = tailscale.machines.map((machine) => ({
-    ...machine,
-    alias: settings.machines?.[machine.name]?.alias ?? "",
-    user: settings.machines?.[machine.name]?.user ?? "",
-    canWake: machine.os === "windows" && !machine.online && Boolean(pcConfig.mac),
-  }));
+  const update = updateSummary();
+  const machines = tailscale.machines.map((machine) => {
+    const smcp = machine.self || !machine.online ? null : (peers.get(machine.name) ?? null);
+    const newest = [update.latest, smcp?.update.latest].filter(Boolean).sort((a, b) => (isNewer(a, b) ? -1 : 1))[0];
+    const outdated = Boolean(smcp && newest && isNewer(newest, smcp.version));
+    return {
+      ...machine,
+      alias: settings.machines?.[machine.name]?.alias ?? "",
+      user: settings.machines?.[machine.name]?.user ?? "",
+      canWake: machine.os === "windows" && !machine.online && Boolean(pcConfig.mac),
+      smcp: smcp ? { version: smcp.version, latest: outdated ? newest : null } : null,
+      outdated,
+      // Only the Mac build installs itself; a PC with an old version gets the notice but no button.
+      canUpdate: outdated && smcp.platform === "darwin",
+    };
+  });
   lastState = {
     platform: process.platform,
     tailscale: { ...tailscale, machines },
@@ -183,8 +197,10 @@ async function readState() {
     permissions: readPermissions(),
     policy: readPolicy(),
     version: app.getVersion(),
+    update,
   };
   updateTray();
+  refreshPeers().catch((error) => console.error("peers:", error.message));
   return lastState;
 }
 
@@ -214,9 +230,86 @@ async function openTerminal(name) {
   }).unref();
 }
 
+/* Other computers running SMCP */
+
+const PEER_VERSION = /^\d+\.\d+\.\d+$/;
+const peersChanged = whenChanged(() => collectState());
+
+/** Asks every online computer what SMCP it runs. Ones without SMCP simply do not answer. */
+const refreshPeers = coalesce(async () => {
+  const others = lastState?.tailscale.machines.filter((machine) => !machine.self && machine.online && machine.dns) ?? [];
+  const answers = await Promise.all(
+    others.map(async (machine) => [machine.name, await callPeer(machine.dns, "info", {}, { timeoutMs: 3_000 }).catch(() => null)]),
+  );
+  peers.clear();
+  for (const [name, info] of answers) {
+    if (PEER_VERSION.test(info?.version ?? "") && info.update) peers.set(name, info);
+  }
+  peersChanged(Object.fromEntries(peers));
+});
+
+/** What a remote "update" does here: the same signed download as Settings, then a quiet restart. */
+async function updateAtPeerRequest() {
+  if (!app.isPackaged) throw new Error("This copy of SMCP cannot update itself.");
+  const snapshot = await updater.check();
+  if (snapshot.status === "installing") return { status: "installing", version: snapshot.latest };
+  if (snapshot.status === "latest") return { status: "latest", version: snapshot.current };
+  if (snapshot.status !== "available") throw new Error(snapshot.message || "Could not check for updates.");
+  if (!snapshot.canInstall) throw new Error("This computer cannot install updates by itself.");
+  new Notification({ title: tr("Updating SMCP to {version}", { version: snapshot.latest }), body: tr("Another of your computers asked for it. SMCP will restart by itself.") }).show();
+  // Answer first: the install quits this app once it has the new version ready.
+  setTimeout(() => updater.install({ background: true }).catch((error) => console.error("updates:", error.message)), 300);
+  return { status: "installing", version: snapshot.latest };
+}
+
+async function startPeerHub() {
+  if (peerHub) return;
+  if (!(await readTailscale()).installed) return;
+  const owner = await tailscaleLogin();
+  if (!owner) throw new Error(tr("Sign in to Tailscale to share your tasks."));
+  const hub = createPeerHub({
+    owner,
+    handlers: {
+      info: () => peerInfo({ version: app.getVersion(), platform: process.platform, update: updater.state() }),
+      update: updateAtPeerRequest,
+      wake: async ({ mac }) => ({ sent: (await sendWake({ mac })).sent }),
+    },
+  });
+  await hub.start();
+  try {
+    await enableServe(PEER_PORT, PEER_LOCAL_PORT);
+  } catch (error) {
+    await hub.stop();
+    throw error;
+  }
+  peerHub = hub;
+}
+
+/**
+ * The magic packet only travels inside the PC's local network. This computer sends it on every network it is on,
+ * and every other computer with SMCP sends it too, so it works from anywhere as long as one of them is home.
+ */
 async function wakeMachine(name) {
   if (findMachine(name).os !== "windows") throw new Error(tr("Only the PC can be turned on from here."));
-  await sendWake(await readPcConfig());
+  const pcConfig = await readPcConfig();
+  magicPacket(pcConfig.mac);
+  const relays = lastState.tailscale.machines.filter((machine) => !machine.self && machine.online && machine.dns && peers.has(machine.name));
+  const [local, ...remote] = await Promise.allSettled([
+    sendWake(pcConfig),
+    ...relays.map((machine) => callPeer(machine.dns, "wake", { mac: pcConfig.mac }, { timeoutMs: 6_000 })),
+  ]);
+  const helpers = remote.filter((result) => result.status === "fulfilled").length;
+  if (local.status === "rejected" && !helpers) throw local.reason;
+  return { local: local.status === "fulfilled", helpers };
+}
+
+async function updateMachine(name) {
+  const machine = findMachine(name);
+  if (machine.self) throw new Error(tr("Update this computer from Settings."));
+  if (!machine.online || !machine.dns) throw new Error(tr("That computer is offline."));
+  const result = await callPeer(machine.dns, "update", {}, { timeoutMs: 30_000 });
+  peers.delete(machine.name);
+  return result;
 }
 
 function mcpEntry() {
@@ -775,6 +868,8 @@ const setTrayImage = whenChanged(({ bar, status }) => {
   tray.setImage(nativeImage.createFromPath(join(HERE, "assets", `tray-${bar}-${status}.png`)));
 });
 const setTrayToolTip = whenChanged((text) => tray.setToolTip(text));
+// A small arrow next to the icon in the menu bar while any of the user's computers has a newer SMCP waiting.
+const setTrayTitle = whenChanged((text) => tray.setTitle(text));
 // The panel re-reads state when told it changed, so telling it on every read would loop forever.
 const tellPanel = whenChanged(() => panel?.webContents.send("state-changed"));
 
@@ -782,7 +877,10 @@ function updateTray() {
   if (!tray) return;
   setTrayImage(trayLook());
   const online = lastState?.tailscale.machines.filter((machine) => machine.online).length ?? 0;
-  setTrayToolTip(lastState?.policy.paused ? tr("SMCP: paused") : tr("SMCP: active · {online} online", { online }));
+  const pending = lastState?.update?.status === "available" || Boolean(lastState?.tailscale.machines.some((machine) => machine.outdated));
+  if (IS_MAC) setTrayTitle(pending ? "↑" : "");
+  const status = lastState?.policy.paused ? tr("SMCP: paused") : tr("SMCP: active · {online} online", { online });
+  setTrayToolTip(pending ? `${status} · ${tr("update available")}` : status);
   tellPanel(lastState);
 }
 
@@ -876,7 +974,17 @@ const FIRST_UPDATE_CHECK_MS = 60_000;
 
 const tellUpdates = whenChanged(() => {
   for (const window of BrowserWindow.getAllWindows()) window.webContents.send("updates-changed");
+  if (lastState) {
+    lastState = { ...lastState, update: updateSummary() };
+    updateTray();
+  }
 });
+
+/** The part of the updater's state the top bar and the devices list need. */
+function updateSummary() {
+  const { current, status, latest, canInstall } = updater.state();
+  return { current, status, latest, canInstall };
+}
 
 const updater = createUpdater({
   currentVersion: app.getVersion(),
@@ -998,6 +1106,7 @@ function registerIpc() {
   handle("state", collectState);
   handle("open-terminal", openTerminal);
   handle("wake", wakeMachine);
+  handle("update-machine", updateMachine);
   handle("set-client", setClient);
   handle("save-machine", saveMachine);
   handle("whatsapp-sync", syncWhatsApp);
@@ -1067,6 +1176,7 @@ if (!app.requestSingleInstanceLock()) {
     cancelLogin?.();
     remote?.stop();
     tasksHub?.stop();
+    peerHub?.stop();
   });
   // Keep running in the top bar with no windows open.
   app.on("window-all-closed", () => {});
@@ -1085,6 +1195,7 @@ if (!app.requestSingleInstanceLock()) {
     // At login Tailscale may still be starting. Each attempt re-reads the setting, so switching off stops it.
     retry(resumeRemote).catch((error) => console.error("remote:", error.message));
     retry(resumeTasksHub).catch((error) => console.error("tasks hub:", error.message));
+    retry(startPeerHub).catch((error) => console.error("peers:", error.message));
     startUpdates();
     if (startedInBackground) app.dock?.hide();
     else showWindow();

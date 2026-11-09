@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("api", {
   state: () => call("state"),
   openTerminal: (name) => call("open-terminal", name),
   wake: (name) => call("wake", name),
+  updateMachine: (name) => call("update-machine", name),
   setClient: (client, enabled) => call("set-client", client, enabled),
   saveMachine: (name, values) => call("save-machine", name, values),
   whatsappSync: () => call("whatsapp-sync"),
