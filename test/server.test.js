@@ -85,6 +85,8 @@ test("expone las herramientas esperadas por MCP", async () => {
     "security_restore",
     "security_scan_file",
     "security_scan_folder",
+    "smcp_context",
+    "smcp_remember",
     "smcp_status",
     "tasks_append_note",
     "tasks_available",

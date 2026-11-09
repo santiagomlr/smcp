@@ -140,7 +140,8 @@ export function toolGroup(name) {
   if (name.startsWith("clipboard_")) return "clipboard";
   if (name.startsWith("security_")) return "security";
   if (name.startsWith("nightlight_")) return "nightlight";
-  if (name === "smcp_status") return "status";
+  if (name === "smcp_status" || name === "smcp_context") return "status";
+  if (name === "smcp_remember") return "context";
   if (name === "run_command") return "terminal";
   if (name === "daily_brief") return "brief";
   return "apps";
@@ -153,7 +154,11 @@ export function denialFor(name, annotations, policy) {
   if (policy.paused) return "SMCP is paused. You can resume it from the app.";
   const group = toolGroup(name);
   // The brief has no switch of its own: each of its sections asks for the permission of the tool it reuses.
+  // The person's own notes have no switch either; read-only mode still stops writing to them.
   if (group === "brief") return null;
+  if (group === "context") {
+    return policy.readOnly && annotations?.readOnlyHint !== true ? "SMCP is in read-only mode, so this action did not run." : null;
+  }
   if (policy.disabled[group]) return `This permission (${group}) is turned off in the SMCP settings.`;
   if (policy.readOnly && annotations?.readOnlyHint !== true && annotations?.destructiveHint !== false) {
     return "SMCP is in read-only mode, so this action did not run.";
