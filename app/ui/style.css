@@ -1193,6 +1193,61 @@ button.add {
   margin-top: 3px;
 }
 
+/* Update progress: fills with the real percentage, and slides when the length is unknown */
+
+.update-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 210px;
+  max-width: 100%;
+  margin-top: 7px;
+}
+
+.update-progress[hidden] {
+  display: none;
+}
+
+.update-track {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--rail);
+}
+
+.update-track i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--mark-weft);
+  transition: width var(--base) var(--ease);
+}
+
+.update-progress.indeterminate .update-track i {
+  width: 36%;
+  transition: none;
+  animation: update-slide 1100ms ease-in-out infinite;
+}
+
+.update-percent {
+  min-width: 3ch;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+
+@keyframes update-slide {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(310%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1200,5 +1255,12 @@ button.add {
     animation-duration: 1ms !important;
     animation-delay: 0ms !important;
     transition-duration: 1ms !important;
+  }
+
+  .update-progress.indeterminate .update-track i {
+    width: 100%;
+    opacity: 0.55;
+    animation: none;
+    transform: none;
   }
 }

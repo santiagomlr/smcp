@@ -893,8 +893,21 @@ function updateStatusText({ status, latest, message, current }) {
   return tr("You're on version {version}.", { version: current });
 }
 
+function renderUpdateProgress({ status, progress }) {
+  const bar = $("update-progress");
+  bar.hidden = status !== "checking" && status !== "installing";
+  if (bar.hidden) return;
+  const known = typeof progress === "number";
+  bar.classList.toggle("indeterminate", !known);
+  $("update-fill").style.width = known ? `${progress}%` : "";
+  $("update-percent").textContent = known ? `${progress}%` : "";
+  if (known) bar.setAttribute("aria-valuenow", String(progress));
+  else bar.removeAttribute("aria-valuenow");
+}
+
 function renderUpdates(value) {
   updates = value;
+  renderUpdateProgress(value);
   const button = $("check-updates");
   const installable = value.status === "available" && value.canInstall;
   const manual = value.status === "available" && !value.canInstall;

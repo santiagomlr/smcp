@@ -193,7 +193,7 @@
           <ul class="rows">
             <li><label for="language">Language</label><select id="language"><option value="en">English</option><option value="es">Español</option></select></li>
             <li><label for="open-at-login">Open at login</label><input id="open-at-login" class="switch" type="checkbox" role="switch" /></li>
-            <li><span>Updates<small id="update-status" aria-live="polite"></small></span><button id="check-updates" type="button">Check for updates</button></li>
+            <li><span>Updates<small id="update-status" aria-live="polite"></small><span id="update-progress" class="update-progress" role="progressbar" aria-label="Update progress" aria-valuemin="0" aria-valuemax="100" hidden><span class="update-track"><i id="update-fill"></i></span><span id="update-percent" class="update-percent"></span></span></span><button id="check-updates" type="button">Check for updates</button></li>
             <li><label for="auto-update">Update automatically<small id="auto-update-note"></small></label><input id="auto-update" class="switch" type="checkbox" role="switch" /></li>
             <li><span>Initial setup</span><button id="redo-onboarding" type="button">Run again</button></li>
             <li><span>Diagnostics<small id="diag-status">No names, accounts or messages.</small></span><button id="copy-diagnostics" type="button">Copy</button></li>

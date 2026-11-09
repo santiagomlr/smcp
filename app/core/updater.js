@@ -77,7 +77,7 @@ export function createUpdater({
   pid = process.pid,
 }) {
   const macBuild = platform === "darwin" && arch === "arm64";
-  let snapshot = { current: currentVersion, status: "idle", latest: null, message: "", canInstall: false };
+  let snapshot = { current: currentVersion, status: "idle", latest: null, message: "", canInstall: false, progress: null };
   let manifest = null;
 
   function set(patch) {
@@ -118,6 +118,8 @@ export function createUpdater({
         received += chunk.length;
         if (received > expected.size) return done(new Error("The download is larger than expected."));
         hash.update(chunk);
+        const progress = Math.floor((received / expected.size) * 100);
+        if (progress !== snapshot.progress) set({ progress });
         done(null, chunk);
       },
     });
@@ -143,11 +145,11 @@ export function createUpdater({
       if (!appBundle?.endsWith(".app")) throw new Error("Only the installed app can be updated.");
       await access(dirname(appBundle), constants.W_OK);
       const build = manifest.mac.arm64;
-      set({ status: "installing", message: "Downloading…" });
+      set({ status: "installing", message: "Downloading…", progress: 0 });
       work = await mkdtemp(join(tempRoot, "smcp-update-"));
       const zip = join(work, build.file);
       await download(`https://github.com/${REPO}/releases/download/v${manifest.version}/${build.file}`, zip, build);
-      set({ message: "Verifying…" });
+      set({ message: "Verifying…", progress: null });
       const extracted = join(work, "extracted");
       await run("ditto", ["-x", "-k", zip, extracted]);
       const fresh = join(extracted, "SMCP.app");
@@ -160,7 +162,7 @@ export function createUpdater({
       quit();
     } catch (error) {
       if (work) await rm(work, { recursive: true, force: true });
-      set({ status: "error", message: `Could not update: ${error.message}`, canInstall: false });
+      set({ status: "error", message: `Could not update: ${error.message}`, canInstall: false, progress: null });
     }
     return snapshot;
   }

@@ -1,5 +1,6 @@
 // Spanish translations, keyed by the English source text.
 Object.assign((globalThis.SMCP_ES ??= {}), {
+  "Update progress": "Progreso de la actualización",
   "Back": "Atrás",
   "Skip": "Omitir",
   "Continue": "Continuar",

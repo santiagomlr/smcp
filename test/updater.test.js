@@ -101,6 +101,17 @@ test("instala solo si la descarga coincide con la versión firmada", async () =>
   assert.equal(bad.calls.swap.length, 0);
 });
 
+test("reports download progress up to 100 and clears it before verifying", async () => {
+  const text = manifestFor("0.2.0");
+  const seen = [];
+  const { instance } = updater({ fetchImpl: fakeFetch(text), onChange: (state) => seen.push(state.progress) });
+  await instance.check();
+  await instance.install();
+  assert.equal(seen.includes(0), true);
+  assert.equal(seen.includes(100), true);
+  assert.equal(seen.at(-1), null);
+});
+
 test("en Windows avisa de la versión nueva sin intentar instalarla", async () => {
   const text = manifestFor("0.2.0");
   const { instance } = updater({ platform: "win32", arch: "x64", fetchImpl: fakeFetch(text) });
