@@ -1,0 +1,32 @@
+SMCP
+Copyright (c) 2026 Santiago MLR. Todos los derechos reservados.
+
+Se te permite descargar, instalar y usar SMCP sin costo.
+
+No se te permite modificar el código, redistribuirlo, venderlo ni publicar obras
+derivadas sin autorización previa y por escrito del titular. El código es visible
+para que puedas revisar qué hace la app. Eso no otorga derechos adicionales.
+
+SMCP SE ENTREGA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO. EL TITULAR NO ES
+RESPONSABLE DE NINGÚN DAÑO, PÉRDIDA DE DATOS O RESTRICCIÓN DE CUENTAS DERIVADOS
+DE SU USO. SMCP usa integraciones no oficiales: úsala bajo tu propio riesgo.
+
+Componentes de terceros:
+- wacli, licencia MIT: https://github.com/openclaw/wacli
+- whisper.cpp, licencia MIT: https://github.com/ggml-org/whisper.cpp
+- Gabarito e Instrument Sans, SIL Open Font License 1.1: app/ui/fonts/
+- Dependencias de npm: cada una conserva su propia licencia.
+
+---
+
+SMCP
+Copyright (c) 2026 Santiago MLR. All rights reserved.
+
+You may download, install and use SMCP free of charge.
+
+You may not modify, redistribute, sell or publish derivative works of this code
+without the prior written permission of the copyright holder. The source is
+visible so you can review what the app does. That grants no additional rights.
+
+SMCP IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. THE COPYRIGHT HOLDER IS
+NOT LIABLE FOR ANY DAMAGE, DATA LOSS OR ACCOUNT RESTRICTION ARISING FROM ITS USE.

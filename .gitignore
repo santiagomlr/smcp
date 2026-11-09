@@ -1,0 +1,17 @@
+node_modules/
+vendor/
+dist/
+.DS_Store
+.env*
+*.pem
+*.key
+*.p12
+
+# Notas internas y herramientas personales: se quedan en esta computadora.
+CLAUDE.md
+handoffs/
+.impeccable.md
+.claude/
+scripts/export-omnifocus.js
+scripts/import-omnifocus.mjs
+scripts/archive-all-tasks.mjs

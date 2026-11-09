@@ -1,0 +1,94 @@
+{
+  "name": "smcp",
+  "version": "0.1.1",
+  "private": true,
+  "description": "App personal para conectar WhatsApp, tus máquinas y Claude.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "smcp": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/",
+    "whatsapp:install": "bash scripts/install-wacli.sh",
+    "whatsapp:login": "node src/whatsapp-login.js",
+    "whatsapp:audio-install": "bash scripts/install-whisper.sh",
+    "app": "electron .",
+    "icons": "node scripts/make-icons.mjs",
+    "dist:mac": "electron-builder --mac --arm64 -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
+    "dist:win": "electron-builder --win --x64 -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
+    "release": "node scripts/release.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "express": "5.3.0",
+    "imapflow": "2.11.0",
+    "mailparser": "3.14.2",
+    "nodemailer": "10.3.1",
+    "qrcode": "1.5.4",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "electron": "41.7.1",
+    "electron-builder": "26.18.0"
+  },
+  "author": "Santiago MLR",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": "github:santiagomlr/smcp",
+  "main": "app/main.js",
+  "build": {
+    "appId": "com.santiago.smcp",
+    "productName": "SMCP",
+    "asar": false,
+    "directories": {
+      "buildResources": "app/assets"
+    },
+    "files": [
+      "app/**",
+      "src/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dir",
+        "dmg"
+      ],
+      "category": "public.app-category.utilities",
+      "identity": "-",
+      "icon": "app/assets/icon.png",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "SMCP usa esto para controlar apps cuando se lo pides y mostrar confirmaciones.",
+        "NSScreenCaptureUsageDescription": "SMCP usa esto para tomar capturas de pantalla cuando se lo pides.",
+        "NSCalendarsFullAccessUsageDescription": "SMCP muestra tus eventos en el Pronóstico de Tareas.",
+        "NSCalendarsUsageDescription": "SMCP muestra tus eventos en el Pronóstico de Tareas."
+      },
+      "extraResources": [
+        {
+          "from": "vendor/bin/wacli",
+          "to": "bin/wacli"
+        },
+        {
+          "from": "vendor/bin/whisper-cli",
+          "to": "bin/whisper-cli"
+        }
+      ],
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "app/assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "afterPack": "scripts/after-pack.cjs"
+  }
+}

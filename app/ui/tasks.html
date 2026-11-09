@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data: 'self'" />
+    <title>SMCP Tareas</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="tasks.css" />
+  </head>
+  <body>
+    <div class="workspace">
+      <nav class="side" aria-label="Secciones">
+        <div id="side-main"></div>
+        <div class="side-head">
+          <span>Proyectos</span>
+          <button id="new-project" type="button" class="icon-button" aria-label="Nuevo proyecto" title="Nuevo proyecto">+</button>
+        </div>
+        <div id="side-projects" class="side-projects"></div>
+        <div id="side-foot" class="side-foot"></div>
+      </nav>
+
+      <main class="main">
+        <header class="head">
+          <input id="title" class="title" aria-label="Nombre" maxlength="300" readonly />
+          <div class="head-actions">
+            <input id="search" type="search" placeholder="Buscar" aria-label="Buscar tareas" />
+            <div id="project-actions" hidden>
+              <button id="project-menu" type="button" class="icon-button" aria-label="Opciones del proyecto">···</button>
+              <div id="project-pop" class="pop" hidden></div>
+            </div>
+          </div>
+        </header>
+        <div class="scroll" id="scroll">
+          <div id="list" class="list"></div>
+          <form id="add" class="add">
+            <span class="add-plus" aria-hidden="true">+</span>
+            <input id="add-name" type="text" placeholder="Agregar tarea" maxlength="300" autocomplete="off" aria-label="Agregar tarea" />
+          </form>
+          <p id="empty" class="empty" hidden></p>
+        </div>
+      </main>
+
+      <aside id="drawer" class="drawer" aria-label="Detalle" hidden></aside>
+    </div>
+
+    <div id="toast" class="toast" role="status" hidden><span id="toast-text"></span><button id="toast-undo" type="button">Deshacer</button></div>
+    <p id="error" class="task-error" role="alert" hidden></p>
+    <script src="tasks.js"></script>
+  </body>
+</html>

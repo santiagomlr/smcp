@@ -1,0 +1,265 @@
+html,
+body {
+  height: auto;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  display: block;
+}
+
+.panel {
+  padding: 14px 8px 8px;
+}
+
+.panel.showing > * {
+  animation: fade-up 300ms var(--ease) both;
+}
+
+.panel.showing > :nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.panel.showing > :nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.panel.showing > :nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 4px;
+}
+
+.panel-head strong {
+  font: 600 15px / 1 "Gabarito", sans-serif;
+  letter-spacing: 0.015em;
+}
+
+.panel-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.panel-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.panel-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  background: var(--live);
+  border-radius: 50%;
+}
+
+.panel-status.paused::before {
+  background: var(--halt);
+}
+
+.panel section {
+  margin-top: 10px;
+}
+
+.panel h2 {
+  margin: 0;
+  padding: 0 8px 3px;
+}
+
+.panel-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.panel-list li:hover {
+  background: var(--wash);
+}
+
+.panel-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--rail);
+  border-radius: 50%;
+  transition:
+    background-color var(--base) var(--ease),
+    border-color var(--base) var(--ease);
+}
+
+.panel-dot.on {
+  background: var(--live);
+  border-color: var(--live);
+}
+
+.panel-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.panel-meta {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.panel-list button {
+  padding: 2px 8px;
+}
+
+.panel-foot {
+  margin-top: 8px;
+  padding: 8px 8px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  font-weight: 500;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.panel-actions .primary {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: var(--text-md);
+}
+
+.panel-actions .quiet {
+  padding: 6px 12px;
+  font-size: var(--text-md);
+}
+
+.panel .panel-today {
+  margin-top: 6px;
+}
+
+.panel-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 2px;
+}
+
+.panel-section-head button {
+  padding: 1px 6px;
+}
+
+.panel-add {
+  padding: 2px 8px 4px;
+}
+
+.panel-add input {
+  width: 100%;
+  padding: 6px 9px;
+  font: 400 var(--text-md) / 1.3 "Instrument Sans", sans-serif;
+  color: var(--ink);
+  background: var(--wash);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  user-select: text;
+  transition:
+    border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease);
+}
+
+.panel-add input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.panel-saved {
+  margin: 0;
+  padding: 0 8px 4px;
+  font-size: var(--text-sm);
+  color: var(--live);
+  animation: fade-up var(--base) var(--ease) both;
+}
+
+.panel-tasks {
+  margin: 0;
+  padding: 0 8px;
+  list-style: none;
+}
+
+.panel-tasks .task {
+  border-color: var(--rule);
+}
+
+.panel-tasks .task:last-child {
+  border-bottom: 0;
+}
+
+.panel-tasks .task-row {
+  padding: 6px 0;
+}
+
+.panel-tasks .task-name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.panel-tasks .task-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.panel-empty {
+  margin: 6px 8px;
+  color: var(--muted);
+}
+
+.panel-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 8px 0;
+  padding: 3px 4px 3px 9px;
+  font-size: var(--text-sm);
+  background: var(--wash);
+  border-radius: 7px;
+  animation: fade-up var(--base) var(--ease) both;
+}
+
+.panel-undo button {
+  padding: 2px 8px;
+  color: var(--ink);
+}

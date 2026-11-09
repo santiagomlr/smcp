@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data: 'self'" />
+    <title>SMCP</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="tray.css" />
+  </head>
+  <body>
+    <template id="mark-template">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <rect class="mark-warp" x="7.7" y="4.1" width="12.6" height="19.8" rx="2" />
+        <rect class="mark-warp" x="43.7" y="4.1" width="12.6" height="19.8" rx="2" />
+        <rect class="mark-warp" x="25.7" y="22.1" width="12.6" height="19.8" rx="2" />
+        <rect class="mark-warp" x="7.7" y="40.1" width="12.6" height="19.8" rx="2" />
+        <rect class="mark-warp" x="43.7" y="40.1" width="12.6" height="19.8" rx="2" />
+        <rect class="mark-weft" x="22.1" y="7.7" width="19.8" height="12.6" rx="2" />
+        <rect class="mark-weft" x="4.1" y="25.7" width="19.8" height="12.6" rx="2" />
+        <rect class="mark-weft" x="40.1" y="25.7" width="19.8" height="12.6" rx="2" />
+        <rect class="mark-weft" x="22.1" y="43.7" width="19.8" height="12.6" rx="2" />
+      </svg>
+    </template>
+    <div id="panel" class="panel">
+      <header class="panel-head">
+        <span id="panel-mark" class="panel-mark"></span>
+        <strong>SMCP</strong>
+        <span id="panel-status" class="panel-status" role="status"></span>
+      </header>
+      <section aria-labelledby="p-today" class="panel-today">
+        <div class="panel-section-head">
+          <h2 id="p-today">Para hoy</h2>
+          <button id="p-all" type="button" class="quiet">Ver todas</button>
+        </div>
+        <form id="p-add" class="panel-add">
+          <input id="p-add-name" type="text" placeholder="Anota un pendiente" maxlength="300" autocomplete="off" aria-label="Nuevo pendiente" />
+        </form>
+        <p id="p-add-saved" class="panel-saved" role="status" hidden>Guardado en tu Bandeja</p>
+        <ul id="p-tasks" class="panel-tasks"></ul>
+        <p id="p-tasks-empty" class="panel-empty" hidden></p>
+        <div id="p-undo" class="panel-undo" role="status" hidden>
+          <span id="p-undo-text"></span>
+          <button id="p-undo-button" type="button" class="quiet">Deshacer</button>
+        </div>
+      </section>
+
+      <section aria-labelledby="p-devices">
+        <h2 id="p-devices">Dispositivos</h2>
+        <ul id="p-machines" class="panel-list"></ul>
+      </section>
+      <section aria-labelledby="p-connections">
+        <h2 id="p-connections">Conexiones</h2>
+        <ul id="p-connections-list" class="panel-list"></ul>
+      </section>
+      <footer class="panel-foot">
+        <label class="panel-toggle" for="p-pause">Pausar SMCP<input id="p-pause" class="switch" type="checkbox" role="switch" /></label>
+        <div class="panel-actions">
+          <button id="p-open" type="button" class="primary">Abrir SMCP</button>
+          <button id="p-quit" type="button" class="quiet">Salir</button>
+        </div>
+      </footer>
+    </div>
+    <script src="tray.js"></script>
+  </body>
+</html>
