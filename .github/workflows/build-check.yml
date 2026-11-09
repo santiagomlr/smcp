@@ -49,3 +49,7 @@ jobs:
           for name in wacli whisper-cli smcp-nightlight; do
             test -x "$RUNNER_TEMP/build/mac-arm64/SMCP.app/Contents/Resources/bin/$name" || { echo "::error::The app was packaged without $name."; exit 1; }
           done
+
+      - name: Save Electron downloads
+        if: always()
+        uses: ./.github/actions/save-downloads
