@@ -84,8 +84,7 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "app/assets/icon.png"
     },

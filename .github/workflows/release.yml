@@ -57,23 +57,13 @@ jobs:
 
       - name: Install dependencies
         if: steps.plan.outputs.build == 'true'
+        uses: ./.github/actions/build-deps
+
+      - name: Set the version
+        if: steps.plan.outputs.build == 'true'
         env:
           VERSION: ${{ steps.plan.outputs.version }}
-        run: |
-          # Electron and other packages download binaries from GitHub, which sometimes answers 5xx; retry instead of failing the release.
-          retry() {
-            for delay in 15 45 90 0; do
-              "$@" && return 0
-              [ "$delay" = 0 ] && return 1
-              echo "::warning::'$*' failed; retrying in ${delay}s."
-              sleep "$delay"
-            done
-          }
-          retry npm ci
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
-          retry npm run whatsapp:install
-          retry npm run whatsapp:audio-install
-          npm run nightlight:install
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Load the signing key
         if: steps.plan.outputs.build == 'true'

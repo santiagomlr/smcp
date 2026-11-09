@@ -1,0 +1,40 @@
+# Runs the test suite on every pull request, so a broken change is caught before it reaches main and the release.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      # run_command uses /bin/zsh, the default shell on the Macs SMCP runs on.
+      - name: Install zsh
+        run: command -v zsh || { sudo apt-get update -qq && sudo apt-get install -y -qq zsh; }
+
+      - name: Install npm packages
+        env:
+          # The tests never start Electron, so skip downloading it.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: bash scripts/retry.sh npm ci
+
+      - name: Test
+        run: npm test
