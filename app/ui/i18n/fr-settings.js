@@ -166,7 +166,6 @@ Object.assign((globalThis.SMCP_FR ??= {}), {
   "Copied to clipboard.": "Copié dans le presse-papiers.",
   "Checking…": "Recherche…",
   "You're on the latest version.": "Vous avez la version la plus récente.",
-  "On Mac, each new version asks for system permissions again.": "Sur Mac, chaque nouvelle version redemande les autorisations du système.",
   "Calendar": "Calendrier",
   "Reads events. Adding one asks you first.": "Lit les événements. Pour en ajouter un, il vous demande d'abord.",
   "Reminders": "Rappels",

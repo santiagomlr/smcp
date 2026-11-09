@@ -21,8 +21,8 @@ Object.assign((globalThis.SMCP_IT ??= {}), {
   "No terminal app was found to open SSH.": "Non è stata trovata nessuna app di terminale per aprire SSH.",
   "Quit": "Esci",
   "Do you want SMCP to update automatically?": "Vuoi che SMCP si aggiorni automaticamente?",
-  "When there is a new version, SMCP will install it and restart. After each update, macOS will ask for the app's permissions again. You can change this in Settings.":
-    "Quando c'è una nuova versione, SMCP la installa e si riavvia. Dopo ogni aggiornamento, macOS ti chiederà di nuovo i permessi dell'app. Puoi cambiarlo in Impostazioni.",
+  "When there is a new version, SMCP will install it and restart. You can change this in Settings.":
+    "Quando c'è una nuova versione, SMCP la installa e si riavvia. Puoi cambiarlo in Impostazioni.",
   "We will let you know when there is a new version. You can change this in Settings.":
     "Ti avviseremo quando c'è una nuova versione. Puoi cambiarlo in Impostazioni.",
   "Update automatically": "Aggiorna automaticamente",
@@ -41,8 +41,6 @@ Object.assign((globalThis.SMCP_IT ??= {}), {
   "The PC's MAC address is not valid.": "L'indirizzo MAC del PC non è valido.",
   "update available": "aggiornamento disponibile",
   "SMCP updated to {version}": "SMCP aggiornato a {version}",
-  "Check the macOS permissions in Settings so everything keeps working.":
-    "Controlla i permessi di macOS in Impostazioni, così tutto continua a funzionare.",
 
   // Main process: diagnostics copied to the clipboard
   "Tailscale: connected": "Tailscale: connesso",

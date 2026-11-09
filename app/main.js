@@ -1160,7 +1160,7 @@ async function askAutoUpdates() {
       type: "question",
       message: tr("Do you want SMCP to update automatically?"),
       detail: IS_MAC
-        ? tr("When there is a new version, SMCP will install it and restart. After each update, macOS will ask for the app's permissions again. You can change this in Settings.")
+        ? tr("When there is a new version, SMCP will install it and restart. You can change this in Settings.")
         : tr("We will let you know when there is a new version. You can change this in Settings."),
       buttons: [tr("Update automatically"), tr("Ask me first")],
       defaultId: 1,
@@ -1196,7 +1196,7 @@ async function noticeAfterUpdate() {
   settings.lastVersion = version;
   await writeSettings(settings);
   if (updated && IS_MAC) {
-    new Notification({ title: tr("SMCP updated to {version}", { version }), body: tr("Check the macOS permissions in Settings so everything keeps working.") }).show();
+    new Notification({ title: tr("SMCP updated to {version}", { version }) }).show();
   }
 }
 
