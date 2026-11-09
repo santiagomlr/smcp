@@ -12,6 +12,8 @@ const DEFAULTS = {
   disabled: { whatsapp: false, gmail: false, notes: false, tasks: false, files: false, terminal: true, apps: true },
   // Writing is something a person opts into when linking. Even then, every message still needs the confirmation window.
   whatsapp: { read: true, send: false, audio: false },
+  // Lets phone, web and scheduled routines edit tasks. Off until a person turns it on.
+  remote: { taskWrites: false },
 };
 
 /** Installations saved before this choice existed keep what they could already do. */
@@ -76,6 +78,7 @@ export function readPolicy(path = configPath()) {
       readOnly: saved.readOnly === true,
       disabled: Object.fromEntries(GROUPS.map((group) => [group, (saved.disabled?.[group] ?? DEFAULTS.disabled[group]) === true])),
       whatsapp: normalizeWhatsApp(saved.whatsapp),
+      remote: { taskWrites: saved.remote?.taskWrites === true },
     };
   } catch {
     return { ...structuredClone(DEFAULTS), paused: true };
@@ -95,12 +98,15 @@ export function toolGroup(name) {
   if (name.startsWith("notes_")) return "notes";
   if (name.startsWith("tasks_")) return "tasks";
   if (name.startsWith("file_")) return "files";
+  if (name === "smcp_status") return "status";
   if (name === "run_command") return "terminal";
   return "apps";
 }
 
 /** Returns why a tool may not run under this policy, or null if it may. */
 export function denialFor(name, annotations, policy) {
+  // The status check reports pauses and switched-off areas, so it has to answer through them.
+  if (toolGroup(name) === "status") return null;
   if (policy.paused) return "SMCP is paused. You can resume it from the app.";
   const group = toolGroup(name);
   if (policy.disabled[group]) return `This permission (${group}) is turned off in the SMCP settings.`;

@@ -125,4 +125,11 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "The audio model arrived damaged. Try again.": "El modelo de audio llegó dañado. Vuelve a intentarlo.",
   "Invalid path.": "Ruta inválida.",
   "That folder is too broad. Choose your notes folder.": "Esa carpeta es demasiado amplia. Elige la carpeta de tus notas.",
+  "OmniFocus can only be imported on a Mac.": "OmniFocus solo se puede importar en una Mac.",
+  "Your tasks live on another computer. Import from OmniFocus on that one.": "Tus tareas viven en otra computadora. Importa desde OmniFocus en esa.",
+  "Open OmniFocus and try again.": "Abre OmniFocus y vuelve a intentarlo.",
+  "OmniFocus took too long to answer.": "OmniFocus tardó demasiado en responder.",
+  "Allow SMCP to control OmniFocus in System Settings > Privacy & Security > Automation.":
+    "Permite que SMCP controle OmniFocus en Ajustes del Sistema > Privacidad y seguridad > Automatización.",
+  "Could not read OmniFocus.": "No se pudo leer OmniFocus.",
 });

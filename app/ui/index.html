@@ -141,6 +141,7 @@
           <ul class="rows">
             <li><label for="policy-paused">Pause SMCP<small>Claude won't be able to use any tools.</small></label><input id="policy-paused" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="policy-readonly">Read-only<small>Blocks sending, writing, commands and clicks.</small></label><input id="policy-readonly" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="policy-remote-tasks">Edit tasks from other devices<small>Lets your phone, the web and scheduled routines create, change and complete tasks.</small></label><input id="policy-remote-tasks" class="switch" type="checkbox" role="switch" /></li>
           </ul>
         </section>
 
@@ -168,6 +169,7 @@
           <ul class="rows">
             <li><label for="tasks-host">Save on<small>Your other computers use this same list.</small></label><select id="tasks-host"></select></li>
             <li id="tasks-hub-row"><label for="tasks-hub">Share with my computers<small>Only with devices on your Tailscale account.</small></label><input id="tasks-hub" class="switch" type="checkbox" role="switch" /></li>
+            <li id="tasks-omnifocus-row"><label for="tasks-omnifocus">Import from OmniFocus<small id="tasks-omnifocus-meta">Brings your pending tasks, projects and tags. Running it again updates them without duplicating.</small></label><button id="tasks-omnifocus" type="button">Import</button></li>
           </ul>
         </section>
 

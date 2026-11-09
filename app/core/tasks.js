@@ -102,6 +102,13 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
     renameSync(temp, path);
   };
 
+  /** Same name once accents, case, punctuation and spacing are ignored, in the same project or inbox. */
+  const sameName = (value) => fold(value).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const findTwin = (name, project) =>
+    Object.values(state.tasks).find(
+      (task) => !task.completedAt && !task.droppedAt && (task.project ?? null) === (project ?? null) && sameName(task.name) === sameName(name),
+    );
+
   const projectKey = (name) => Object.keys(state.projects).find((key) => fold(key) === fold(name));
   const tagKey = (name) => Object.keys(state.tags).find((key) => fold(key) === fold(name));
 
@@ -479,7 +486,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
       return { name: clean };
     },
 
-    create({ name, note, project, tags, waiting_for: waitingFor, due, defer, planned, estimated_minutes: minutes, flagged, repeat, for_claude: forClaude }) {
+    create({ name, note, project, tags, waiting_for: waitingFor, due, defer, planned, estimated_minutes: minutes, flagged, repeat, for_claude: forClaude, allow_duplicate: allowDuplicate }) {
       const checked = {
         name: cleanName(name),
         project: resolveProject(project),
@@ -488,6 +495,16 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
         planned: parseDate(planned, "planned"),
         estimatedMinutes: parseMinutes(minutes),
       };
+      // The AI tools ask for this check; the app's own quick add does not, so a person can repeat a name on purpose.
+      if (allowDuplicate === false) {
+        const twin = findTwin(checked.name, checked.project);
+        if (twin) {
+          throw new Error(
+            `A pending task with that name already exists (id ${twin.id}, project ${twin.project ?? "INBOX"}). ` +
+              "Use tasks_update or tasks_append_note on it, or pass allow_duplicate: true if it really is a different task.",
+          );
+        }
+      }
       const task = {
         id: randomUUID(),
         ...checked,

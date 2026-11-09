@@ -1,17 +1,57 @@
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
+import { createTaskStore, defaultTasksPath } from "../../app/core/tasks.js";
 import { viaHelper } from "../helper.js";
 import { errorResult, externalResult, textResult } from "../util.js";
 
-/** The list lives in SMCP.app, so tools always go through it and never keep a copy. */
-function callApp(op, args) {
-  return viaHelper("tasks", { op, args }, () => {
-    throw new Error("Open the SMCP app to use Tasks.");
+/** Operations that only look. They can still answer from the saved file when the app is closed. */
+export const TASK_READS = new Set(["available", "search", "listProjects", "claudeQueue", "hygiene", "forecast", "reviewList", "summary"]);
+
+export const OFFLINE_NOTE =
+  "The SMCP app did not respond, so this was read straight from the saved task list. It is current up to the app's last save. Writing needs the app open.";
+
+/**
+ * Reads the saved list without the app. It never saves, so it cannot compete with the app as a writer.
+ * Returns null if there is no list on this computer (for example, when it lives on another one).
+ */
+export function readSavedTasks(op, args, path = process.env.SMCP_TASKS || defaultTasksPath(), settings = appSettingsPath()) {
+  if (!TASK_READS.has(op) || !existsSync(path) || listLivesElsewhere(settings)) return null;
+  return createTaskStore({ path })[op](args ?? {});
+}
+
+function appSettingsPath() {
+  return process.env.SMCP_SETTINGS || join(homedir(), "Library", "Application Support", "SMCP", "settings.json");
+}
+
+/** When another computer holds the list, the file here is an old copy and must not be shown as current. */
+function listLivesElsewhere(path) {
+  try {
+    return Boolean(JSON.parse(readFileSync(path, "utf8")).tasksHost);
+  } catch (error) {
+    return error.code !== "ENOENT";
+  }
+}
+
+/** The list lives in SMCP.app, so writes always go through it and nothing keeps a second copy. */
+export async function callApp(op, args, { helper = viaHelper, fallback = readSavedTasks } = {}) {
+  let offline = false;
+  const value = await helper("tasks", { op, args }, () => {
+    const saved = fallback(op, args);
+    if (saved === null) throw new Error("Open the SMCP app to use Tasks.");
+    offline = true;
+    return saved;
   });
+  return { value, offline };
 }
 
 const tool = (op, wrap = textResult) => async (args) => {
   try {
-    return wrap(await callApp(op, args));
+    const { value, offline } = await callApp(op, args);
+    const result = wrap(value);
+    if (offline) result.content.unshift({ type: "text", text: OFFLINE_NOTE });
+    return result;
   } catch (error) {
     return errorResult(error.message);
   }
@@ -101,7 +141,15 @@ export function registerTasks(server) {
     "tasks_create",
     {
       description: "Creates a task. Look for duplicates with tasks_search first. It should have a project and an estimate when they are known.",
-      inputSchema: { name: z.string().min(1).max(300), ...fields, repeat: z.string().max(120).optional().describe("Rule such as FREQ=WEEKLY;INTERVAL=1.") },
+      inputSchema: {
+        name: z.string().min(1).max(300),
+        ...fields,
+        repeat: z.string().max(120).optional().describe("Rule such as FREQ=WEEKLY;INTERVAL=1."),
+        allow_duplicate: z
+          .boolean()
+          .default(false)
+          .describe("SMCP rejects a pending task with the same name in the same project, ignoring accents and case. true skips that check."),
+      },
       annotations: writes,
     },
     tool("create"),

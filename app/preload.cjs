@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("api", {
   calendarEvents: (from, to) => call("calendar-events", from, to),
   tasksSetHub: (enabled) => call("tasks-set-hub", enabled),
   tasksSetHost: (host) => call("tasks-set-host", host),
+  tasksImportOmniFocus: () => call("tasks-import-omnifocus"),
   vaultAdd: () => call("vault-add"),
   vaultSet: (path, enabled) => call("vault-set", path, enabled),
   gmailAdd: (values) => call("gmail-add", values),

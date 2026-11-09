@@ -166,4 +166,13 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "Checking…": "Buscando…",
   "You're on the latest version.": "Tienes la versión más reciente.",
   "On Mac, each new version asks for system permissions again.": "En Mac, cada versión nueva vuelve a pedir los permisos del sistema.",
+  "Edit tasks from other devices": "Editar tareas desde otros dispositivos",
+  "Lets your phone, the web and scheduled routines create, change and complete tasks.":
+    "Permite que tu teléfono, la web y las rutinas programadas creen, cambien y completen tareas.",
+  "Import from OmniFocus": "Importar de OmniFocus",
+  "Brings your pending tasks, projects and tags. Running it again updates them without duplicating.":
+    "Trae tus tareas pendientes, proyectos y etiquetas. Si lo vuelves a correr, las actualiza sin duplicar.",
+  "Import": "Importar",
+  "Importing…": "Importando…",
+  "{created} new and {updated} updated. {unestimated} without an estimate.": "{created} nuevas y {updated} actualizadas. {unestimated} sin estimación.",
 });

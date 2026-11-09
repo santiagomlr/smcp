@@ -41,6 +41,7 @@ import { createAccountStore, createGmail } from "./core/gmail.js";
 import { readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
 import { createRemote, REMOTE_PORT } from "./core/remote.js";
 import { createRemoteTasks, createTasksHub, disableServe, enableServe, tailscaleLogin } from "./core/tasks-hub.js";
+import { importFromOmniFocus } from "./core/omnifocus.js";
 import { createTaskStore, TASK_OPERATIONS } from "./core/tasks.js";
 import { coalesce, retry, whenChanged } from "./core/throttle.js";
 import { createUpdater, RELEASES_PAGE } from "./core/updater.js";
@@ -251,6 +252,14 @@ async function runTask(op, args) {
   return store[op](args ?? {});
 }
 
+/** Only into a list kept on this computer: importing is never offered to other computers. */
+async function importOmniFocus() {
+  if (!IS_MAC) throw new Error(tr("OmniFocus can only be imported on a Mac."));
+  const { tasksHost } = await readSettings();
+  if (tasksHost) throw new Error(tr("Your tasks live on another computer. Import from OmniFocus on that one."));
+  return importFromOmniFocus(localStore());
+}
+
 async function readTasksSummary() {
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error(tr("The computer with your tasks is not responding."))), 3_000));
   try {
@@ -373,6 +382,7 @@ function updatePolicy(patch) {
   for (const ability of WHATSAPP_ABILITIES) {
     if (typeof patch.whatsapp?.[ability] === "boolean") policy.whatsapp[ability] = patch.whatsapp[ability];
   }
+  if (typeof patch.remote?.taskWrites === "boolean") policy.remote.taskWrites = patch.remote.taskWrites;
   writePolicy(policy);
 }
 
@@ -508,6 +518,7 @@ async function openPrivacy(pane) {
 
 const TASK_TOOLS = {
   available: { name: "tasks_available" },
+  summary: { name: "tasks_available" },
   search: { name: "tasks_search" },
   listProjects: { name: "tasks_list_projects" },
   claudeQueue: { name: "tasks_claude_queue" },
@@ -955,6 +966,7 @@ function registerIpc() {
   handle("calendar-events", (from, to) => calendarEvents({ from, to }));
   handle("tasks-set-hub", setTasksHub);
   handle("tasks-set-host", setTasksHost);
+  handle("tasks-import-omnifocus", importOmniFocus);
   handle("vault-add", addVault);
   handle("vault-set", toggleVault);
   handle("gmail-add", (values) => gmail.verifyAndAdd(values));

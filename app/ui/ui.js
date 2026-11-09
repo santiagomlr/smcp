@@ -459,12 +459,24 @@ function renderTaskSettings() {
   if (document.activeElement !== select) select.value = tasks.host ?? "";
   $("tasks-hub-row").hidden = Boolean(tasks.host) || !tailscale.running;
   $("tasks-hub").checked = tasks.hub;
+  $("tasks-omnifocus-row").hidden = Boolean(tasks.host) || state.platform !== "darwin";
 }
 
 $("tasks-host").onchange = async (event) => {
   await act(window.api.tasksSetHost(event.target.value || null));
 };
 $("tasks-hub").onchange = (event) => act(window.api.tasksSetHub(event.target.checked));
+$("tasks-omnifocus").onclick = async () => {
+  const button = $("tasks-omnifocus");
+  button.disabled = true;
+  button.textContent = tr("Importing…");
+  const result = await act(window.api.tasksImportOmniFocus());
+  button.disabled = false;
+  button.textContent = tr("Import");
+  if (!result.ok) return;
+  const { created, updated, unestimated } = result.value;
+  $("tasks-omnifocus-meta").textContent = tr("{created} new and {updated} updated. {unestimated} without an estimate.", { created, updated, unestimated });
+};
 
 function renderClients() {
   const { clients } = state;
@@ -524,6 +536,7 @@ function renderSettings() {
   const { policy, permissions } = state;
   $("policy-paused").checked = policy.paused;
   $("policy-readonly").checked = policy.readOnly;
+  $("policy-remote-tasks").checked = policy.remote?.taskWrites === true;
   for (const group of GROUPS) $(`group-${group}`).checked = !policy.disabled[group];
   $("whatsapp-access").hidden = !state.whatsapp.supported;
   $("wa-access-off").hidden = !policy.disabled.whatsapp;
@@ -855,6 +868,7 @@ window.api.onLoginEvent(({ state: login, image, error }) => {
 
 $("policy-paused").onchange = (event) => act(window.api.setPolicy({ paused: event.target.checked }));
 $("policy-readonly").onchange = (event) => act(window.api.setPolicy({ readOnly: event.target.checked }));
+$("policy-remote-tasks").onchange = (event) => act(window.api.setPolicy({ remote: { taskWrites: event.target.checked } }));
 $("resume").onclick = () => act(window.api.setPolicy({ paused: false }));
 for (const group of GROUPS) {
   $(`group-${group}`).onchange = (event) => act(window.api.setPolicy({ disabled: { [group]: !event.target.checked } }));

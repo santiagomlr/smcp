@@ -79,3 +79,11 @@ const EXTERNAL_NOTE =
 export function externalResult(data) {
   return textResult({ _untrusted_external: true, _note: EXTERNAL_NOTE, data });
 }
+
+/**
+ * Text for comparing: NFC first, so macOS file names (NFD) and typed text (NFC) agree, then
+ * without accents and in lower case. For Latin text its length matches the NFC text.
+ */
+export function fold(value) {
+  return String(value ?? "").normalize("NFC").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
