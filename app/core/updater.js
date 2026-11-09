@@ -11,7 +11,9 @@ import { coalesce } from "./throttle.js";
 
 const REPO = "santiagomlr/smcp";
 export const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
-const MANIFEST_URL = `https://github.com/${REPO}/releases/latest/download/latest.json`;
+const DOWNLOAD_BASE = `https://github.com/${REPO}/releases/latest/download`;
+const API_RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+const API_HEADERS = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
 const MANIFEST_TIMEOUT_MS = 20_000;
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
 const RETRY_DELAYS_MS = [2_000, 5_000];
@@ -92,20 +94,50 @@ export function createUpdater({
     onChange(snapshot);
   }
 
-  async function fetchText(url) {
+  function httpError(status) {
+    const transient = isTransientStatus(status);
+    const error = new Error(transient ? `GitHub is not responding right now (${status}). Try again in a few minutes.` : `GitHub responded ${status}.`);
+    error.transient = transient;
+    return error;
+  }
+
+  async function get(url, headers) {
+    const response = await fetchImpl(url, { headers, signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
+    if (!response.ok) throw httpError(response.status);
+    return response;
+  }
+
+  /** The API serves the same release files from a different path, so it keeps working when the download link times out. */
+  function apiSource() {
+    let release = null;
+    const listing = () => {
+      release ??= get(API_RELEASE_URL, API_HEADERS).then((response) => response.json());
+      release.catch(() => (release = null));
+      return release;
+    };
+    return async (name) => {
+      const asset = (await listing()).assets?.find((candidate) => candidate.name === name);
+      if (!asset?.url) throw new Error(`The release has no ${name}.`);
+      return (await get(asset.url, { ...API_HEADERS, Accept: "application/octet-stream" })).text();
+    };
+  }
+
+  async function fetchReleaseFile(name, viaApi) {
     for (let attempt = 0; ; attempt++) {
-      let transient;
+      let error;
       try {
-        const response = await fetchImpl(url, { signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
-        if (response.ok) return await response.text();
-        transient = isTransientStatus(response.status);
-        if (!transient || attempt >= RETRY_DELAYS_MS.length) {
-          throw new Error(transient ? `GitHub is not responding right now (${response.status}). Try again in a few minutes.` : `GitHub responded ${response.status}.`);
-        }
-      } catch (error) {
-        // A network failure or timeout is also transient; an HTTP error built above is final.
-        if (transient !== undefined || attempt >= RETRY_DELAYS_MS.length) throw error;
+        return await (await get(`${DOWNLOAD_BASE}/${name}`)).text();
+      } catch (failure) {
+        // A 404 means the file is not there; a network failure, timeout or 5xx is GitHub being busy.
+        if (failure.transient === false) throw failure;
+        error = failure;
       }
+      try {
+        return await viaApi(name);
+      } catch {
+        // The direct link's error is the one worth showing.
+      }
+      if (attempt >= RETRY_DELAYS_MS.length) throw error;
       await sleep(RETRY_DELAYS_MS[attempt]);
     }
   }
@@ -114,7 +146,8 @@ export function createUpdater({
     if (snapshot.status === "installing") return snapshot;
     set({ status: "checking", message: "" });
     try {
-      const [text, signature] = await Promise.all([fetchText(MANIFEST_URL), fetchText(`${MANIFEST_URL}.sig`)]);
+      const viaApi = apiSource();
+      const [text, signature] = await Promise.all([fetchReleaseFile("latest.json", viaApi), fetchReleaseFile("latest.json.sig", viaApi)]);
       manifest = readSignedManifest(text, signature, publicKey);
       if (!isNewer(manifest.version, currentVersion)) {
         set({ status: "latest", latest: manifest.version, canInstall: false });
