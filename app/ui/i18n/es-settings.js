@@ -51,7 +51,7 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "Turn on": "Activar",
   "Screen Recording": "Grabación de pantalla",
   "To take screenshots": "Para tomar capturas",
-  "Turn on SMCP in each list. After turning on Screen Recording, restart SMCP.": "Activa SMCP en cada lista. Después de activar Grabación de pantalla, reinicia SMCP.",
+  "Press Turn on and switch on SMCP in the list. If it already looked on, it was an older copy of SMCP: switch it on again. After turning on Screen Recording, restart SMCP.": "Pulsa Activar y prende SMCP en la lista. Si ya se veía prendido, era una copia anterior de SMCP: vuelve a prenderlo. Después de activar Grabación de pantalla, reinicia SMCP.",
   "Open at login": "Abrir al iniciar sesión",
   "Updates": "Actualizaciones",
   "Check for updates": "Buscar actualizaciones",

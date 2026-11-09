@@ -215,5 +215,5 @@ Whatever the AI reads is sent to that AI's provider.
 - WhatsApp works through `wacli`, which isn't an official client, so your account could face restrictions. Avoid bulk sending.
 - Gmail uses app passwords, which give broad access to the account and which some companies block.
 - Remote access requires the computer to be on, awake and running SMCP.
-- The app is not signed by Apple. macOS shows a warning when you open a downloaded copy, and every new version asks again for Accessibility, Screen Recording and Calendar.
+- The app is not signed by Apple. macOS shows a warning when you open a downloaded copy, and every new version asks again for Accessibility, Screen Recording and Calendar. If SMCP already looks on in those lists, press **Turn on** in SMCP: it clears the old entry so you can switch it on for the current copy.
 - Windows shows a SmartScreen warning.
