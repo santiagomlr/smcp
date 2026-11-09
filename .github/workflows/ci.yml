@@ -40,6 +40,8 @@ jobs:
             app: /opt/SMCP/smcp
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # Electron and electron-builder keep their downloads in one folder on every system, so it can be cached.
+      electron_config_cache: ${{ github.workspace }}/.cache/electron
       ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
     defaults:
       run:
@@ -53,6 +55,17 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      # GitHub sometimes answers 504 for Electron's downloads for minutes at a time. Every run saves what it
+      # downloaded under its own key, even when it fails, and the next run starts from the newest one.
+      - name: Restore Electron downloads
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .cache
+          key: ci-electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            ci-electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-
+            ci-electron-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install Linux display and desktop libraries
         if: runner.os == 'Linux'
@@ -103,3 +116,10 @@ jobs:
             Windows) ls -l dist/SMCP-windows-x64-setup.exe ;;
             macOS) ls -ld dist/mac-arm64/SMCP.app ;;
           esac
+
+      - name: Save Electron downloads
+        if: always()
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .cache
+          key: ci-electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
