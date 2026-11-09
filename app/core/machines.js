@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { homedir, userInfo } from "node:os";
+import { homedir, networkInterfaces, userInfo } from "node:os";
 import { join } from "node:path";
 import { createSocket } from "node:dgram";
 import { run } from "../../src/util.js";
@@ -89,22 +89,65 @@ export function magicPacket(mac) {
   return Buffer.concat([Buffer.alloc(6, 0xff), ...Array(16).fill(bytes)]);
 }
 
-/** Wake-on-LAN broadcast. It only reaches the PC when this computer shares its local network. */
-export function sendWake({ mac, broadcast = "255.255.255.255" }) {
+const ipToInt = (ip) => ip.split(".").reduce((value, part) => (value << 8) + Number(part), 0) >>> 0;
+const intToIp = (value) => [24, 16, 8, 0].map((shift) => (value >>> shift) & 255).join(".");
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/**
+ * Where to send the magic packet: the broadcast address of every local IPv4 network, then the global one.
+ * macOS sends 255.255.255.255 out of a single interface (often not the Wi-Fi), so on its own it rarely arrives.
+ * Tailscale's own addresses (100.64.0.0/10) are skipped: a sleeping PC only listens on its local network.
+ */
+export function broadcastTargets(interfaces = networkInterfaces(), extra = null) {
+  const targets = [];
+  if (extra && IPV4.test(extra)) targets.push(extra);
+  for (const entries of Object.values(interfaces)) {
+    for (const entry of entries ?? []) {
+      const family = entry.family === 4 ? "IPv4" : entry.family;
+      if (family !== "IPv4" || entry.internal || !IPV4.test(entry.address ?? "") || !IPV4.test(entry.netmask ?? "")) continue;
+      const ip = ipToInt(entry.address);
+      if ((ip & 0xffc00000) >>> 0 === ipToInt("100.64.0.0")) continue;
+      if (entry.netmask === "255.255.255.255") continue;
+      targets.push(intToIp((ip | ~ipToInt(entry.netmask)) >>> 0));
+    }
+  }
+  targets.push("255.255.255.255");
+  return [...new Set(targets)];
+}
+
+function sendTo(socket, packet, port, address) {
+  return new Promise((resolve) => socket.send(packet, port, address, (error) => resolve(!error)));
+}
+
+/**
+ * Wake-on-LAN. It only reaches the PC from a computer on the PC's local network, so it goes to every
+ * local network this computer is on, on ports 9 and 7, a few times over. Resolves with how many sends left.
+ */
+export async function sendWake({ mac, broadcast = null }, { interfaces, repeats = 3 } = {}) {
   const packet = magicPacket(mac);
-  return new Promise((resolve, reject) => {
-    const socket = createSocket("udp4");
-    socket.once("error", (error) => {
-      socket.close();
-      reject(error);
-    });
-    socket.bind(() => {
-      socket.setBroadcast(true);
-      socket.send(packet, 9, broadcast, (error) => {
-        socket.close();
-        if (error) reject(error);
-        else resolve();
+  const targets = broadcastTargets(interfaces, broadcast);
+  const socket = createSocket("udp4");
+  try {
+    await new Promise((resolve, reject) => {
+      socket.once("error", reject);
+      socket.bind(() => {
+        socket.off("error", reject);
+        socket.on("error", () => {});
+        socket.setBroadcast(true);
+        resolve();
       });
     });
-  });
+    let sent = 0;
+    for (let round = 0; round < repeats; round++) {
+      for (const address of targets) {
+        for (const port of [9, 7]) {
+          if (await sendTo(socket, packet, port, address)) sent++;
+        }
+      }
+    }
+    if (!sent) throw new Error("Could not send the wake signal on this network.");
+    return { sent, targets };
+  } finally {
+    socket.close();
+  }
 }

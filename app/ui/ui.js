@@ -52,7 +52,10 @@ function osLabel(os) {
 
 function machineDetail(machine) {
   if (machine.self) return tr("{os} · this computer", { os: osLabel(machine.os) });
-  return tr(machine.online ? "{os} · online" : "{os} · offline", { os: osLabel(machine.os) });
+  const base = tr(machine.online ? "{os} · online" : "{os} · offline", { os: osLabel(machine.os) });
+  if (!machine.smcp) return base;
+  const version = tr("SMCP {version}", { version: machine.smcp.version });
+  return machine.outdated ? `${base} · ${version} · ${tr("update available")}` : `${base} · ${version}`;
 }
 
 function setStop(id, on) {
@@ -98,6 +101,9 @@ function machineStop(machine, index) {
   const actions = element("div", { className: "stop-actions" });
   actions.append(button(tr("Edit"), () => toggleEditor(machine.name, stop), "reveal quiet"));
   if (machine.canWake) actions.append(button(tr("Wake up"), () => act(window.api.wake(machine.name))));
+  if (machine.canUpdate) {
+    actions.append(button(tr("Update to {version}", { version: machine.smcp.latest }), () => act(window.api.updateMachine(machine.name))));
+  }
   if (machine.online && !machine.self && machine.os !== "ios" && machine.os !== "android") {
     actions.append(button("Terminal", () => act(window.api.openTerminal(machine.name))));
   }

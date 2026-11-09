@@ -74,6 +74,10 @@ Open **SMCP**. The first time, setup walks you through each step, and you can sk
 
 SMCP can check for new versions from Settings, and asks whether you want it to update automatically. Every update is verified against a signature before it is installed. On Windows, SMCP tells you about a new version and takes you to the download.
 
+When a new version is waiting, an arrow appears next to the SMCP icon in the menu bar. Your other computers that run SMCP show up in **Devices** with their version, and a Mac with an older one gets an **Update** button: it installs the same signed release there and restarts quietly. Only your own devices on your Tailscale account can ask.
+
+**Wake** sends the Wake-on-LAN signal on every local network this computer is on, and also asks your other computers running SMCP to send it, so the PC turns on as long as one of them is on its home network.
+
 ## Build from source
 
 Requires Node 20 or later. The official `wacli` requires macOS 15 or later.
