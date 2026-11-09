@@ -20,7 +20,7 @@ Get the latest version from [Releases](https://github.com/santiagomlr/smcp/relea
 | WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_chat_digest`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_send_file`, `whatsapp_transcribe_audio`, `whatsapp_search_transcripts` | Everything except sending and listening to audio |
 | Gmail, multiple accounts | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_read_attachment`, `gmail_send`, `gmail_reply`, `gmail_draft` | Everything except sending and drafts |
 | Notes, Obsidian or Markdown | `notes_list_vaults`, `notes_search`, `notes_semantic_search`, `notes_recent`, `notes_read`, `notes_write` | Everything except writing |
-| Tasks | `tasks_available`, `tasks_search`, `tasks_list_projects`, `tasks_claude_queue`, `tasks_hygiene`, `tasks_forecast`, `tasks_review_list`, `tasks_mark_reviewed`, `tasks_create`, `tasks_update`, `tasks_append_note`, `tasks_complete` | Read only |
+| Tasks | `tasks_available`, `tasks_search`, `tasks_list_projects`, `tasks_claude_queue`, `tasks_hygiene`, `tasks_forecast`, `tasks_review_list`, `tasks_mark_reviewed`, `tasks_create`, `tasks_update`, `tasks_append_note`, `tasks_complete` | Reading, and editing if you turn it on |
 | Calendar | `calendar_list_calendars`, `calendar_list_events`, `calendar_free_slots`, `calendar_create_event` | Everything except adding events |
 | Reminders | `reminders_list_lists`, `reminders_list`, `reminders_create`, `reminders_complete` | Read only |
 | Apple Notes | `applenotes_search`, `applenotes_recent`, `applenotes_read` | Yes |
@@ -28,6 +28,7 @@ Get the latest version from [Releases](https://github.com/santiagomlr/smcp/relea
 | Clipboard | `clipboard_read`, `clipboard_write` | Not available |
 | Terminal | `run_command` | Not available |
 | Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot`, `screen_read_text` | Not available |
+| Status | `smcp_status` | Yes |
 
 Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
 
@@ -46,6 +47,19 @@ Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You
 When you link WhatsApp, you choose what the AI can do: **read your chats** and **write with your approval**. Reading starts on and writing starts off. You can change this in Settings, and the change applies on the next call, including from your phone. Turning writing on never skips the confirmation window. Installations from before this option keep both on.
 
 **Listen to audio** is free and starts off. It turns your voice notes into text with whisper.cpp on your computer, with no accounts or keys. Your AI only receives the text, and the temporary audio is deleted afterwards. The first time, it downloads an open model of about 490 MB and checks that it arrived complete. It needs reading your chats turned on and a version of macOS that can open WhatsApp's audio format. If yours can't, the option doesn't appear.
+
+## Built for scheduled routines
+
+A routine that runs at night with nobody watching needs to know what will work before it starts, and to keep going when one part is down.
+
+- **Check first:** `smcp_status` says, area by area, what works right now and why something doesn't (paused, turned off, no account linked, app closed). It answers even when SMCP is paused, so a routine can stop with a clear reason instead of failing halfway.
+- **One area failing doesn't stop the rest.** Each tool fails on its own, with a message that says what to do.
+- **No account, no monthly limit, one name.** There is no SMCP account to lose and no cap on calls, and every tool lives under one server, `smcp`.
+- **Reading tasks with the app closed:** if SMCP.app doesn't respond, task reads come straight from the saved list, with a note saying so. Writing still waits for the app, so there is never a second list.
+- **Tasks from the phone, the web and routines:** turn on **Edit tasks from other devices** in Settings and remote clients can create, change and complete tasks. It starts off, it only touches SMCP's task list, and Read-only still blocks it.
+- **No duplicates:** `tasks_create` rejects a pending task with the same name in the same project, ignoring accents, case and punctuation, and returns the existing task's id. `allow_duplicate: true` skips the check.
+- **Accents:** task, note and file searches ignore accents and treat macOS file names (NFD) the same as typed text (NFC).
+- **Long commands:** `run_command` asks for no confirmation and accepts up to 600 seconds.
 
 ## Usage
 
@@ -102,7 +116,7 @@ Everything is in `~/.smcp/`, with permissions for your user only.
 | `audit.jsonl` | Recent activity: which tool ran, when, from where and how it ended. Never what it read or sent |
 | `gmail.json` | Accounts, with passwords encrypted by the system keychain |
 | `vaults.json` | Vaults that are turned on |
-| `config.json` | Pause, read only, permissions by area and what the AI can do with WhatsApp |
+| `config.json` | Pause, read only, permissions by area, what the AI can do with WhatsApp, and whether other devices can edit tasks |
 | `remote.json` | Connected remote apps, with their tokens stored only as hashes |
 
 Whatever the AI reads is sent to that AI's provider.

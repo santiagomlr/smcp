@@ -74,6 +74,7 @@ test("expone las herramientas esperadas por MCP", async () => {
     "run_command",
     "screen_read_text",
     "screenshot",
+    "smcp_status",
     "tasks_append_note",
     "tasks_available",
     "tasks_claude_queue",

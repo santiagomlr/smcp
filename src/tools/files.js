@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { z } from "zod";
 import { documentKind, documentText } from "../documents.js";
-import { errorResult, externalResult, textResult } from "../util.js";
+import { errorResult, externalResult, fold, textResult } from "../util.js";
 import { storeDir } from "./whatsapp.js";
 
 const MAX_READ_BYTES = 1024 * 1024;
@@ -143,7 +143,7 @@ export async function readText({ path, offset, max_bytes }) {
 
 export async function searchFiles({ root, name, limit }) {
   const start = await resolveSafe(root);
-  const needle = name.toLowerCase();
+  const needle = fold(name);
   const matches = [];
   const pending = [start];
   let seen = 0;
@@ -154,7 +154,7 @@ export async function searchFiles({ root, name, limit }) {
       seen += 1;
       const full = join(dir, entry.name);
       if (isBlocked(full)) continue;
-      if (entry.name.toLowerCase().includes(needle) && matches.length < limit) matches.push(full);
+      if (fold(entry.name).includes(needle) && matches.length < limit) matches.push(full);
       if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) pending.push(full);
     }
   }

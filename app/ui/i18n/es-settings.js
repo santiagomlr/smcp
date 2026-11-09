@@ -193,4 +193,7 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "default": "predeterminado",
   "Where": "Dónde",
   "The event is not valid.": "El evento no es válido.",
+  "Edit tasks from other devices": "Editar tareas desde otros dispositivos",
+  "Lets your phone, the web and scheduled routines create, change and complete tasks.":
+    "Permite que tu teléfono, la web y las rutinas programadas creen, cambien y completen tareas.",
 });

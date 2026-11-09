@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { appendFile, mkdir, open, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fold } from "./util.js";
 
 const NOTE_EXTENSIONS = new Set([".md", ".txt", ".canvas"]);
 const MAX_FILES = 30_000;
@@ -159,8 +160,11 @@ export async function readHead(file, bytes) {
   }
 }
 
-function snippet(text, term) {
-  const index = text.toLowerCase().indexOf(term);
+function snippet(raw, term) {
+  const text = raw.normalize("NFC");
+  const folded = fold(text);
+  // Only Latin text keeps its length when folded; otherwise fall back to the start of the note.
+  const index = folded.length === text.length ? folded.indexOf(term) : -1;
   if (index < 0) return text.slice(0, 160).replace(/\s+/g, " ").trim();
   const start = Math.max(0, index - 60);
   return `${start ? "…" : ""}${text.slice(start, index + 100).replace(/\s+/g, " ").trim()}…`;
@@ -177,16 +181,16 @@ export function createNotes({ vaults = () => enabledVaults() } = {}) {
     listVaults: () => vaults().map(({ name, path }) => ({ name, path: path.replace(homedir(), "~") })),
 
     async search({ query, vault, limit = 20 }) {
-      const terms = String(query ?? "").toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
+      const terms = fold(query).split(/\s+/).filter(Boolean).slice(0, 8);
       if (!terms.length) throw new Error("Type what to search for.");
       const max = Math.min(Math.max(Number(limit) || 20, 1), 50);
       const results = [];
       for (const target of targets(vault)) {
         const root = await realpath(target.path);
         for await (const file of walkNotes(root)) {
-          const title = basename(file, extname(file)).toLowerCase();
+          const title = fold(basename(file, extname(file)));
           const text = await readHead(file, MAX_SEARCH_BYTES).catch(() => "");
-          const lower = text.toLowerCase();
+          const lower = fold(text);
           if (!terms.every((term) => title.includes(term) || lower.includes(term))) continue;
           const score = terms.reduce((sum, term) => sum + (title.includes(term) ? 10 : 0) + Math.min(lower.split(term).length - 1, 20), 0);
           const info = await stat(file);

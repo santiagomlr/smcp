@@ -525,6 +525,7 @@ function renderSettings() {
   const { policy, permissions } = state;
   $("policy-paused").checked = policy.paused;
   $("policy-readonly").checked = policy.readOnly;
+  $("policy-remote-tasks").checked = policy.remote?.taskWrites === true;
   for (const group of GROUPS) $(`group-${group}`).checked = !policy.disabled[group];
   $("whatsapp-access").hidden = !state.whatsapp.supported;
   $("wa-access-off").hidden = !policy.disabled.whatsapp;
@@ -894,6 +895,7 @@ window.api.onLoginEvent(({ state: login, image, error }) => {
 
 $("policy-paused").onchange = (event) => act(window.api.setPolicy({ paused: event.target.checked }));
 $("policy-readonly").onchange = (event) => act(window.api.setPolicy({ readOnly: event.target.checked }));
+$("policy-remote-tasks").onchange = (event) => act(window.api.setPolicy({ remote: { taskWrites: event.target.checked } }));
 $("resume").onclick = () => act(window.api.setPolicy({ paused: false }));
 for (const group of GROUPS) {
   $(`group-${group}`).onchange = (event) => act(window.api.setPolicy({ disabled: { [group]: !event.target.checked } }));
