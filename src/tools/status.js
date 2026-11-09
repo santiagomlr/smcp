@@ -3,12 +3,13 @@ import { viaHelper } from "../helper.js";
 import { GROUPS, readPolicy } from "../policy.js";
 import { textResult } from "../util.js";
 import { enabledVaults } from "../vaults.js";
+import { nightLightCall } from "./nightlight.js";
 import { securityProbe } from "./security.js";
 import { callApp } from "./tasks.js";
 import { storeDir, wacliBin } from "./whatsapp.js";
 
 const PROBE_TIMEOUT_MS = 15_000;
-const LOCAL_ONLY = new Set(["clipboard", "terminal", "apps"]);
+const LOCAL_ONLY = new Set(["clipboard", "terminal", "apps", "nightlight"]);
 
 function version() {
   try {
@@ -46,6 +47,13 @@ export const DEFAULT_PROBES = {
     return { vaults: vaults.length };
   },
   security: securityProbe,
+  async nightlight() {
+    const state = await nightLightCall("status");
+    if (!("installed" in state)) throw new Error("Open the SMCP app to change the screen color.");
+    if (state.supported === false) throw new Error("Only available on a Mac.");
+    if (!state.installed) throw new Error("The night light helper is not installed in this copy of SMCP.");
+    return { on: state.enabled, ...(state.now ? { kelvin: state.now.kelvin } : {}) };
+  },
   async whatsapp() {
     if (!existsSync(wacliBin())) throw new Error("wacli is not installed.");
     if (!existsSync(storeDir())) throw new Error("WhatsApp is not linked.");

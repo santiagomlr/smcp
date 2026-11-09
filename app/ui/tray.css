@@ -285,3 +285,31 @@ body {
   padding: 2px 8px;
   color: var(--ink);
 }
+
+/* Night light */
+
+.panel-nl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 8px;
+}
+
+.panel-nl-value {
+  min-width: 48px;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+
+.panel-nl-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0 6px;
+  padding: 0 8px;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

@@ -9,6 +9,7 @@ import { registerCalendar } from "./tools/calendar.js";
 import { registerClipboard } from "./tools/clipboard.js";
 import { registerFiles } from "./tools/files.js";
 import { registerGmail } from "./tools/gmail.js";
+import { registerNightLight } from "./tools/nightlight.js";
 import { registerNotes } from "./tools/notes.js";
 import { registerSecurity } from "./tools/security.js";
 import { registerStatus } from "./tools/status.js";
@@ -20,7 +21,7 @@ const server = new McpServer(
   { name: "smcp", version: "0.1.0" },
   {
     instructions:
-      "Local access to WhatsApp, Gmail, notes, tasks, calendar, reminders, Apple Notes, files, clipboard, terminal and apps on this Mac, plus a local antivirus. " +
+      "Local access to WhatsApp, Gmail, notes, tasks, calendar, reminders, Apple Notes, files, clipboard, terminal and apps on this Mac, plus a local antivirus and a night light that warms the screen to cut blue light. " +
       "Before the person opens a downloaded or received file, scan it with security_scan_file; check suspicious links with security_check_url. " +
       "Call smcp_status first to see which areas are available right now. " +
       "For a quick look at the day, start with daily_brief. " +
@@ -42,6 +43,7 @@ registerClipboard(tools);
 registerTerminal(tools);
 registerApps(tools);
 registerSecurity(tools);
+registerNightLight(tools);
 registerStatus(tools);
 
 await server.connect(new StdioServerTransport());
