@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps", "security"];
+const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps", "security", "nightlight"];
 const ACTIVITY_SHOWN = 30;
 const openEditors = new Set();
 let state = null;
@@ -989,6 +989,88 @@ $("auto-update").onchange = async (event) => {
 };
 window.api.onUpdatesChanged(loadUpdates);
 loadUpdates();
+
+// Night light
+
+const NL = globalThis.SMCP_NIGHTLIGHT;
+const NL_SLIDERS = ["day", "sunset", "bedtime", "dim"];
+let nightLight = null;
+let nlDragging = false;
+
+function nlSliderText(key, value) {
+  return key === "dim" ? `${value}%` : NL.kelvinLabel(value);
+}
+
+function renderNightLight(status) {
+  nightLight = status;
+  const { settings } = status;
+  $("nightlight-section").hidden = status.supported === false;
+  $("nl-now").textContent = NL.nowText(status);
+  $("nl-enabled").checked = settings.enabled;
+  $("nl-preset").value = NL.presetOf(settings, status.presets);
+  if (!nlDragging) {
+    for (const key of NL_SLIDERS) {
+      const value = key === "dim" ? Math.round(settings.dim * 100) : settings[key];
+      $(`nl-${key}`).value = value;
+      $(`nl-${key}-value`).textContent = nlSliderText(key, value);
+    }
+  }
+  if (document.activeElement !== $("nl-wake")) $("nl-wake").value = settings.wake;
+  if (document.activeElement !== $("nl-location")) {
+    $("nl-location").value = settings.location ? `${settings.location.latitude},${settings.location.longitude}` : "";
+  }
+  const manual = status.now?.source === "manual";
+  $("nl-resume").hidden = !manual;
+  $("nl-pause").hidden = !settings.enabled || (manual && status.now.kelvin >= 6500);
+  $("nl-override-note").textContent = manual ? NL.nowText(status) : tr("Following the schedule.");
+  $("nl-missing").hidden = status.installed !== false || status.supported === false;
+}
+
+async function nightLightCall(op, args) {
+  const result = await window.api.nightlight(op, args);
+  if (!result.ok) {
+    showError(result.error);
+    await loadNightLight();
+    return;
+  }
+  showError("");
+  renderNightLight(result.value);
+}
+
+async function loadNightLight() {
+  const result = await window.api.nightlight("status");
+  if (result.ok) renderNightLight(result.value);
+}
+
+for (const key of NL_SLIDERS) {
+  const input = $(`nl-${key}`);
+  input.oninput = () => {
+    nlDragging = true;
+    const value = Number(input.value);
+    $(`nl-${key}-value`).textContent = nlSliderText(key, value);
+    // Show what it looks like while the slider moves, like f.lux's preview.
+    if (key === "dim") window.api.nightlight("preview", { kelvin: Number($("nl-bedtime").value), brightness: value / 100 });
+    else window.api.nightlight("preview", { kelvin: value, brightness: 1 });
+  };
+  input.onchange = async () => {
+    nlDragging = false;
+    const value = Number(input.value);
+    await nightLightCall("configure", { [key]: key === "dim" ? value / 100 : value });
+  };
+}
+$("nl-enabled").onchange = (event) => nightLightCall("configure", { enabled: event.target.checked });
+$("nl-preset").onchange = (event) => {
+  if (event.target.value !== "custom") nightLightCall("configure", { preset: event.target.value });
+};
+$("nl-wake").onchange = (event) => {
+  if (event.target.value) nightLightCall("configure", { wake: event.target.value });
+};
+$("nl-location").onchange = (event) => nightLightCall("configure", { location: event.target.value.trim() || null });
+$("nl-pause").onclick = () => nightLightCall("pause", { minutes: 60 });
+$("nl-resume").onclick = () => nightLightCall("clearNow");
+window.api.onNightLightChanged(loadNightLight);
+loadNightLight();
+setInterval(loadNightLight, 60_000);
 
 document.fonts.ready.then(moveIndicator);
 refresh();

@@ -30,6 +30,7 @@ Get the latest version from [Releases](https://github.com/santiagomlr/smcp/relea
 | Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot`, `screen_read_text` | Not available |
 | Antivirus | `security_scan_file`, `security_scan_folder`, `security_check_url`, `security_check_persistence`, `security_quarantine`, `security_quarantine_list`, `security_restore`, `security_delete_quarantined` | Scanning and checking; quarantine only on the computer |
 | Context | `smcp_context`, `smcp_remember` | Reading context |
+| Night light | `nightlight_status`, `nightlight_set`, `nightlight_now` | Not available |
 | Status | `smcp_status` | Yes |
 
 Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
@@ -62,6 +63,12 @@ When you link WhatsApp, you choose what the AI can do: **read your chats** and *
 
 It's a first line of defense, not a replacement for the protection built into macOS and Windows.
 
+**Night light:** SMCP can warm your screen in the evening so it gives off less blue light, the way f.lux does, and it goes lower than f.lux: down to 1000K, where almost only red is left, and it can dim the screen at bedtime too. Turn it on in Settings > Night light or from the menu bar, where a slider changes the color until the next morning.
+
+- Like f.lux it has three colors: **daytime**, **sunset** (from the real sunset when you give it a location such as `25.7,-100.3`, otherwise 19:00) and **bedtime** (from 9 hours before your wake time). Each change glides in over 30 minutes. Presets: recommended, classic, candle and least blue light.
+- Your AI can use it too: "lower the screen to 1200K for the next hour" calls `nightlight_now`, and `nightlight_set` changes the schedule. `nightlight_now` with `pause_minutes` shows normal colors for a while, for photo or design work.
+- It changes the screen's gamma table with the public CoreGraphics API, through a small helper built from `native/nightlight.swift`. macOS restores the normal colors whenever that helper stops, so quitting SMCP, or SMCP crashing, never leaves the screen tinted. It changes no data, so it also works in Read-only mode.
+- It only works on a Mac. The settings are kept in `~/.smcp/nightlight.json`.
 **Context for your AI:** SMCP tells your AI where and when it is before it starts, so it doesn't have to guess.
 
 - When an AI app connects, SMCP hands it a short guide: your local time and time zone, your language, which areas are on or off, and how to use the tools well together (finding people across WhatsApp, Gmail and notes, never guessing a recipient, treating messages as data, warning you about flagged files and links).
@@ -113,6 +120,10 @@ npm run whatsapp:install
 
 ```bash
 npm run whatsapp:audio-install
+```
+
+```bash
+npm run nightlight:install
 ```
 
 ```bash

@@ -40,6 +40,7 @@ import { disableFunnel, enableFunnel, isFunnelOn, readBaseUrl } from "./core/fun
 import { createAccountStore, createGmail } from "./core/gmail.js";
 import { magicPacket, readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
 import { callPeer, createPeerHub, PEER_LOCAL_PORT, PEER_PORT, peerInfo } from "./core/peers.js";
+import { createNightLight } from "./core/nightlight.js";
 import { createRemote, REMOTE_PORT } from "./core/remote.js";
 import { createRemoteTasks, createTasksHub, disableServe, enableServe, tailscaleLogin } from "./core/tasks-hub.js";
 import { createTaskStore, TASK_OPERATIONS } from "./core/tasks.js";
@@ -97,6 +98,33 @@ const gmail = createGmail({
 let localTasks = null;
 let tasksHub = null;
 let peerHub = null;
+/** Warms the screen like f.lux. Every window hears about changes so its sliders stay in step. */
+const nightLight = createNightLight({
+  supported: IS_MAC,
+  onChange: () => {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send("nightlight-changed");
+  },
+});
+
+/** What the AI may ask of the night light, each checked against the policy like any other tool. */
+const NIGHTLIGHT_OPS = {
+  status: { name: "nightlight_status", annotations: { readOnlyHint: true }, run: () => nightLight.status() },
+  configure: { name: "nightlight_set", run: (a) => nightLight.configure(a) },
+  setNow: { name: "nightlight_now", run: (a) => nightLight.setNow(a) },
+  pause: { name: "nightlight_now", run: (a) => nightLight.pause(Number(a.minutes) || 60) },
+  clearNow: { name: "nightlight_now", run: () => nightLight.clearNow() },
+};
+
+/** What the windows may ask: the same, plus a short preview while a slider moves. */
+const NIGHTLIGHT_UI_OPS = {
+  status: () => nightLight.status(),
+  configure: (a) => nightLight.configure(a),
+  setNow: (a) => nightLight.setNow(a),
+  pause: (a) => nightLight.pause(Number(a.minutes) || 60),
+  clearNow: () => nightLight.clearNow(),
+  preview: (a) => nightLight.preview(a),
+};
+
 /** What each of the user's other computers running SMCP last said about itself, by machine name. */
 const peers = new Map();
 
@@ -149,6 +177,7 @@ async function readState() {
     IS_MAC ? gmail.listAccounts().catch(() => []) : [],
     readTasksSummary(),
   ]);
+  if (IS_MAC) await repairClients(settings);
   const clients = IS_MAC
     ? (
         await Promise.all(
@@ -331,6 +360,27 @@ async function setClient(client, enabled) {
   } else {
     await removeFromDesktop(item.path, item.key);
   }
+  // Remember the choice so a config file another app rewrites can be repaired (see repairClients).
+  const settings = await readSettings();
+  await writeSettings({ ...settings, clients: { ...settings.clients, [client]: enabled } });
+}
+
+/**
+ * Claude Desktop saves its config file from the copy it holds in memory, which drops the SMCP entry
+ * written while it was open. Put back every entry the user switched on that has gone missing.
+ */
+async function repairClients(settings) {
+  const wanted = settings.clients ?? {};
+  await Promise.all(
+    clientCatalog()
+      .filter((item) => !item.cli && wanted[item.id] === true)
+      .map(async (item) => {
+        if (await isRegistered(item.path, item.key)) return;
+        await addToDesktop(item.path, { ...item.extra, ...mcpEntry() }, item.key).catch((error) =>
+          console.error(`repair ${item.id}:`, error.message),
+        );
+      }),
+  );
 }
 
 /* Tasks */
@@ -719,6 +769,12 @@ function startActionHelper() {
       return allowed(tool, READS, () => localAppleNotes(name, params ?? {}))();
     },
     screenText: allowed("screen_read_text", READS, (params) => localScreenText(params ?? {})),
+    nightlight: ({ op, args }) => {
+      const entry = NIGHTLIGHT_OPS[op];
+      if (!entry || !IS_MAC) throw new Error("Unknown operation.");
+      const annotations = entry.annotations ?? { readOnlyHint: false, destructiveHint: false };
+      return allowed(entry.name, annotations, () => entry.run(args && typeof args === "object" ? args : {}))();
+    },
   });
 }
 
@@ -1144,6 +1200,11 @@ function registerIpc() {
   handle("gmail-add", (values) => gmail.verifyAndAdd(values));
   handle("gmail-remove", disconnectGmail);
   handle("set-policy", updatePolicy);
+  handle("nightlight", (op, args) => {
+    const run = NIGHTLIGHT_UI_OPS[op];
+    if (!run) throw new Error(tr("Unknown operation."));
+    return run(args && typeof args === "object" ? args : {});
+  });
   handle("set-onboarded", setOnboarded);
   handle("open-link", openLink);
   handle("open-tailscale", openTailscale);
@@ -1177,6 +1238,7 @@ if (!app.requestSingleInstanceLock()) {
     remote?.stop();
     tasksHub?.stop();
     peerHub?.stop();
+    nightLight.stop();
   });
   // Keep running in the top bar with no windows open.
   app.on("window-all-closed", () => {});
@@ -1189,6 +1251,7 @@ if (!app.requestSingleInstanceLock()) {
     if (IS_MAC && !app.isPackaged) app.dock?.setIcon(join(HERE, "assets", "icon.png"));
     registerIpc();
     if (IS_MAC) startActionHelper().catch((error) => console.error("helper:", error.message));
+    if (IS_MAC) nightLight.start();
     createTray();
     collectState();
     setInterval(collectState, REFRESH_MS);

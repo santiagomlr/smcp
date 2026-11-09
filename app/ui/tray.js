@@ -221,6 +221,8 @@ async function refresh() {
   status.classList.toggle("paused", paused);
   $("p-pause").checked = paused;
   await loadTasks();
+  const light = await window.api.nightlight("status");
+  if (light.ok) renderNightLight(light.value);
   renderUpdate(state.update);
   const key = JSON.stringify([state.tailscale.machines, state.update, state.clients, state.whatsapp.linked, state.gmail, state.notes, state.remote.enabled, state.remote.clients.length, state.remote.supported]);
   if (key === lastKey) return resize();
@@ -230,6 +232,43 @@ async function refresh() {
   $("p-connections-list").replaceChildren(...connectionRows(state));
   window.api.panelResize(document.documentElement.scrollHeight);
 }
+
+// Night light: a quick switch and a slider for right now, like f.lux in the menu bar.
+const NL = globalThis.SMCP_NIGHTLIGHT;
+let nlDragging = false;
+
+function renderNightLight(status) {
+  $("p-nightlight").hidden = status.supported === false;
+  if (status.supported === false) return;
+  $("p-nl-enabled").checked = status.enabled;
+  const kelvin = status.now?.kelvin ?? status.settings.bedtime;
+  if (!nlDragging) {
+    $("p-nl-kelvin").value = kelvin;
+    $("p-nl-value").textContent = `${kelvin}K`;
+  }
+  $("p-nl-note").textContent = NL.nowText(status);
+  $("p-nl-resume").hidden = status.now?.source !== "manual";
+}
+
+async function nightLight(op, args) {
+  const result = await window.api.nightlight(op, args);
+  if (result.ok) renderNightLight(result.value);
+  resize();
+}
+
+$("p-nl-enabled").onchange = (event) => nightLight("configure", { enabled: event.target.checked });
+$("p-nl-kelvin").oninput = (event) => {
+  nlDragging = true;
+  $("p-nl-value").textContent = `${event.target.value}K`;
+  window.api.nightlight("preview", { kelvin: Number(event.target.value), brightness: 1 });
+};
+// Letting go keeps that color until the next wake time.
+$("p-nl-kelvin").onchange = async (event) => {
+  nlDragging = false;
+  await nightLight("setNow", { kelvin: Number(event.target.value) });
+};
+$("p-nl-resume").onclick = () => nightLight("clearNow");
+window.api.onNightLightChanged(() => nightLight("status"));
 
 $("panel-mark").append($("mark-template").content.firstElementChild.cloneNode(true));
 $("p-pause").onchange = async (event) => {

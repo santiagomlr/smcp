@@ -73,6 +73,7 @@ const AREA_NAMES = {
   terminal: "terminal",
   apps: "app control",
   security: "antivirus",
+  nightlight: "night light",
 };
 
 const REMOTE_AREAS = new Set(["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "security"]);
@@ -131,7 +132,7 @@ export function buildInstructions({ remote = false, context = buildContext({ rem
   const lines = [
     remote
       ? "Access to the person's WhatsApp, Gmail, notes, tasks, calendar, reminders, Apple Notes and files on their computer, plus antivirus checks: reading, and editing tasks if allowed."
-      : "Local access to the person's WhatsApp, Gmail, notes, tasks, calendar, reminders, Apple Notes, files, clipboard, terminal and apps, plus a local antivirus.",
+      : "Local access to the person's WhatsApp, Gmail, notes, tasks, calendar, reminders, Apple Notes, files, clipboard, terminal and apps, plus a local antivirus and a night light that warms the screen to cut blue light.",
     "",
     PLAYBOOK,
     "",

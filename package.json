@@ -16,6 +16,7 @@
     "whatsapp:install": "bash scripts/install-wacli.sh",
     "whatsapp:login": "node src/whatsapp-login.js",
     "whatsapp:audio-install": "bash scripts/install-whisper.sh",
+    "nightlight:install": "bash scripts/install-nightlight.sh",
     "app": "electron .",
     "icons": "node scripts/make-icons.mjs",
     "dist:mac": "electron-builder --mac --arm64 -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
@@ -73,6 +74,10 @@
         {
           "from": "vendor/bin/whisper-cli",
           "to": "bin/whisper-cli"
+        },
+        {
+          "from": "vendor/bin/smcp-nightlight",
+          "to": "bin/smcp-nightlight"
         }
       ],
       "hardenedRuntime": false
