@@ -162,6 +162,7 @@ test("reintenta un fallo de red y se rinde con un mensaje claro si GitHub sigue 
   let calls = 0;
   const { instance } = updater({
     fetchImpl: async (url) => {
+      if (url.startsWith("https://api.github.com/")) return response("", 504);
       calls += 1;
       if (url.endsWith(".sig")) throw new TypeError("fetch failed");
       return response("", 504);
@@ -171,6 +172,59 @@ test("reintenta un fallo de red y se rinde con un mensaje claro si GitHub sigue 
   const result = await instance.check();
   assert.equal(result.status, "error");
   assert.equal(calls, 6);
+});
+
+const API_LISTING = "https://api.github.com/repos/santiagomlr/smcp/releases/latest";
+const apiRelease = () =>
+  JSON.stringify({
+    assets: [
+      { name: "latest.json", url: "https://api.github.com/repos/santiagomlr/smcp/releases/assets/1" },
+      { name: "latest.json.sig", url: "https://api.github.com/repos/santiagomlr/smcp/releases/assets/2" },
+    ],
+  });
+
+test("si el enlace de descarga da 504, baja el manifiesto por la API sin esperar", async () => {
+  const text = manifestFor("0.2.0");
+  const seen = [];
+  const waits = [];
+  const { instance } = updater({
+    fetchImpl: async (url, options = {}) => {
+      seen.push(url);
+      if (url.startsWith("https://github.com/")) return response("", 504);
+      if (url === API_LISTING) return response(apiRelease());
+      assert.equal(options.headers?.Accept, "application/octet-stream");
+      return response(url.endsWith("/1") ? text : signed(text));
+    },
+    sleep: async (ms) => waits.push(ms),
+  });
+  const result = await instance.check();
+  assert.equal(result.status, "available");
+  assert.equal(result.latest, "0.2.0");
+  assert.equal(waits.length, 0);
+  assert.equal(seen.filter((url) => url === API_LISTING).length, 1);
+});
+
+test("el respaldo por la API también exige la firma", async () => {
+  const text = manifestFor("0.2.0");
+  const { instance } = updater({
+    fetchImpl: async (url) => {
+      if (url.startsWith("https://github.com/")) return response("", 504);
+      if (url === API_LISTING) return response(apiRelease());
+      return response(url.endsWith("/1") ? text : signed(manifestFor("9.9.9")));
+    },
+    sleep: async () => {},
+  });
+  const result = await instance.check();
+  assert.equal(result.status, "error");
+  assert.match(result.message, /signature is not valid/);
+});
+
+test("si la API también falla, muestra el error del enlace de descarga", async () => {
+  const { instance } = updater({
+    fetchImpl: async (url) => (url.startsWith("https://api.github.com/") ? response("", 403) : response("", 504)),
+    sleep: async () => {},
+  });
+  assert.match((await instance.check()).message, /GitHub is not responding right now \(504\)/);
 });
 
 test("no reintenta un 404", async () => {
