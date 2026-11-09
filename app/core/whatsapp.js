@@ -55,13 +55,13 @@ export async function syncWhatsApp() {
     timeoutMs: 240_000,
   });
   const detail = failureDetail(result);
-  if (detail !== null) throw new Error(result.timedOut ? "La sincronización tardó demasiado." : detail || "No se pudo sincronizar.");
+  if (detail !== null) throw new Error(result.timedOut ? "The sync took too long." : detail || "Could not sync.");
 }
 
 export async function logoutWhatsApp() {
   const result = await run(wacliBin(), [`--store=${storeDir()}`, "--json", "auth", "logout"], { timeoutMs: 30_000 });
   if (failureDetail(result) !== null) {
-    throw new Error("No se pudo desconectar WhatsApp. Revisa tu conexión y vuelve a intentar.");
+    throw new Error("Could not disconnect WhatsApp. Check your connection and try again.");
   }
 }
 
@@ -98,7 +98,7 @@ export function startLogin({ onQr, onDone }) {
   });
   child.on("close", (code, signal) => {
     clearTimeout(timer);
-    onDone(code === 0 ? null : signal ? "Se canceló la vinculación." : "No se pudo vincular WhatsApp.");
+    onDone(code === 0 ? null : signal ? "Linking was canceled." : "Could not link WhatsApp.");
   });
   return () => child.kill();
 }

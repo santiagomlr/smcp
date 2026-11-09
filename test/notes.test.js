@@ -58,7 +58,7 @@ test("rechaza carpetas demasiado amplias", () => {
   assert.equal(isTooBroad(homedir()), true);
   assert.equal(isTooBroad("/"), true);
   assert.equal(isTooBroad(brain), false);
-  assert.throws(() => setVault(homedir(), true, join(dir, "x.json")), /amplia/);
+  assert.throws(() => setVault(homedir(), true, join(dir, "x.json")), /too broad/);
 });
 
 test("busca por título y contenido, título primero, sin entrar a carpetas ocultas ni archivos que no son notas", async () => {
@@ -71,26 +71,26 @@ test("busca por título y contenido, título primero, sin entrar a carpetas ocul
 
 test("no sale de la bóveda: ni con .., ni por enlaces, ni a carpetas ocultas", async () => {
   const vault = "brain (Vaults)";
-  await assert.rejects(notes.read({ vault, path: "../fuera.md" }), /fuera de la bóveda/);
-  await assert.rejects(notes.read({ vault, path: "enlace.md" }), /fuera de la bóveda/);
-  await assert.rejects(notes.read({ vault, path: ".obsidian/secreto.md" }), /fuera de la bóveda/);
+  await assert.rejects(notes.read({ vault, path: "../fuera.md" }), /outside the vault/);
+  await assert.rejects(notes.read({ vault, path: "enlace.md" }), /outside the vault/);
+  await assert.rejects(notes.read({ vault, path: ".obsidian/secreto.md" }), /outside the vault/);
   await assert.rejects(notes.read({ vault, path: "foto.png" }), /\.md/);
-  await assert.rejects(notes.write({ vault, path: "../nueva.md", content: "x" }), /fuera de la bóveda/);
-  await assert.rejects(notes.read({ vault: "otra", path: "diario.md" }), /No hay una bóveda/);
+  await assert.rejects(notes.write({ vault, path: "../nueva.md", content: "x" }), /outside the vault/);
+  await assert.rejects(notes.read({ vault: "otra", path: "diario.md" }), /No connected vault/);
 });
 
 test("lee notas y escribe sin pisar notas existentes salvo que se pida", async () => {
   const vault = "brain (Vaults)";
   assert.match((await notes.read({ vault, path: "diario.md" })).content, /plan de ventas/);
   await notes.write({ vault, path: "inbox/idea.md", content: "uno" });
-  await assert.rejects(notes.write({ vault, path: "inbox/idea.md", content: "dos" }), /ya existe/);
+  await assert.rejects(notes.write({ vault, path: "inbox/idea.md", content: "dos" }), /already exists/);
   await notes.write({ vault, path: "inbox/idea.md", content: "-dos", mode: "append" });
   assert.equal(await readFile(join(brain, "inbox", "idea.md"), "utf8"), "uno-dos");
 });
 
 test("sin bóvedas encendidas, el error dice dónde encenderlas", async () => {
   const empty = createNotes({ vaults: () => [] });
-  await assert.rejects(empty.search({ query: "x" }), /Conexiones > Notas/);
+  await assert.rejects(empty.search({ query: "x" }), /Connections > Notes/);
 });
 
 test("desde el teléfono se puede leer notas pero no escribirlas", () => {
@@ -98,5 +98,5 @@ test("desde el teléfono se puede leer notas pero no escribirlas", () => {
   assert.ok(!REMOTE_TOOLS.has("notes_write"));
   assert.equal(toolGroup("notes_write"), "notes");
   const policy = { paused: false, readOnly: true, disabled: { notes: false } };
-  assert.match(denialFor("notes_write", { destructiveHint: true }, policy), /solo lectura/);
+  assert.match(denialFor("notes_write", { destructiveHint: true }, policy), /read-only/);
 });

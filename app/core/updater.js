@@ -35,12 +35,12 @@ export function isNewer(candidate, current) {
 /** Returns the manifest only if the signature matches its exact bytes; anything else throws. */
 export function readSignedManifest(text, signature, publicKey = UPDATE_PUBLIC_KEY) {
   const valid = verifySignature(null, Buffer.from(text), createPublicKey(publicKey), Buffer.from(signature.trim(), "base64"));
-  if (!valid) throw new Error("La firma de la actualización no es válida.");
+  if (!valid) throw new Error("The update signature is not valid.");
   const manifest = JSON.parse(text);
   const mac = manifest?.mac?.arm64;
-  if (!VERSION.test(manifest?.version ?? "")) throw new Error("La actualización no indica una versión válida.");
+  if (!VERSION.test(manifest?.version ?? "")) throw new Error("The update does not state a valid version.");
   if (mac && (!MAC_FILE.test(mac.file ?? "") || !/^[0-9a-f]{64}$/.test(mac.sha256 ?? "") || !Number.isInteger(mac.size) || mac.size <= 0)) {
-    throw new Error("La actualización para Mac está incompleta.");
+    throw new Error("The Mac update is incomplete.");
   }
   return manifest;
 }
@@ -87,7 +87,7 @@ export function createUpdater({
 
   async function fetchText(url) {
     const response = await fetchImpl(url, { signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
-    if (!response.ok) throw new Error(`GitHub respondió ${response.status}.`);
+    if (!response.ok) throw new Error(`GitHub responded ${response.status}.`);
     return response.text();
   }
 
@@ -103,35 +103,35 @@ export function createUpdater({
         set({ status: "available", latest: manifest.version, canInstall: macBuild && Boolean(manifest.mac?.arm64) });
       }
     } catch (error) {
-      set({ status: "error", message: `No se pudo revisar: ${error.message}`, canInstall: false });
+      set({ status: "error", message: `Could not check: ${error.message}`, canInstall: false });
     }
     return snapshot;
   });
 
   async function download(url, path, expected) {
     const response = await fetchImpl(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-    if (!response.ok) throw new Error(`GitHub respondió ${response.status}.`);
+    if (!response.ok) throw new Error(`GitHub responded ${response.status}.`);
     const hash = createHash("sha256");
     let received = 0;
     const meter = new Transform({
       transform(chunk, _encoding, done) {
         received += chunk.length;
-        if (received > expected.size) return done(new Error("La descarga es más grande de lo esperado."));
+        if (received > expected.size) return done(new Error("The download is larger than expected."));
         hash.update(chunk);
         done(null, chunk);
       },
     });
     await pipeline(Readable.fromWeb(response.body), meter, createWriteStream(path, { mode: 0o600 }));
     if (received !== expected.size || hash.digest("hex") !== expected.sha256) {
-      throw new Error("La descarga no coincide con la versión firmada.");
+      throw new Error("The download does not match the signed version.");
     }
   }
 
   async function verifyBundle(bundle, version) {
     const plist = join(bundle, "Contents", "Info.plist");
     const read = async (key) => (await run("plutil", ["-extract", key, "raw", plist])).stdout.trim();
-    if ((await read("CFBundleIdentifier")) !== bundleId) throw new Error("El paquete descargado no es SMCP.");
-    if ((await read("CFBundleShortVersionString")) !== version) throw new Error("El paquete descargado tiene otra versión.");
+    if ((await read("CFBundleIdentifier")) !== bundleId) throw new Error("The downloaded package is not SMCP.");
+    if ((await read("CFBundleShortVersionString")) !== version) throw new Error("The downloaded package is a different version.");
     await run("codesign", ["--verify", "--deep", bundle]);
   }
 
@@ -140,14 +140,14 @@ export function createUpdater({
     if (snapshot.status !== "available" || !snapshot.canInstall) return snapshot;
     let work = null;
     try {
-      if (!appBundle?.endsWith(".app")) throw new Error("Solo se puede actualizar la app instalada.");
+      if (!appBundle?.endsWith(".app")) throw new Error("Only the installed app can be updated.");
       await access(dirname(appBundle), constants.W_OK);
       const build = manifest.mac.arm64;
-      set({ status: "installing", message: "Descargando…" });
+      set({ status: "installing", message: "Downloading…" });
       work = await mkdtemp(join(tempRoot, "smcp-update-"));
       const zip = join(work, build.file);
       await download(`https://github.com/${REPO}/releases/download/v${manifest.version}/${build.file}`, zip, build);
-      set({ message: "Verificando…" });
+      set({ message: "Verifying…" });
       const extracted = join(work, "extracted");
       await run("ditto", ["-x", "-k", zip, extracted]);
       const fresh = join(extracted, "SMCP.app");
@@ -155,12 +155,12 @@ export function createUpdater({
       const script = join(work, "swap.sh");
       await writeFile(script, SWAP_SCRIPT, { mode: 0o700 });
       await chmod(script, 0o700);
-      set({ message: "Reiniciando…" });
+      set({ message: "Restarting…" });
       startSwap(script, [String(pid), fresh, appBundle, background ? "background" : "foreground", work]);
       quit();
     } catch (error) {
       if (work) await rm(work, { recursive: true, force: true });
-      set({ status: "error", message: `No se pudo actualizar: ${error.message}`, canInstall: false });
+      set({ status: "error", message: `Could not update: ${error.message}`, canInstall: false });
     }
     return snapshot;
   }

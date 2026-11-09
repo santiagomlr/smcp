@@ -48,7 +48,7 @@ test("confirmar envía exactamente al destinatario y texto mostrados", async () 
   assert.ok(args.includes(`--to=${JID}`));
   assert.ok(args.includes(`--message=${message}`));
   assert.ok(!args.includes("--read-only"));
-  assert.ok(shown.startsWith(`Para: ${JID}`));
+  assert.ok(shown.startsWith(`To: ${JID}`));
   assert.ok(shown.includes(message));
 });
 
@@ -88,7 +88,7 @@ test("muestra el nombre del chat en la confirmación", async () => {
     },
   });
   await send({ to: JID, message: "hola" });
-  assert.ok(shown.startsWith(`Para: Ana (${JID})`));
+  assert.ok(shown.startsWith(`To: Ana (${JID})`));
 });
 
 test("las lecturas siempre van con --read-only y marcan el contenido como externo", async () => {
@@ -116,7 +116,7 @@ test("si el chat no existe, toma el nombre del contacto", async () => {
     },
   });
   await send({ to: JID, message: "hola" });
-  assert.ok(shown.startsWith(`Para: Ana (${JID})`));
+  assert.ok(shown.startsWith(`To: Ana (${JID})`));
 });
 
 test("success:false con código 0 nunca cuenta como enviado", async () => {
@@ -150,6 +150,6 @@ test("un envío fallido avisa que el resultado puede ser incierto", async () => 
   const { send } = createWhatsApp({ exec: fake.exec, confirm: async () => true });
   const result = await send({ to: JID, message: "hola" });
   assert.equal(result.isError, true);
-  assert.match(result.content[0].text, /incierto/);
+  assert.match(result.content[0].text, /uncertain/);
   assert.equal(fake.sends().length, 1);
 });

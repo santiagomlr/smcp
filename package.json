@@ -1,8 +1,8 @@
 {
   "name": "smcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
-  "description": "App personal para conectar WhatsApp, tus máquinas y Claude.",
+  "description": "Personal app that connects WhatsApp, your machines and Claude.",
   "type": "module",
   "engines": {
     "node": ">=20"

@@ -20,7 +20,7 @@ function parseDate(value, label, endOfDay = false) {
   const text = String(value);
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(text);
   const date = new Date(dateOnly ? `${text}T${endOfDay ? "23:59:00" : "08:00:00"}` : text);
-  if (Number.isNaN(date.getTime()) || !isRealCalendarDay(text)) throw new Error(`La fecha de ${label} no es válida. Usa AAAA-MM-DD.`);
+  if (Number.isNaN(date.getTime()) || !isRealCalendarDay(text)) throw new Error(`The ${label} date is not valid. Use YYYY-MM-DD.`);
   return date.toISOString();
 }
 
@@ -42,7 +42,7 @@ function localDay(value) {
 function parseMinutes(value) {
   if (value === null || value === undefined || value === "") return null;
   const minutes = Number(value);
-  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 10_000) throw new Error("La estimación debe ser un número de minutos.");
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 10_000) throw new Error("The estimate must be a number of minutes.");
   return minutes;
 }
 
@@ -81,7 +81,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
       state = { ...emptyState(), ...JSON.parse(readFileSync(path, "utf8")) };
     } catch {
       // Refusing to start empty protects a damaged file from being overwritten.
-      throw new Error("No se pudo leer la lista de tareas. Restaura el respaldo tasks.json.bak.");
+      throw new Error("Could not read the task list. Restore the tasks.json.bak backup.");
     }
   }
 
@@ -171,14 +171,18 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
 
   const need = (id) => {
     // hasOwn, or an id like "__proto__" would return the prototype of every object.
-    if (!Object.hasOwn(state.tasks, String(id))) throw new Error("No existe esa tarea. Búscala con tasks_search.");
+    if (!Object.hasOwn(state.tasks, String(id))) throw new Error("That task does not exist. Find it with tasks_search.");
     return state.tasks[id];
   };
 
-  const resolveProject = (name) => {
+  /** A task placed in an archived project would be saved but hidden from every list, so it is refused. */
+  const resolveProject = (name, current = null) => {
     if (name === null || name === undefined || name === "" || fold(name) === "inbox") return null;
     const key = projectKey(name);
-    if (!key) throw new Error(`No existe el proyecto "${nfc(name)}". Consulta tasks_list_projects.`);
+    if (!key) throw new Error(`The project "${nfc(name)}" does not exist. See tasks_list_projects.`);
+    if (key !== current && state.projects[key].status === "dropped") {
+      throw new Error(`The project "${key}" is archived. Restore it in Tasks or use another one.`);
+    }
     return key;
   };
 
@@ -186,7 +190,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
     const resolved = [];
     for (const tag of tags ?? []) {
       const key = tagKey(tag);
-      if (!key) throw new Error(`No existe el tag "${nfc(tag)}". Consulta tasks_list_projects.`);
+      if (!key) throw new Error(`The tag "${nfc(tag)}" does not exist. See tasks_list_projects.`);
       if (!resolved.includes(key)) resolved.push(key);
     }
     if (waitingFor) {
@@ -213,7 +217,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
 
   const cleanName = (name) => {
     const clean = nfc(name);
-    if (!clean) throw new Error("La tarea necesita un nombre.");
+    if (!clean) throw new Error("The task needs a name.");
     return clean.slice(0, MAX_NAME);
   };
 
@@ -259,7 +263,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
       }
       if (view === "all") return tasks.filter(isOpen).sort((a, b) => (a.project ?? "").localeCompare(b.project ?? "")).map(row);
       if (view === "done") return tasks.filter((task) => task.completedAt).sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, 100).map(row);
-      throw new Error("Vista desconocida.");
+      throw new Error("Unknown view.");
     },
 
     /** Sidebar data: folders with their projects, tags as a tree, and open counts. */
@@ -341,7 +345,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
         case "completed":
           return Object.values(state.tasks).filter((task) => task.completedAt).sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, 200).map(row);
         default:
-          throw new Error("Vista desconocida.");
+          throw new Error("Unknown view.");
       }
     },
 
@@ -389,7 +393,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
 
     markReviewed({ name }) {
       const key = projectKey(name);
-      if (!key) throw new Error("No existe ese proyecto.");
+      if (!key) throw new Error("That project does not exist.");
       const project = state.projects[key];
       project.lastReviewed = nowIso();
       project.nextReview = new Date(now() + (project.reviewDays ?? 7) * DAY).toISOString();
@@ -399,16 +403,16 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
 
     updateProject({ name, rename, folder, status, review_days: reviewDays }) {
       const key = projectKey(name);
-      if (!key) throw new Error("No existe ese proyecto.");
+      if (!key) throw new Error("That project does not exist.");
       const project = state.projects[key];
       // Everything is checked first, so a rejected edit changes nothing.
-      if (status !== undefined && !["active", "onhold", "dropped"].includes(status)) throw new Error("Estado inválido.");
+      if (status !== undefined && !["active", "onhold", "dropped"].includes(status)) throw new Error("Invalid status.");
       const interval = reviewDays === undefined || reviewDays === null ? reviewDays : Number(reviewDays);
       if (interval !== undefined && interval !== null && (!Number.isInteger(interval) || interval < 1 || interval > 366)) {
-        throw new Error("El intervalo debe ser de 1 a 366 días.");
+        throw new Error("The interval must be from 1 to 366 days.");
       }
       const clean = rename === undefined ? key : cleanName(rename);
-      if (projectKey(clean) && projectKey(clean) !== key) throw new Error("Ya existe un proyecto con ese nombre.");
+      if (projectKey(clean) && projectKey(clean) !== key) throw new Error("A project with that name already exists.");
 
       if (folder !== undefined) project.folder = nfc(folder) || "Sin carpeta";
       if (status !== undefined) project.status = status;
@@ -434,7 +438,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
     /** Accent-insensitive; every word must appear in the name or the note. */
     search({ query, include_done: includeDone = false, limit = 20 }) {
       const terms = fold(query).split(/\s+/).filter(Boolean);
-      if (!terms.length) throw new Error("Escribe qué buscar.");
+      if (!terms.length) throw new Error("Type what to search for.");
       const matches = Object.values(state.tasks).filter((task) => {
         if (task.droppedAt || inDroppedProject(task) || (!includeDone && task.completedAt)) return false;
         const text = fold(`${task.name} ${task.note ?? ""}`);
@@ -460,8 +464,8 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
 
     createProject({ name, folder, status = "active" }) {
       const clean = cleanName(name);
-      if (projectKey(clean)) throw new Error("Ese proyecto ya existe.");
-      if (!["active", "onhold", "dropped"].includes(status)) throw new Error("Estado inválido.");
+      if (projectKey(clean)) throw new Error("That project already exists.");
+      if (!["active", "onhold", "dropped"].includes(status)) throw new Error("Invalid status.");
       state.projects[clean] = { folder: nfc(folder) || "Sin carpeta", status };
       save();
       return { name: clean };
@@ -469,7 +473,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
 
     createTag({ name, parent = null }) {
       const clean = cleanName(name);
-      if (tagKey(clean)) throw new Error("Ese tag ya existe.");
+      if (tagKey(clean)) throw new Error("That tag already exists.");
       state.tags[clean] = { parent: parent ? tagKey(parent) ?? null : null };
       save();
       return { name: clean };
@@ -479,9 +483,9 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
       const checked = {
         name: cleanName(name),
         project: resolveProject(project),
-        due: parseDate(due, "límite", true),
-        defer: parseDate(defer, "inicio"),
-        planned: parseDate(planned, "planeado"),
+        due: parseDate(due, "due", true),
+        defer: parseDate(defer, "start"),
+        planned: parseDate(planned, "planned"),
         estimatedMinutes: parseMinutes(minutes),
       };
       const task = {
@@ -508,11 +512,11 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
       const changes = {};
       if (name !== undefined) changes.name = cleanName(name);
       if (note !== undefined) changes.note = String(note ?? "").slice(0, MAX_NOTE);
-      if (project !== undefined) changes.project = resolveProject(project);
-      if (planned !== undefined) changes.planned = parseDate(planned, "planeado");
+      if (project !== undefined) changes.project = resolveProject(project, task.project);
+      if (planned !== undefined) changes.planned = parseDate(planned, "planned");
       if (repeat !== undefined) changes.repeat = repeat ? String(repeat).slice(0, 120) : null;
-      if (due !== undefined) changes.due = parseDate(due, "límite", true);
-      if (defer !== undefined) changes.defer = parseDate(defer, "inicio");
+      if (due !== undefined) changes.due = parseDate(due, "due", true);
+      if (defer !== undefined) changes.defer = parseDate(defer, "start");
       if (minutes !== undefined) changes.estimatedMinutes = parseMinutes(minutes);
       if (flagged !== undefined) changes.flagged = Boolean(flagged);
       // Last, because waiting_for can add a tag: it must not stay behind if the edit was rejected.
@@ -526,7 +530,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
     appendNote({ id, text }) {
       const task = need(id);
       const addition = String(text ?? "").trim();
-      if (!addition) throw new Error("La nota está vacía.");
+      if (!addition) throw new Error("The note is empty.");
       task.note = `${task.note ? `${task.note}\n\n` : ""}${addition}`.slice(0, MAX_NOTE);
       task.updatedAt = nowIso();
       save();
@@ -592,7 +596,7 @@ export function createTaskStore({ path = defaultTasksPath(), now = () => Date.no
 
     restoreProject({ name }) {
       const key = projectKey(name);
-      if (!key) throw new Error("No existe ese proyecto.");
+      if (!key) throw new Error("That project does not exist.");
       const project = state.projects[key];
       project.status = project.statusBeforeArchive ?? "active";
       delete project.statusBeforeArchive;

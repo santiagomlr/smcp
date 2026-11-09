@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 const call = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 
 contextBridge.exposeInMainWorld("api", {
+  language: ipcRenderer.sendSync("get-language"),
+  setLanguage: (language) => call("set-language", language),
   state: () => call("state"),
   openTerminal: (name) => call("open-terminal", name),
   wake: (name) => call("wake", name),

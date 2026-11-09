@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data: 'self'" />
@@ -26,10 +26,10 @@
       <p id="ob-progress" class="sr-only" role="status"></p>
       <div id="ob-body" class="ob-body"></div>
       <nav class="ob-nav">
-        <button id="ob-back" type="button" class="quiet">Atrás</button>
+        <button id="ob-back" type="button" class="quiet">Back</button>
         <span class="spacer"></span>
-        <button id="ob-skip" type="button" class="quiet">Omitir</button>
-        <button id="ob-next" type="button" class="primary">Continuar</button>
+        <button id="ob-skip" type="button" class="quiet">Skip</button>
+        <button id="ob-next" type="button" class="primary">Continue</button>
       </nav>
     </section>
 
@@ -43,32 +43,32 @@
           </div>
         </div>
         <div class="tabs" role="tablist">
-          <button id="tab-connections" type="button" role="tab" aria-selected="true">Conexiones</button>
-          <button id="tab-tasks" type="button" role="tab" aria-selected="false">Tareas ↗</button>
-          <button id="tab-settings" type="button" role="tab" aria-selected="false">Ajustes</button>
+          <button id="tab-connections" type="button" role="tab" aria-selected="true">Connections</button>
+          <button id="tab-tasks" type="button" role="tab" aria-selected="false">Tasks ↗</button>
+          <button id="tab-settings" type="button" role="tab" aria-selected="false">Settings</button>
           <span id="tab-indicator" class="tab-indicator"></span>
         </div>
       </header>
 
       <div id="paused-banner" class="banner" role="status" hidden>
-        <span>En pausa. Claude no puede usar ninguna herramienta.</span>
-        <button id="resume" type="button">Reanudar</button>
+        <span>Paused. Claude can't use any tools.</span>
+        <button id="resume" type="button">Resume</button>
       </div>
 
       <main id="view-connections" class="view">
         <section id="clients-section" aria-labelledby="h-clients">
-          <h2 id="h-clients">Apps de IA en esta Mac</h2>
+          <h2 id="h-clients">AI apps on this Mac</h2>
           <ol id="clients-line" class="line"></ol>
-          <p class="hint">Reinicia la app para que tome el cambio.</p>
+          <p class="hint">Restart the app for the change to take effect.</p>
         </section>
 
         <section id="remote-section" aria-labelledby="h-remote">
-          <h2 id="h-remote">Teléfono, web y ChatGPT</h2>
+          <h2 id="h-remote">Phone, web and ChatGPT</h2>
           <ol class="line">
             <li id="stop-remote" class="stop">
               <span class="node"></span>
               <label class="stop-main" for="remote-switch">
-                <div class="stop-title">Acceso remoto</div>
+                <div class="stop-title">Remote access</div>
                 <div id="remote-meta" class="stop-meta"></div>
               </label>
               <input id="remote-switch" class="switch" type="checkbox" role="switch" />
@@ -78,26 +78,26 @@
             <div class="edit">
               <div class="remote-body">
                 <div class="remote-row">
-                  <div class="grow"><small>URL del conector</small><code id="remote-url"></code></div>
-                  <button id="remote-copy" type="button">Copiar</button>
+                  <div class="grow"><small>Connector URL</small><code id="remote-url"></code></div>
+                  <button id="remote-copy" type="button">Copy</button>
                 </div>
                 <div class="remote-row">
-                  <div class="grow"><small id="remote-code-label">Código de emparejamiento</small><code id="remote-code" class="big"></code></div>
-                  <button id="remote-new-code" type="button">Generar</button>
+                  <div class="grow"><small id="remote-code-label">Pairing code</small><code id="remote-code" class="big"></code></div>
+                  <button id="remote-new-code" type="button">Generate</button>
                 </div>
                 <ol class="remote-steps">
-                  <li>Copia la URL y agrégala como conector personalizado en Claude o ChatGPT, desde sus Ajustes.</li>
-                  <li>Cuando te lo pida, escribe el código. Sirve una vez y dura 10 minutos.</li>
+                  <li>Copy the URL and add it as a custom connector in the Settings of Claude or ChatGPT.</li>
+                  <li>When asked, enter the code. It works once and lasts 10 minutes.</li>
                 </ol>
                 <ul id="remote-clients" class="rows"></ul>
-                <p class="hint">Remotamente solo se puede leer WhatsApp, Gmail, notas y archivos. Esta computadora debe estar encendida, sin dormir y con SMCP abierta.</p>
+                <p class="hint">Remote access can only read WhatsApp, Gmail, notes and files. This computer must be on, awake and running SMCP.</p>
               </div>
             </div>
           </div>
         </section>
 
         <section id="whatsapp-section" aria-labelledby="h-whatsapp">
-          <h2 id="h-whatsapp">Mensajes</h2>
+          <h2 id="h-whatsapp">Messages</h2>
           <ol class="line">
             <li id="stop-whatsapp" class="stop">
               <span class="node"></span>
@@ -106,9 +106,9 @@
                 <div id="wa-detail" class="stop-meta"></div>
               </div>
               <div class="stop-actions">
-                <button id="wa-disconnect" type="button" class="reveal quiet">Desconectar</button>
-                <button id="wa-sync" type="button">Sincronizar</button>
-                <button id="wa-link" type="button" class="primary">Vincular</button>
+                <button id="wa-disconnect" type="button" class="reveal quiet">Disconnect</button>
+                <button id="wa-sync" type="button">Sync</button>
+                <button id="wa-link" type="button" class="primary">Link</button>
               </div>
             </li>
           </ol>
@@ -117,20 +117,20 @@
         </section>
 
         <section id="gmail-section" aria-labelledby="h-gmail">
-          <h2 id="h-gmail">Correo</h2>
+          <h2 id="h-gmail">Email</h2>
           <ol id="gmail-accounts" class="line"></ol>
           <div id="gmail-fold" class="fold"><div id="gmail-form-home" class="edit"></div></div>
-          <button id="gmail-toggle" type="button" class="add">Agregar cuenta de Gmail</button>
+          <button id="gmail-toggle" type="button" class="add">Add Gmail account</button>
         </section>
 
         <section id="notes-section" aria-labelledby="h-notes">
-          <h2 id="h-notes">Notas</h2>
+          <h2 id="h-notes">Notes</h2>
           <ol id="vaults-line" class="line"></ol>
-          <button id="vault-add" type="button" class="add">Agregar carpeta de notas</button>
+          <button id="vault-add" type="button" class="add">Add notes folder</button>
         </section>
 
         <section aria-labelledby="h-machines">
-          <h2 id="h-machines">Máquinas</h2>
+          <h2 id="h-machines">Your devices</h2>
           <ol id="machines" class="line"></ol>
         </section>
       </main>
@@ -139,65 +139,66 @@
         <section aria-labelledby="h-control">
           <h2 id="h-control">Control</h2>
           <ul class="rows">
-            <li><label for="policy-paused">Pausar SMCP<small>Claude no podrá usar ninguna herramienta.</small></label><input id="policy-paused" class="switch" type="checkbox" role="switch" /></li>
-            <li><label for="policy-readonly">Solo lectura<small>Bloquea enviar, escribir, comandos y clics.</small></label><input id="policy-readonly" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="policy-paused">Pause SMCP<small>Claude won't be able to use any tools.</small></label><input id="policy-paused" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="policy-readonly">Read-only<small>Blocks sending, writing, commands and clicks.</small></label><input id="policy-readonly" class="switch" type="checkbox" role="switch" /></li>
           </ul>
         </section>
 
         <section aria-labelledby="h-perms">
-          <h2 id="h-perms">Lo que Claude puede usar</h2>
+          <h2 id="h-perms">What Claude can use</h2>
           <ul class="rows">
             <li><label for="group-whatsapp">WhatsApp</label><input id="group-whatsapp" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-gmail">Gmail</label><input id="group-gmail" class="switch" type="checkbox" role="switch" /></li>
-            <li><label for="group-notes">Notas</label><input id="group-notes" class="switch" type="checkbox" role="switch" /></li>
-            <li><label for="group-tasks">Tareas</label><input id="group-tasks" class="switch" type="checkbox" role="switch" /></li>
-            <li><label for="group-files">Archivos</label><input id="group-files" class="switch" type="checkbox" role="switch" /></li>
-            <li><label for="group-terminal">Terminal<small>Puede ejecutar cualquier comando.</small></label><input id="group-terminal" class="switch" type="checkbox" role="switch" /></li>
-            <li><label for="group-apps">Controlar apps</label><input id="group-apps" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-notes">Notes</label><input id="group-notes" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-tasks">Tasks</label><input id="group-tasks" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-files">Files</label><input id="group-files" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-terminal">Terminal<small>Can run any command.</small></label><input id="group-terminal" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-apps">Control apps</label><input id="group-apps" class="switch" type="checkbox" role="switch" /></li>
           </ul>
         </section>
 
         <section id="whatsapp-access" aria-labelledby="h-wa-access">
-          <h2 id="h-wa-access">Qué puede hacer Claude con WhatsApp</h2>
+          <h2 id="h-wa-access">What Claude can do with WhatsApp</h2>
           <ul id="wa-access-rows" class="rows"></ul>
-          <p id="wa-access-off" class="hint" hidden>WhatsApp está apagado. Enciéndelo arriba para usar estas opciones.</p>
+          <p id="wa-access-off" class="hint" hidden>WhatsApp is off. Turn it on above to use these options.</p>
         </section>
 
         <section aria-labelledby="h-tasks-home">
-          <h2 id="h-tasks-home">Dónde viven tus tareas</h2>
+          <h2 id="h-tasks-home">Where your tasks live</h2>
           <ul class="rows">
-            <li><label for="tasks-host">Guardar en<small>Las demás computadoras usan esta misma lista.</small></label><select id="tasks-host"></select></li>
-            <li id="tasks-hub-row"><label for="tasks-hub">Compartir con mis computadoras<small>Solo con equipos de tu cuenta de Tailscale.</small></label><input id="tasks-hub" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="tasks-host">Save on<small>Your other computers use this same list.</small></label><select id="tasks-host"></select></li>
+            <li id="tasks-hub-row"><label for="tasks-hub">Share with my computers<small>Only with devices on your Tailscale account.</small></label><input id="tasks-hub" class="switch" type="checkbox" role="switch" /></li>
           </ul>
         </section>
 
         <section id="mac-perms" aria-labelledby="h-mac">
-          <h2 id="h-mac">Permisos de tu Mac</h2>
+          <h2 id="h-mac">Your Mac's permissions</h2>
           <ol class="line">
             <li id="stop-perm-accessibility" class="stop">
               <span class="node"></span>
-              <div class="stop-main"><div class="stop-title">Accesibilidad</div><div class="stop-meta">Para controlar apps</div></div>
-              <button type="button" data-privacy="accessibility">Activar</button>
+              <div class="stop-main"><div class="stop-title">Accessibility</div><div class="stop-meta">To control apps</div></div>
+              <button type="button" data-privacy="accessibility">Turn on</button>
             </li>
             <li id="stop-perm-screen" class="stop">
               <span class="node"></span>
-              <div class="stop-main"><div class="stop-title">Grabación de pantalla</div><div class="stop-meta">Para tomar capturas</div></div>
-              <button type="button" data-privacy="screen">Activar</button>
+              <div class="stop-main"><div class="stop-title">Screen Recording</div><div class="stop-meta">To take screenshots</div></div>
+              <button type="button" data-privacy="screen">Turn on</button>
             </li>
           </ol>
-          <p class="hint">Activa SMCP en cada lista. Después de activar Grabación de pantalla, reinicia SMCP.</p>
+          <p class="hint">Turn on SMCP in each list. After turning on Screen Recording, restart SMCP.</p>
         </section>
 
         <section aria-labelledby="h-app">
           <h2 id="h-app">App</h2>
           <ul class="rows">
-            <li><label for="open-at-login">Abrir al iniciar sesión</label><input id="open-at-login" class="switch" type="checkbox" role="switch" /></li>
-            <li><span>Actualizaciones<small id="update-status" aria-live="polite"></small></span><button id="check-updates" type="button">Buscar actualizaciones</button></li>
-            <li><label for="auto-update">Actualizar automáticamente<small id="auto-update-note"></small></label><input id="auto-update" class="switch" type="checkbox" role="switch" /></li>
-            <li><span>Configuración inicial</span><button id="redo-onboarding" type="button">Repetir</button></li>
-            <li><span>Diagnóstico<small id="diag-status">Sin nombres, cuentas ni mensajes.</small></span><button id="copy-diagnostics" type="button">Copiar</button></li>
-            <li><span>Reiniciar SMCP</span><button id="restart" type="button">Reiniciar</button></li>
-            <li><span>Salir de SMCP<small>Claude dejará de controlar apps y mostrar confirmaciones aquí hasta que lo abras.</small></span><button id="quit" type="button">Salir</button></li>
+            <li><label for="language">Language</label><select id="language"><option value="en">English</option><option value="es">Español</option></select></li>
+            <li><label for="open-at-login">Open at login</label><input id="open-at-login" class="switch" type="checkbox" role="switch" /></li>
+            <li><span>Updates<small id="update-status" aria-live="polite"></small></span><button id="check-updates" type="button">Check for updates</button></li>
+            <li><label for="auto-update">Update automatically<small id="auto-update-note"></small></label><input id="auto-update" class="switch" type="checkbox" role="switch" /></li>
+            <li><span>Initial setup</span><button id="redo-onboarding" type="button">Run again</button></li>
+            <li><span>Diagnostics<small id="diag-status">No names, accounts or messages.</small></span><button id="copy-diagnostics" type="button">Copy</button></li>
+            <li><span>Restart SMCP</span><button id="restart" type="button">Restart</button></li>
+            <li><span>Quit SMCP<small>Claude won't be able to control apps or show confirmations here until you open it again.</small></span><button id="quit" type="button">Quit</button></li>
           </ul>
           <p id="version" class="hint"></p>
         </section>
@@ -208,10 +209,14 @@
 
     <div id="wa-qr" class="qr" hidden>
       <p id="wa-qr-text"></p>
-      <img id="wa-qr-image" alt="Código QR para vincular WhatsApp" hidden />
-      <button id="wa-cancel" type="button" class="quiet">Cancelar</button>
+      <img id="wa-qr-image" alt="QR code to link WhatsApp" hidden />
+      <button id="wa-cancel" type="button" class="quiet">Cancel</button>
     </div>
 
+    <script src="i18n.js"></script>
+    <script src="i18n/es-settings.js"></script>
+    <script src="i18n/es-tasks.js"></script>
+    <script src="i18n/es-main.js"></script>
     <script src="ui.js"></script>
   </body>
 </html>

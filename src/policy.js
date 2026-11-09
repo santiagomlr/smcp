@@ -43,17 +43,17 @@ function normalizeWhatsApp(saved) {
 
 function whatsappDenial(name, access) {
   const abilities = WHATSAPP_TOOL_ABILITIES[name];
-  if (!abilities) return "Esta herramienta de WhatsApp no tiene un permiso definido en SMCP, así que no se ejecutó.";
-  const where = "Puedes cambiarlo en SMCP, en Ajustes.";
+  if (!abilities) return "This WhatsApp tool has no permission defined in SMCP, so it did not run.";
+  const where = "You can change this in SMCP, under Settings.";
   // What an audio says is message content, so turning off reading also stops this.
   if (name === "whatsapp_transcribe_audio" && access?.audio === true && access?.read !== true) {
-    return `Leer los chats de WhatsApp está apagado, y escuchar audios lo necesita. ${where}`;
+    return `Reading WhatsApp chats is off, and listening to audio needs it. ${where}`;
   }
   if (!abilities.length || abilities.some((ability) => access?.[ability] === true)) return null;
-  if (abilities.length > 1) return `Leer y escribir por WhatsApp están apagados. ${where}`;
-  if (abilities[0] === "send") return `Escribir por WhatsApp está apagado, así que no se envió nada. ${where}`;
-  if (abilities[0] === "audio") return `Escuchar audios de WhatsApp está apagado. ${where}`;
-  return `Leer los chats de WhatsApp está apagado. ${where}`;
+  if (abilities.length > 1) return `Reading and writing on WhatsApp are off. ${where}`;
+  if (abilities[0] === "send") return `Writing on WhatsApp is off, so nothing was sent. ${where}`;
+  if (abilities[0] === "audio") return `Listening to WhatsApp audio is off. ${where}`;
+  return `Reading WhatsApp chats is off. ${where}`;
 }
 
 export function configPath() {
@@ -101,11 +101,11 @@ export function toolGroup(name) {
 
 /** Returns why a tool may not run under this policy, or null if it may. */
 export function denialFor(name, annotations, policy) {
-  if (policy.paused) return "SMCP está en pausa. Puedes reanudarlo desde la app.";
+  if (policy.paused) return "SMCP is paused. You can resume it from the app.";
   const group = toolGroup(name);
-  if (policy.disabled[group]) return `Este permiso (${group}) está desactivado en los ajustes de SMCP.`;
+  if (policy.disabled[group]) return `This permission (${group}) is turned off in the SMCP settings.`;
   if (policy.readOnly && annotations?.readOnlyHint !== true && annotations?.destructiveHint !== false) {
-    return "SMCP está en modo solo lectura, así que no se ejecutó esta acción.";
+    return "SMCP is in read-only mode, so this action did not run.";
   }
   return group === "whatsapp" ? whatsappDenial(name, policy.whatsapp) : null;
 }

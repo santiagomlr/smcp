@@ -16,16 +16,16 @@ const payload = (result) => JSON.parse(result.content[0].text);
 
 test("bloquea credenciales, también a través de symlinks y ..", async () => {
   const ssh = join(homedir(), ".ssh", "id_rsa");
-  await assert.rejects(resolveSafe(ssh), /bloqueada/);
-  await assert.rejects(resolveSafe("~/.aws/credentials"), /bloqueada/);
-  await assert.rejects(resolveSafe(join(homedir(), "x", "..", ".wacli", "session.db")), /bloqueada/);
+  await assert.rejects(resolveSafe(ssh), /blocked/);
+  await assert.rejects(resolveSafe("~/.aws/credentials"), /blocked/);
+  await assert.rejects(resolveSafe(join(homedir(), "x", "..", ".wacli", "session.db")), /blocked/);
   const link = join(dir, "link-a-ssh");
   await symlink(join(homedir(), ".gnupg"), link);
-  await assert.rejects(resolveSafe(join(link, "nuevo.txt")), /bloqueada/);
+  await assert.rejects(resolveSafe(join(link, "nuevo.txt")), /blocked/);
 });
 
 test("rechaza rutas relativas", async () => {
-  await assert.rejects(resolveSafe("algo/archivo.txt"), /absoluta/);
+  await assert.rejects(resolveSafe("algo/archivo.txt"), /absolute/);
 });
 
 test("create no sobrescribe; overwrite y append sí cambian", async () => {
@@ -50,7 +50,7 @@ test("lee por partes y rechaza binarios", async () => {
   assert.equal(last.data.next_offset, null);
   const binary = join(dir, "b.bin");
   await writeFile(binary, Buffer.from([1, 0, 2]));
-  await assert.rejects(readText({ path: binary, offset: 0, max_bytes: 10 }), /binario/);
+  await assert.rejects(readText({ path: binary, offset: 0, max_bytes: 10 }), /binary/);
 });
 
 test("lista y busca por nombre", async () => {

@@ -28,22 +28,22 @@ test("clasifica cada herramienta en su grupo", () => {
 });
 
 test("la pausa bloquea todo, incluso lecturas", () => {
-  assert.match(denialFor("file_read", READ, { ...base(), paused: true }), /pausa/);
+  assert.match(denialFor("file_read", READ, { ...base(), paused: true }), /paused/);
 });
 
 test("solo lectura permite leer y bloquea acciones", () => {
   const policy = { ...base(), readOnly: true };
   assert.equal(denialFor("file_read", READ, policy), null);
-  assert.match(denialFor("whatsapp_send", WRITE, policy), /solo lectura/);
-  assert.match(denialFor("run_command", WRITE, policy), /solo lectura/);
+  assert.match(denialFor("whatsapp_send", WRITE, policy), /read-only/);
+  assert.match(denialFor("run_command", WRITE, policy), /read-only/);
   assert.equal(denialFor("whatsapp_sync", LOCAL, policy), null);
-  assert.match(denialFor("algo_nuevo", undefined, policy), /solo lectura/);
+  assert.match(denialFor("algo_nuevo", undefined, policy), /read-only/);
 });
 
 test("desactivar un grupo bloquea solo ese grupo", () => {
   const policy = base();
   policy.disabled.terminal = true;
-  assert.match(denialFor("run_command", WRITE, policy), /desactivado/);
+  assert.match(denialFor("run_command", WRITE, policy), /turned off/);
   assert.equal(denialFor("file_write", WRITE, policy), null);
 });
 
@@ -66,7 +66,7 @@ test("guarda y lee; ignora valores que no son booleanos", async () => {
 });
 
 test("las herramientas de archivos no pueden tocar los ajustes de SMCP", async () => {
-  await assert.rejects(resolveSafe(join(homedir(), ".smcp", "config.json")), /bloqueada/);
+  await assert.rejects(resolveSafe(join(homedir(), ".smcp", "config.json")), /blocked/);
 });
 
 test("el servidor aplica los cambios en la siguiente llamada, sin reiniciar", async () => {
@@ -78,15 +78,15 @@ test("el servidor aplica los cambios en la siguiente llamada, sin reiniciar", as
   );
   const command = { name: "run_command", arguments: { command: "echo corrio" } };
   try {
-    assert.match((await client.callTool(command)).content[0].text, /desactivado/);
+    assert.match((await client.callTool(command)).content[0].text, /turned off/);
     writePolicy(base(), config);
     assert.match((await client.callTool(command)).content[0].text, /corrio/);
     writePolicy({ ...base(), paused: true }, config);
     const paused = await client.callTool(command);
     assert.equal(paused.isError, true);
-    assert.match(paused.content[0].text, /pausa/);
+    assert.match(paused.content[0].text, /paused/);
     writePolicy({ ...base(), readOnly: true }, config);
-    assert.match((await client.callTool(command)).content[0].text, /solo lectura/);
+    assert.match((await client.callTool(command)).content[0].text, /read-only/);
     writePolicy(base(), config);
     assert.match((await client.callTool(command)).content[0].text, /corrio/);
   } finally {

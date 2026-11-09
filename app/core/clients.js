@@ -43,7 +43,7 @@ async function readJson(path) {
     return JSON.parse(await readFile(path, "utf8"));
   } catch (error) {
     if (error.code === "ENOENT") return null;
-    throw new Error(`No se pudo leer ${path}: ${error.message}`);
+    throw new Error(`Could not read ${path}: ${error.message}`);
   }
 }
 
@@ -84,7 +84,7 @@ async function findClaudeCli() {
   const result = await run("/bin/zsh", ["-lc", "command -v claude"], { timeoutMs: 10_000 });
   const path = result.stdout.trim().split("\n").at(-1);
   if (result.code !== 0 || !path?.startsWith("/")) {
-    throw new Error("No encontré Claude Code en esta computadora.");
+    throw new Error("Claude Code was not found on this computer.");
   }
   return path;
 }

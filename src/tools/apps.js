@@ -15,7 +15,7 @@ ObjC.import("stdlib");
 const se = Application("System Events");
 function proc(name) {
   const p = se.processes.byName(name);
-  if (!p.exists()) throw new Error("La app no está abierta: " + name);
+  if (!p.exists()) throw new Error("The app is not open: " + name);
   return p;
 }
 function safe(fn) { try { const v = fn(); return v === null ? undefined : v; } catch (e) { return undefined; } }
@@ -48,7 +48,7 @@ function main(a) {
 function main(a) {
   const p = proc(a.app);
   const w = p.windows[a.window];
-  if (!w.exists()) throw new Error("No existe esa ventana.");
+  if (!w.exists()) throw new Error("That window does not exist.");
   const q = a.query ? a.query.toLowerCase() : null;
   const out = [];
   let visited = 0;
@@ -79,7 +79,7 @@ function main(a) {
   const p = proc(a.app);
   p.frontmost = true;
   const el = byPath(p, a.window, a.path);
-  if (!el.exists()) throw new Error("Ese elemento ya no existe. Vuelve a leer el árbol.");
+  if (!el.exists()) throw new Error("That element no longer exists. Read the tree again.");
   el.click();
   return { clicked: a.path, role: safe(() => el.role()), title: safe(() => el.title()) };
 }`,
@@ -147,8 +147,8 @@ const KEY_CODES = {
 function friendlyError(stderr) {
   if (/assistive|-1719|-25211|not allowed/i.test(stderr)) {
     return (
-      "macOS no ha dado permiso. Abre SMCP > Ajustes > Permisos de macOS y activa Accesibilidad.\n" +
-      `Detalle: ${stderr.trim().slice(0, 300)}`
+      "macOS has not granted permission. Open SMCP > Settings > macOS Permissions and turn on Accessibility.\n" +
+      `Detail: ${stderr.trim().slice(0, 300)}`
     );
   }
   const message = stderr
@@ -156,21 +156,21 @@ function friendlyError(stderr) {
     .replace(/^(Error:\s*)+/, "")
     .replace(/\s*\(-?\d+\)\s*$/, "")
     .trim();
-  return message.slice(0, 1000) || "Error desconocido de osascript.";
+  return message.slice(0, 1000) || "Unknown osascript error.";
 }
 
 /** Runs a named script in this process. SMCP.app calls this; tools go through callJxa. */
 export async function localJxa(name, params = {}, timeoutMs = 30_000, { gate = confirmGate, exec = run } = {}) {
-  if (!Object.hasOwn(SCRIPTS, name)) return { error: "Acción desconocida." };
+  if (!Object.hasOwn(SCRIPTS, name)) return { error: "Unknown action." };
   // Only a person may answer a send confirmation, so the screen is off limits while one is open.
   if (SCREEN_ACTIONS.has(name) && gate.isConfirming()) {
-    return { error: "Hay una ventana de confirmación abierta. Espera a que la persona responda." };
+    return { error: "A confirmation window is open. Wait for the person to answer." };
   }
   const body = `${PRELUDE}${SCRIPTS[name]}
 function run(argv) { return JSON.stringify(main(JSON.parse(argv[0]))); }`;
   const execute = () => exec("/usr/bin/osascript", ["-l", "JavaScript", "-e", body, JSON.stringify(params)], { timeoutMs });
   const result = await (SCREEN_ACTIONS.has(name) ? gate.act(execute) : execute());
-  if (result.timedOut) return { error: "La operación tardó demasiado. Reduce la profundidad o el número de nodos." };
+  if (result.timedOut) return { error: "The operation took too long. Reduce the depth or the number of nodes." };
   if (result.code !== 0) return { error: friendlyError(result.stderr) };
   return { value: JSON.parse(result.stdout) };
 }
@@ -200,7 +200,7 @@ export async function screenshot({ window_id }) {
 }
 
 export async function localScreenshot({ window_id }) {
-  if (window_id !== undefined && !Number.isInteger(window_id)) return errorResult("window_id inválido.");
+  if (window_id !== undefined && !Number.isInteger(window_id)) return errorResult("Invalid window_id.");
   const dir = await mkdtemp(join(tmpdir(), "smcp-"));
   const file = join(dir, "shot.png");
   try {
@@ -210,7 +210,7 @@ export async function localScreenshot({ window_id }) {
     const data = shot.code === 0 ? await readFile(file).catch(() => null) : null;
     if (!data) {
       return errorResult(
-        "No se pudo capturar. Abre SMCP > Ajustes > Permisos de macOS y activa Grabación de pantalla.\n" +
+        "Could not capture. Open SMCP > Settings > macOS Permissions and turn on Screen Recording.\n" +
           shot.stderr.trim().slice(0, 300),
       );
     }
@@ -226,19 +226,19 @@ export async function localScreenshot({ window_id }) {
 export function registerApps(server) {
   const readOnly = { readOnlyHint: true, openWorldHint: false };
   const acting = { readOnlyHint: false, destructiveHint: true, openWorldHint: true };
-  const app = z.string().min(1).max(200).describe("Nombre de la app, tal como aparece en app_list.");
-  const window = z.number().int().min(0).default(0).describe("Índice de la ventana; 0 es la principal.");
+  const app = z.string().min(1).max(200).describe("App name, exactly as it appears in app_list.");
+  const window = z.number().int().min(0).default(0).describe("Window index; 0 is the main window.");
 
   server.registerTool(
     "app_list",
-    { description: "Lista las apps abiertas con interfaz visible.", annotations: readOnly },
+    { description: "Lists open apps that have a visible interface.", annotations: readOnly },
     jxaTool("listApps", () => ({})),
   );
 
   server.registerTool(
     "window_list",
     {
-      description: "Lista las ventanas de una app, con título, posición y tamaño.",
+      description: "Lists an app's windows, with title, position and size.",
       inputSchema: { app },
       annotations: readOnly,
     },
@@ -248,7 +248,7 @@ export function registerApps(server) {
   server.registerTool(
     "app_focus",
     {
-      description: "Abre una app o la trae al frente.",
+      description: "Opens an app or brings it to the front.",
       inputSchema: { app },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
@@ -259,11 +259,11 @@ export function registerApps(server) {
     "ui_read_tree",
     {
       description:
-        "Lee los elementos de una ventana mediante Accesibilidad. Cada nodo trae un `path` que se usa en ui_click. Con `query`, devuelve solo lo que coincide.",
+        "Reads a window's elements through Accessibility. Each node has a `path` to use with ui_click. With `query`, returns only what matches.",
       inputSchema: {
         app,
         window,
-        query: z.string().max(200).optional().describe("Filtra por rol, título, descripción o valor."),
+        query: z.string().max(200).optional().describe("Filters by role, title, description or value."),
         max_depth: z.number().int().min(1).max(15).default(6),
         max_nodes: z.number().int().min(1).max(1000).default(300),
       },
@@ -286,7 +286,7 @@ export function registerApps(server) {
   server.registerTool(
     "ui_click",
     {
-      description: "Hace clic en un elemento por `path` de ui_read_tree (preferido) o en coordenadas de pantalla x, y.",
+      description: "Clicks an element by its `path` from ui_read_tree (preferred) or at screen coordinates x, y.",
       inputSchema: {
         app,
         window,
@@ -298,7 +298,7 @@ export function registerApps(server) {
     },
     async ({ app, window, path, x, y }) => {
       const hasPoint = x !== undefined && y !== undefined;
-      if (Boolean(path) === hasPoint) return errorResult("Indica `path`, o `x` y `y`, pero no ambos.");
+      if (Boolean(path) === hasPoint) return errorResult("Give `path`, or `x` and `y`, but not both.");
       return jxaTool(path ? "clickPath" : "clickAt")(path ? { app, window, path } : { app, x, y });
     },
   );
@@ -306,7 +306,7 @@ export function registerApps(server) {
   server.registerTool(
     "ui_type",
     {
-      description: "Trae la app al frente e inserta texto donde esté el cursor. Lo pega por el portapapeles y luego lo restaura.",
+      description: "Brings the app to the front and inserts text at the cursor. It pastes through the clipboard and then restores it.",
       inputSchema: { app, text: z.string().min(1).max(5000) },
       annotations: acting,
     },
@@ -316,7 +316,7 @@ export function registerApps(server) {
   server.registerTool(
     "ui_key",
     {
-      description: `Presiona una tecla o atajo en una app. Teclas con nombre: ${Object.keys(KEY_CODES).join(", ")}; o un solo carácter.`,
+      description: `Presses a key or shortcut in an app. Named keys: ${Object.keys(KEY_CODES).join(", ")}; or a single character.`,
       inputSchema: {
         app,
         key: z.string().min(1).max(10),
@@ -327,7 +327,7 @@ export function registerApps(server) {
     ({ app, key, modifiers }) => {
       const keyCode = KEY_CODES[key.toLowerCase()] ?? null;
       if (keyCode === null && [...key].length !== 1) {
-        return errorResult(`Tecla desconocida: ${key}`);
+        return errorResult(`Unknown key: ${key}`);
       }
       return jxaTool("key")({ app, key, keyCode, modifiers });
     },
@@ -336,7 +336,7 @@ export function registerApps(server) {
   server.registerTool(
     "screenshot",
     {
-      description: "Captura la pantalla principal, o una ventana por su window_id de macOS, sin sonido.",
+      description: "Captures the main screen, or a window by its macOS window_id, silently.",
       inputSchema: { window_id: z.number().int().min(0).optional() },
       annotations: readOnly,
     },

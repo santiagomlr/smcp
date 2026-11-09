@@ -35,7 +35,7 @@ export function startHelper(ops, path = socketPath()) {
       let reply;
       try {
         const { op, params } = JSON.parse(line);
-        if (!Object.hasOwn(ops, op)) throw new Error("Operación desconocida.");
+        if (!Object.hasOwn(ops, op)) throw new Error("Unknown operation.");
         reply = { value: await ops[op](params) };
       } catch (error) {
         reply = { error: error.message };
@@ -67,7 +67,7 @@ export function requestHelper(op, params, { path = socketPath(), timeoutMs = 140
       socket.destroy();
       fn(value);
     };
-    const timer = setTimeout(() => finish(reject, new Error("SMCP tardó demasiado en responder.")), timeoutMs);
+    const timer = setTimeout(() => finish(reject, new Error("SMCP took too long to respond.")), timeoutMs);
     socket.setEncoding("utf8");
     socket.on("connect", () => socket.write(`${JSON.stringify({ op, params })}\n`));
     socket.on("data", (chunk) => {
@@ -79,7 +79,7 @@ export function requestHelper(op, params, { path = socketPath(), timeoutMs = 140
         if (reply.error) finish(reject, new Error(reply.error));
         else finish(resolve, reply.value);
       } catch {
-        finish(reject, new Error("Respuesta inválida de SMCP."));
+        finish(reject, new Error("Invalid response from SMCP."));
       }
     });
     socket.on("error", (error) => finish(reject, new HelperUnavailable(error.message)));

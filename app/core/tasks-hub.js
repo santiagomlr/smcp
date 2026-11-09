@@ -12,7 +12,7 @@ const CALL_TIMEOUT_MS = 15_000;
 
 function tailscaleBin() {
   const path = tailscaleCandidates().find((candidate) => existsSync(candidate));
-  if (!path) throw new Error("Tailscale no está instalado.");
+  if (!path) throw new Error("Tailscale is not installed.");
   return path;
 }
 
@@ -22,7 +22,7 @@ export function loginFromStatus(status) {
 
 export async function tailscaleLogin() {
   const result = await run(tailscaleBin(), ["status", "--json"], { timeoutMs: 8_000 });
-  if (result.code !== 0) throw new Error("Tailscale no está conectado.");
+  if (result.code !== 0) throw new Error("Tailscale is not connected.");
   return loginFromStatus(JSON.parse(result.stdout));
 }
 
@@ -34,7 +34,7 @@ export const identifyFromServe = (req) => req.headers["tailscale-user-login"] ??
 
 export async function enableServe(port = TASKS_PORT, localPort = LOCAL_PORT) {
   const result = await run(tailscaleBin(), ["serve", "--bg", "--yes", `--http=${port}`, `http://127.0.0.1:${localPort}`], { timeoutMs: 20_000 });
-  if (result.code !== 0) throw new Error("No se pudo compartir la lista por Tailscale.");
+  if (result.code !== 0) throw new Error("Could not share the list over Tailscale.");
 }
 
 export async function disableServe(port = TASKS_PORT) {
@@ -47,7 +47,7 @@ export function createTasksHub({ store, host = "127.0.0.1", port = LOCAL_PORT, o
       res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify(body));
     };
-    if (req.method !== "POST" || req.url !== "/tasks") return send(404, { error: "No encontrado." });
+    if (req.method !== "POST" || req.url !== "/tasks") return send(404, { error: "Not found." });
     let size = 0;
     const chunks = [];
     req.on("data", (chunk) => {
@@ -58,9 +58,9 @@ export function createTasksHub({ store, host = "127.0.0.1", port = LOCAL_PORT, o
     req.on("end", async () => {
       try {
         const user = identify(req);
-        if (!user || user !== owner) return send(403, { error: "Este equipo no pertenece a tu cuenta." });
+        if (!user || user !== owner) return send(403, { error: "This device does not belong to your account." });
         const { op, args } = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        if (!TASK_OPERATIONS.includes(op)) return send(400, { error: "Operación desconocida." });
+        if (!TASK_OPERATIONS.includes(op)) return send(400, { error: "Unknown operation." });
         send(200, { value: store[op](args ?? {}) });
       } catch (error) {
         send(200, { error: error.message });
@@ -81,7 +81,7 @@ export function createTasksHub({ store, host = "127.0.0.1", port = LOCAL_PORT, o
   };
 }
 
-const UNREACHABLE = "No se puede llegar a la computadora donde viven tus tareas. Revisa que esté encendida, con Tailscale y con SMCP abierta.";
+const UNREACHABLE = "Cannot reach the computer that holds your tasks. Check that it is on, connected to Tailscale, and has SMCP open.";
 
 /** Same operations as a local store, but on another computer. Never falls back to a second list. */
 export function createRemoteTasks({ host, port = TASKS_PORT, fetchImpl = fetch }) {

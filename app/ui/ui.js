@@ -18,7 +18,7 @@ let gmailFormOpen = false;
 if (navigator.userAgent.includes("Macintosh")) document.body.classList.add("mac");
 
 function showError(message) {
-  $("error").textContent = message || "";
+  $("error").textContent = message ? tr(message) : "";
   $("error").hidden = !message;
 }
 
@@ -46,12 +46,12 @@ function mark() {
 }
 
 function osLabel(os) {
-  return { macos: "Mac", windows: "Windows", ios: "iPhone", android: "Android", linux: "Linux" }[os] || os || "Equipo";
+  return { macos: "Mac", windows: "Windows", ios: "iPhone", android: "Android", linux: "Linux" }[os] || os || tr("Device");
 }
 
 function machineDetail(machine) {
-  if (machine.self) return `${osLabel(machine.os)} · esta computadora`;
-  return `${osLabel(machine.os)} · ${machine.online ? "en línea" : "sin conexión"}`;
+  if (machine.self) return tr("{os} · this computer", { os: osLabel(machine.os) });
+  return tr(machine.online ? "{os} · online" : "{os} · offline", { os: osLabel(machine.os) });
 }
 
 function setStop(id, on) {
@@ -62,8 +62,8 @@ function setStop(id, on) {
 
 function editor(machine) {
   const alias = element("input", { value: machine.alias, id: `alias-${machine.name}`, maxLength: 40, placeholder: machine.name });
-  const user = element("input", { value: machine.user, id: `user-${machine.name}`, maxLength: 64, placeholder: "Predeterminado" });
-  const save = button("Guardar", async () => {
+  const user = element("input", { value: machine.user, id: `user-${machine.name}`, maxLength: 64, placeholder: tr("Default") });
+  const save = button(tr("Save"), async () => {
     openEditors.delete(machine.name);
     machinesKey = null;
     await act(window.api.saveMachine(machine.name, { alias: alias.value.trim(), user: user.value.trim() }));
@@ -74,9 +74,9 @@ function editor(machine) {
     element(
       "div",
       { className: "edit-inner" },
-      element("label", { htmlFor: alias.id, textContent: "Nombre" }),
+      element("label", { htmlFor: alias.id, textContent: tr("Name") }),
       alias,
-      element("label", { htmlFor: user.id, textContent: "Usuario SSH" }),
+      element("label", { htmlFor: user.id, textContent: tr("SSH user") }),
       user,
       save,
     ),
@@ -95,8 +95,8 @@ function machineStop(machine, index) {
     ),
   );
   const actions = element("div", { className: "stop-actions" });
-  actions.append(button("Editar", () => toggleEditor(machine.name, stop), "reveal quiet"));
-  if (machine.canWake) actions.append(button("Encender", () => act(window.api.wake(machine.name))));
+  actions.append(button(tr("Edit"), () => toggleEditor(machine.name, stop), "reveal quiet"));
+  if (machine.canWake) actions.append(button(tr("Wake up"), () => act(window.api.wake(machine.name))));
   if (machine.online && !machine.self && machine.os !== "ios" && machine.os !== "android") {
     actions.append(button("Terminal", () => act(window.api.openTerminal(machine.name))));
   }
@@ -122,8 +122,8 @@ function toggleEditor(name, stop) {
 
 function tailscaleStop({ tailscale }) {
   const actions = tailscale.installed
-    ? button("Abrir Tailscale", () => act(window.api.openTailscale()), "primary")
-    : button("Descargar", () => act(window.api.openLink("tailscale")), "primary");
+    ? button(tr("Open Tailscale"), () => act(window.api.openTailscale()), "primary")
+    : button(tr("Download"), () => act(window.api.openLink("tailscale")), "primary");
   return element(
     "li",
     { className: "stop" },
@@ -131,10 +131,10 @@ function tailscaleStop({ tailscale }) {
     element(
       "div",
       { className: "stop-main" },
-      element("div", { className: "stop-title", textContent: "Solo esta computadora" }),
+      element("div", { className: "stop-title", textContent: tr("Just this computer") }),
       element("div", {
         className: "stop-meta",
-        textContent: tailscale.installed ? "Inicia sesión en Tailscale para ver tus otras máquinas." : "Conecta tus otras máquinas con Tailscale.",
+        textContent: tailscale.installed ? tr("Sign in to Tailscale to see your other devices.") : tr("Connect your other devices with Tailscale."),
       }),
     ),
     actions,
@@ -153,25 +153,25 @@ function renderMachines() {
 /* Connections */
 
 function formatDate(iso) {
-  if (!iso) return "sin sincronizar";
+  if (!iso) return tr("not synced");
   const date = new Date(iso);
   const today = date.toDateString() === new Date().toDateString();
   const options = today ? { timeStyle: "short" } : { month: "short", day: "numeric" };
-  return date.toLocaleString("es-MX", options);
+  return date.toLocaleString(SMCP_I18N.locale(), options);
 }
 
 const WHATSAPP_CHOICES = [
-  { ability: "read", title: "Leer tus chats", meta: "Ver y buscar tus conversaciones." },
-  { ability: "send", title: "Escribir con tu aprobación", meta: "Claude prepara el mensaje y solo sale si presionas Enviar en esta computadora." },
-  { ability: "audio", title: "Escuchar audios", meta: "Tus notas de voz se convierten en texto en esta computadora, gratis. A Claude solo le llega el texto." },
+  { ability: "read", title: tr("Read your chats"), meta: tr("See and search your conversations.") },
+  { ability: "send", title: tr("Write with your approval"), meta: tr("Claude drafts the message, and it's only sent if you press Send on this computer.") },
+  { ability: "audio", title: tr("Listen to voice notes"), meta: tr("Your voice notes are turned into text on this computer, for free. Claude only gets the text.") },
 ];
 
 function whatsappChoiceMeta({ ability, meta }) {
   if (ability !== "audio") return meta;
   const { ready, downloading, percent } = state.audio;
-  if (downloading) return `Preparando en esta computadora: ${percent}%.`;
-  if (!state.policy.whatsapp.read) return "Para usarlo, enciende Leer tus chats.";
-  return ready ? meta : `${meta} La primera vez descarga unos 490 MB.`;
+  if (downloading) return tr("Preparing on this computer: {percent}%.", { percent });
+  if (!state.policy.whatsapp.read) return tr("To use this, turn on Read your chats.");
+  return ready ? meta : tr("{meta} The first time, it downloads about 490 MB.", { meta });
 }
 
 function saveWhatsAppChoice(ability, allowed) {
@@ -179,7 +179,7 @@ function saveWhatsAppChoice(ability, allowed) {
   return act(window.api.setPolicy({ whatsapp: { [ability]: allowed } }));
 }
 
-/** Every copy of a choice (onboarding, Conexiones, Ajustes) shows the same saved state. */
+/** Every copy of a choice (onboarding, Connections, Settings) shows the same saved state. */
 function paintWhatsAppChoice(input) {
   const choice = WHATSAPP_CHOICES.find(({ ability }) => ability === input.dataset.waAbility);
   const { disabled, whatsapp: access } = state.policy;
@@ -230,7 +230,7 @@ function whatsappChoiceStop({ ability, title }, idPrefix) {
 
 function whatsappChoices(idPrefix) {
   const nodes = [line(...WHATSAPP_CHOICES.map((choice) => whatsappChoiceStop(choice, idPrefix)))];
-  if (state.policy.disabled.whatsapp) nodes.push(hint("WhatsApp está apagado en Ajustes. Enciéndelo para elegir."));
+  if (state.policy.disabled.whatsapp) nodes.push(hint(tr("WhatsApp is off in Settings. Turn it on to choose.")));
   return nodes;
 }
 
@@ -238,12 +238,12 @@ function closeWhatsAppQuestion() {
   $("wa-access-fold").classList.remove("open");
 }
 
-/** Right after linking from Conexiones; the onboarding asks this in its own step. */
+/** Right after linking from Connections; the onboarding asks this in its own step. */
 function askWhatsAppAccess() {
   $("wa-access-home").replaceChildren(
-    element("p", { className: "wa-access-title", textContent: "¿Qué puede hacer Claude con WhatsApp?" }),
+    element("p", { className: "wa-access-title", textContent: tr("What can Claude do with WhatsApp?") }),
     ...whatsappChoices("wa-ask"),
-    element("div", { className: "wa-access-end" }, hint("Puedes cambiarlo cuando quieras en Ajustes."), button("Listo", closeWhatsAppQuestion, "primary")),
+    element("div", { className: "wa-access-end" }, hint(tr("You can change this anytime in Settings.")), button(tr("All set"), closeWhatsAppQuestion, "primary")),
   );
   $("wa-access-fold").classList.add("open");
 }
@@ -255,6 +255,12 @@ $("wa-access-rows").replaceChildren(
   }),
 );
 
+function whatsappStatus({ messages, lastSync }) {
+  const status = syncing ? tr("syncing…") : formatDate(lastSync);
+  if (messages === 1) return tr("1 message · {status}", { status });
+  return tr("{count} messages · {status}", { count: messages.toLocaleString(SMCP_I18N.locale()), status });
+}
+
 function renderWhatsApp() {
   const { whatsapp } = state;
   $("whatsapp-section").hidden = !whatsapp.supported;
@@ -262,10 +268,10 @@ function renderWhatsApp() {
   setStop("stop-whatsapp", whatsapp.linked);
   $("wa-title").textContent = "WhatsApp";
   $("wa-detail").textContent = !whatsapp.installed
-    ? "No disponible en esta instalación"
+    ? tr("Not available on this install")
     : whatsapp.linked
-      ? `${whatsapp.messages.toLocaleString("es-MX")} mensajes · ${syncing ? "sincronizando…" : formatDate(whatsapp.lastSync)}`
-      : "Sin vincular";
+      ? whatsappStatus(whatsapp)
+      : tr("Not linked");
   $("wa-sync").hidden = !whatsapp.linked;
   $("wa-sync").disabled = syncing;
   $("wa-disconnect").hidden = !whatsapp.linked;
@@ -279,22 +285,22 @@ function field(label, input) {
   return element("label", { className: "field" }, label, input);
 }
 
-/** The same guided form appears in Conexiones and in the onboarding. */
+/** The same guided form appears in Connections and in the onboarding. */
 function accountForm({ onDone, onCancel }) {
-  const label = element("input", { type: "text", placeholder: "Trabajo", maxLength: 40, autocomplete: "off" });
-  const email = element("input", { type: "email", placeholder: "nombre@gmail.com", autocomplete: "off", spellcheck: false });
-  const password = element("input", { type: "password", placeholder: "16 letras", autocomplete: "off" });
+  const label = element("input", { type: "text", placeholder: tr("Work"), maxLength: 40, autocomplete: "off" });
+  const email = element("input", { type: "email", placeholder: tr("name@gmail.com"), autocomplete: "off", spellcheck: false });
+  const password = element("input", { type: "password", placeholder: tr("16 letters"), autocomplete: "off" });
   const error = element("p", { className: "form-error", hidden: true, role: "alert" });
-  const submit = element("button", { type: "submit", textContent: "Conectar", className: "primary" });
+  const submit = element("button", { type: "submit", textContent: tr("Connect"), className: "primary" });
   const actions = element("div", { className: "form-actions" });
-  if (onCancel) actions.append(button("Cancelar", onCancel, "quiet"));
+  if (onCancel) actions.append(button(tr("Cancel"), onCancel, "quiet"));
   actions.append(submit);
   const steps = element(
     "ol",
     {},
-    element("li", {}, "Activa la verificación en dos pasos.", button("Abrir", () => act(window.api.openLink("twoStep")), "quiet")),
-    element("li", {}, "Crea una contraseña de aplicación.", button("Abrir", () => act(window.api.openLink("appPasswords")), "quiet")),
-    element("li", {}, "Pégala aquí."),
+    element("li", {}, tr("Turn on 2-Step Verification."), button(tr("Open"), () => act(window.api.openLink("twoStep")), "quiet")),
+    element("li", {}, tr("Create an app password."), button(tr("Open"), () => act(window.api.openLink("appPasswords")), "quiet")),
+    element("li", {}, tr("Paste it here.")),
   );
   const form = element(
     "form",
@@ -304,12 +310,12 @@ function accountForm({ onDone, onCancel }) {
         event.preventDefault();
         error.hidden = true;
         submit.disabled = true;
-        submit.textContent = "Conectando…";
+        submit.textContent = tr("Connecting…");
         const result = await window.api.gmailAdd({ label: label.value, email: email.value, password: password.value });
         submit.disabled = false;
-        submit.textContent = "Conectar";
+        submit.textContent = tr("Connect");
         if (!result.ok) {
-          error.textContent = result.error;
+          error.textContent = tr(result.error);
           error.hidden = false;
           return;
         }
@@ -318,9 +324,9 @@ function accountForm({ onDone, onCancel }) {
       },
     },
     steps,
-    field("Nombre", label),
-    field("Correo", email),
-    field("Contraseña de aplicación", password),
+    field(tr("Name"), label),
+    field(tr("Email"), email),
+    field(tr("App password"), password),
     error,
     actions,
   );
@@ -338,7 +344,7 @@ function accountStop({ label, email }, index) {
       element("div", { className: "stop-title", textContent: label }),
       element("div", { className: "stop-meta", textContent: label === email ? "Gmail" : email }),
     ),
-    button("Desconectar", () => act(window.api.gmailRemove(email)), "reveal quiet"),
+    button(tr("Disconnect"), () => act(window.api.gmailRemove(email)), "reveal quiet"),
   );
   stop.style.setProperty("--i", String(index + 4));
   return stop;
@@ -371,7 +377,7 @@ function renderGmail() {
     gmailKey = key;
     $("gmail-accounts").replaceChildren(...gmail.accounts.map(accountStop));
   }
-  $("gmail-toggle").textContent = gmail.accounts.length ? "Agregar otra cuenta" : "Agregar cuenta de Gmail";
+  $("gmail-toggle").textContent = gmail.accounts.length ? tr("Add another account") : tr("Add Gmail account");
 }
 
 $("gmail-toggle").onclick = () => setGmailForm(true);
@@ -431,7 +437,7 @@ function renderNotes() {
   if (key === notesKey) return;
   notesKey = key;
   $("vaults-line").replaceChildren(...notes.vaults.map(vaultStop));
-  $("vault-add").textContent = notes.vaults.length ? "Agregar otra carpeta" : "Agregar carpeta de notas";
+  $("vault-add").textContent = notes.vaults.length ? tr("Add another folder") : tr("Add notes folder");
 }
 
 $("vault-add").onclick = () => {
@@ -444,7 +450,7 @@ $("vault-add").onclick = () => {
 function renderTaskSettings() {
   const { tasks, tailscale } = state;
   const select = $("tasks-host");
-  const options = [["", "Esta computadora"], ...tailscale.machines.filter((machine) => !machine.self && machine.os === "macos" && machine.dns).map((machine) => [machine.dns, machine.alias || machine.name])];
+  const options = [["", tr("This computer")], ...tailscale.machines.filter((machine) => !machine.self && machine.os === "macos" && machine.dns).map((machine) => [machine.dns, machine.alias || machine.name])];
   const key = JSON.stringify(options);
   if (select.dataset.key !== key) {
     select.dataset.key = key;
@@ -472,12 +478,12 @@ function renderClients() {
 /* Remote access */
 
 function remoteClientRow(client) {
-  const when = client.lastUsedAt ? `Usado ${new Date(client.lastUsedAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}` : "Conectado";
+  const when = client.lastUsedAt ? tr("Used {date}", { date: new Date(client.lastUsedAt).toLocaleString(SMCP_I18N.locale(), { dateStyle: "short", timeStyle: "short" }) }) : tr("Connected");
   return element(
     "li",
     {},
     element("span", {}, client.name, element("small", { textContent: when })),
-    button("Desconectar", () => act(window.api.remoteRevoke(client.id)), "quiet"),
+    button(tr("Disconnect"), () => act(window.api.remoteRevoke(client.id)), "quiet"),
   );
 }
 
@@ -490,14 +496,14 @@ function renderRemote() {
   $("remote-fold").classList.toggle("open", remote.enabled);
   const count = remote.clients.length;
   $("remote-meta").textContent = !remote.enabled
-    ? "Para usar SMCP desde Claude móvil, Claude web y ChatGPT"
+    ? tr("To use SMCP from the Claude mobile app, Claude on the web and ChatGPT")
     : count === 1
-      ? "1 app conectada"
+      ? tr("1 app connected")
       : count
-        ? `${count} apps conectadas`
-        : "Activo, sin apps conectadas";
+        ? tr("{count} apps connected", { count })
+        : tr("On, no apps connected");
   $("remote-url").textContent = remote.url ?? "";
-  $("remote-code").textContent = remote.pairing?.code ?? "Sin código activo";
+  $("remote-code").textContent = remote.pairing?.code ?? tr("No active code");
   $("remote-clients").replaceChildren(...remote.clients.map(remoteClientRow));
 }
 
@@ -510,8 +516,8 @@ $("remote-new-code").onclick = () => act(window.api.remoteCode());
 $("remote-copy").onclick = async () => {
   const result = await window.api.remoteCopy();
   if (!result.ok) return showError(result.error);
-  $("remote-copy").textContent = "Copiada";
-  setTimeout(() => ($("remote-copy").textContent = "Copiar"), 1500);
+  $("remote-copy").textContent = tr("Copied");
+  setTimeout(() => ($("remote-copy").textContent = tr("Copy")), 1500);
 };
 
 function renderSettings() {
@@ -527,20 +533,20 @@ function renderSettings() {
   setStop("stop-perm-screen", permissions.screen);
   for (const node of document.querySelectorAll("[data-privacy]")) node.hidden = permissions[node.dataset.privacy];
   $("paused-banner").hidden = !policy.paused;
-  $("version").textContent = `Versión ${state.version}`;
+  $("version").textContent = tr("Version {version}", { version: state.version });
 }
 
 function renderSummary() {
   const { tailscale, whatsapp, clients, policy, gmail } = state;
   if (policy.paused) {
-    $("summary").textContent = "En pausa";
+    $("summary").textContent = tr("Paused");
     return;
   }
   const online = tailscale.machines.filter((machine) => machine.online && !machine.self).length;
   const apps = clients.items.filter((client) => client.connected).length + state.remote.clients.length;
   const vaults = state.notes.vaults.filter((vault) => vault.enabled).length;
   const active = apps + Number(Boolean(whatsapp.linked)) + gmail.accounts.length + vaults + online;
-  $("summary").textContent = active === 1 ? "1 conexión activa" : active ? `${active} conexiones activas` : "Aún sin conexiones";
+  $("summary").textContent = active === 1 ? tr("1 active connection") : active ? tr("{count} active connections", { count: active }) : tr("No connections yet");
 }
 
 /* Onboarding */
@@ -599,24 +605,24 @@ function setClientFrom(client) {
 const STEPS = {
   welcome: () => [
     logo(),
-    ...heading("Conecta tu IA con tu computadora", "Para que te ayude con tus chats, archivos y apps. Toma unos minutos y puedes omitir cualquier paso."),
+    ...heading(tr("Connect your AI to your computer"), tr("So it can help with your chats, files and apps. It takes a few minutes, and you can skip any step.")),
   ],
   claude: () => [
-    ...heading("¿Qué apps de IA usas?", "Elige las que tendrán acceso. Después, reinícialas."),
+    ...heading(tr("Which AI apps do you use?"), tr("Choose the ones that get access. Then restart them.")),
     line(...state.clients.items.map((client) => switchStop(client.name, `ob-${client.id}`, client.connected, setClientFrom(client.id)))),
   ],
   whatsapp: () => {
-    const warning = hint("WhatsApp no ofrece este acceso de forma oficial, así que podría restringir tu cuenta. Evita los envíos masivos.");
+    const warning = hint(tr("WhatsApp doesn't officially offer this access, so it could restrict your account. Avoid mass messaging."));
     if (state.whatsapp.linked) {
       return [
-        ...heading("¿Qué puede hacer Claude con WhatsApp?", "WhatsApp ya está vinculado. Elige lo que permites; puedes cambiarlo cuando quieras en Ajustes."),
+        ...heading(tr("What can Claude do with WhatsApp?"), tr("WhatsApp is already linked. Choose what you allow; you can change it anytime in Settings.")),
         ...whatsappChoices("ob-wa"),
         warning,
       ];
     }
     return [
-      ...heading("Vincula WhatsApp", "Escanea un código con tu teléfono. Después eliges qué puede hacer Claude con tus chats."),
-      line(statusStop(false, "WhatsApp", "Sin vincular", button("Mostrar QR", () => window.api.whatsappLogin(), "primary"))),
+      ...heading(tr("Link WhatsApp"), tr("Scan a code with your phone. Then choose what Claude can do with your chats.")),
+      line(statusStop(false, "WhatsApp", tr("Not linked"), button(tr("Show QR code"), () => window.api.whatsappLogin(), "primary"))),
       warning,
       $("wa-qr"),
     ];
@@ -625,7 +631,7 @@ const STEPS = {
     const { accounts } = state.gmail;
     const stops = accounts.map(({ label, email }) => statusStop(true, label, label === email ? "Gmail" : email));
     return [
-      ...heading("Conecta tu correo", "Puedes agregar todas las cuentas de Gmail que uses. Nada se envía sin tu aprobación."),
+      ...heading(tr("Connect your email"), tr("You can add every Gmail account you use. Nothing is sent without your approval.")),
       ...(stops.length ? [line(...stops)] : []),
       accountForm({
         onDone: () => {
@@ -633,19 +639,19 @@ const STEPS = {
           refresh();
         },
       }),
-      hint("La contraseña se guarda cifrada en tu computadora. Si tu cuenta es de empresa, puede que esta opción esté bloqueada."),
+      hint(tr("The password is stored encrypted on your computer. If it's a work account, this option may be blocked.")),
     ];
   },
   notes: () => {
     const { vaults } = state.notes;
     return [
-      ...heading("Conecta tus notas", "Elige las bóvedas de Obsidian o carpetas de Markdown que tu IA podrá leer. Solo verá las que enciendas."),
+      ...heading(tr("Connect your notes"), tr("Choose the Obsidian vaults or Markdown folders your AI can read. It only sees the ones you turn on.")),
       ...(vaults.length ? [line(...vaults.map(vaultStop))] : []),
-      button(vaults.length ? "Agregar otra carpeta" : "Elegir carpeta", () => {
+      button(vaults.length ? tr("Add another folder") : tr("Choose folder"), () => {
         onboardingKey = null;
         act(window.api.vaultAdd());
       }),
-      hint("Desde el teléfono solo se pueden leer. Escribir notas funciona únicamente en esta computadora."),
+      hint(tr("From your phone they can only be read. Writing notes only works on this computer.")),
     ];
   },
   tailscale: () => {
@@ -653,30 +659,32 @@ const STEPS = {
     const actions = tailscale.running
       ? []
       : tailscale.installed
-        ? [button("Abrir Tailscale", () => act(window.api.openTailscale()), "primary")]
-        : [button("Descargar", () => act(window.api.openLink("tailscale")), "primary")];
-    const meta = tailscale.running ? `${tailscale.machines.length} equipos en tu red` : tailscale.installed ? "Falta iniciar sesión" : "Sin instalar";
+        ? [button(tr("Open Tailscale"), () => act(window.api.openTailscale()), "primary")]
+        : [button(tr("Download"), () => act(window.api.openLink("tailscale")), "primary")];
+    const count = tailscale.machines.length;
+    const networkMeta = count === 1 ? tr("1 device on your network") : tr("{count} devices on your network", { count });
+    const meta = tailscale.running ? networkMeta : tailscale.installed ? tr("Not signed in yet") : tr("Not installed");
     return [
-      ...heading("¿Tienes más computadoras?", "Tailscale las une en una red privada para verlas desde cualquier lugar. Si solo usas esta, omite este paso."),
+      ...heading(tr("Have more computers?"), tr("Tailscale joins them in a private network so you can reach them from anywhere. If you only use this one, skip this step.")),
       line(statusStop(tailscale.running, "Tailscale", meta, ...actions)),
-      hint("Es una app aparte, gratuita para uso personal. Instálala, inicia sesión y vuelve: esta pantalla se actualiza sola."),
+      hint(tr("It's a separate app, free for personal use. Install it, sign in and come back: this screen updates by itself.")),
     ];
   },
   permissions: () => {
     const { accessibility, screen } = state.permissions;
-    const activate = (on, pane) => (on ? [] : [button("Activar", () => act(window.api.openPrivacy(pane)))]);
+    const activate = (on, pane) => (on ? [] : [button(tr("Turn on"), () => act(window.api.openPrivacy(pane)))]);
     return [
-      ...heading("Permisos de tu Mac", "Solo si quieres que Claude controle apps o tome capturas. Presiona Activar y enciende SMCP en la lista."),
+      ...heading(tr("Your Mac's permissions"), tr("Only if you want Claude to control apps or take screenshots. Press Turn on, then switch on SMCP in the list.")),
       line(
-        statusStop(accessibility, "Accesibilidad", "Para controlar apps", ...activate(accessibility, "accessibility")),
-        statusStop(screen, "Grabación de pantalla", "Para tomar capturas", ...activate(screen, "screen")),
+        statusStop(accessibility, tr("Accessibility"), tr("To control apps"), ...activate(accessibility, "accessibility")),
+        statusStop(screen, tr("Screen Recording"), tr("To take screenshots"), ...activate(screen, "screen")),
       ),
-      hint("Después de activar Grabación de pantalla, macOS pide reiniciar SMCP."),
+      hint(tr("After you turn on Screen Recording, macOS asks you to restart SMCP.")),
     ];
   },
   done: () => [
     logo(),
-    ...heading("Todo conectado", "SMCP queda en la barra superior. Reinicia tu app de IA y prueba con: «Resume mis chats de WhatsApp sin leer»."),
+    ...heading(tr("All connected"), tr("SMCP stays in the menu bar. Restart your AI app and try: “Summarize my unread WhatsApp chats.”")),
   ],
 };
 
@@ -711,10 +719,10 @@ function renderOnboarding() {
   [...content.children].forEach((child, index) => child.style.setProperty("--i", String(index)));
   $("ob-body").replaceChildren(content);
   const middle = names.length - 2;
-  $("ob-progress").textContent = name === "welcome" || name === "done" ? "" : `Paso ${step} de ${middle}`;
+  $("ob-progress").textContent = name === "welcome" || name === "done" ? "" : tr("Step {step} of {total}", { step, total: middle });
   $("ob-back").hidden = step === 0;
   $("ob-skip").hidden = name === "welcome" || name === "done";
-  $("ob-next").textContent = name === "welcome" ? "Empezar" : name === "done" ? "Abrir SMCP" : "Continuar";
+  $("ob-next").textContent = name === "welcome" ? tr("Get started") : name === "done" ? tr("Open SMCP") : tr("Continue");
 }
 
 async function finishOnboarding() {
@@ -835,7 +843,7 @@ window.api.onLoginEvent(({ state: login, image, error }) => {
   $("wa-qr-image").hidden = login !== "qr";
   if (image) $("wa-qr-image").src = image;
   $("wa-qr-text").textContent =
-    login === "qr" ? "En tu teléfono: WhatsApp > Dispositivos vinculados > Vincular un dispositivo." : "Preparando el código…";
+    login === "qr" ? tr("On your phone: WhatsApp > Linked Devices > Link a Device.") : tr("Preparing the code…");
   if (!onboardingOpen) $("wa-link").disabled = loggingIn;
   if (login === "error") showError(error);
   if (login === "done") {
@@ -865,20 +873,24 @@ $("redo-onboarding").onclick = () => {
 };
 $("copy-diagnostics").onclick = async () => {
   const result = await window.api.copyDiagnostics();
-  if (result.ok) $("diag-status").textContent = "Copiado al portapapeles.";
+  if (result.ok) $("diag-status").textContent = tr("Copied to clipboard.");
   else showError(result.error);
 };
+$("language").value = SMCP_I18N.language();
+$("language").onchange = (event) => window.api.setLanguage(event.target.value);
+$("wa-qr-image").alt = tr("QR code to link WhatsApp");
+
 $("restart").onclick = () => window.api.restart();
 $("quit").onclick = () => window.api.quit();
 
 let updates = null;
 
 function updateStatusText({ status, latest, message, current }) {
-  if (status === "checking") return "Buscando…";
-  if (status === "installing" || status === "error") return message;
-  if (status === "latest") return "Tienes la versión más reciente.";
-  if (status === "available") return `La versión ${latest} está disponible.`;
-  return `Tienes la versión ${current}.`;
+  if (status === "checking") return tr("Checking…");
+  if (status === "installing" || status === "error") return tr(message);
+  if (status === "latest") return tr("You're on the latest version.");
+  if (status === "available") return tr("Version {version} is available.", { version: latest });
+  return tr("You're on version {version}.", { version: current });
 }
 
 function renderUpdates(value) {
@@ -887,11 +899,11 @@ function renderUpdates(value) {
   const installable = value.status === "available" && value.canInstall;
   const manual = value.status === "available" && !value.canInstall;
   $("update-status").textContent = updateStatusText(value);
-  button.textContent = installable ? `Actualizar a ${value.latest}` : manual ? "Descargar" : "Buscar actualizaciones";
+  button.textContent = installable ? tr("Update to {version}", { version: value.latest }) : manual ? tr("Download") : tr("Check for updates");
   button.disabled = value.status === "checking" || value.status === "installing";
   $("auto-update").checked = value.auto === true;
   $("auto-update-note").textContent =
-    window.api && navigator.userAgent.includes("Mac") ? "En Mac, cada versión nueva vuelve a pedir los permisos del sistema." : "";
+    window.api && navigator.userAgent.includes("Mac") ? tr("On Mac, each new version asks for system permissions again.") : "";
 }
 
 async function loadUpdates() {

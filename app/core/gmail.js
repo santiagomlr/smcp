@@ -20,10 +20,10 @@ export function defaultStorePath() {
 
 export function normalizeCredentials({ label, email, password }) {
   const cleanEmail = String(email ?? "").trim().toLowerCase();
-  if (!EMAIL.test(cleanEmail)) throw new Error("Escribe un correo válido.");
+  if (!EMAIL.test(cleanEmail)) throw new Error("Enter a valid email address.");
   const cleanPassword = String(password ?? "").replace(/\s/g, "");
   if (!APP_PASSWORD.test(cleanPassword)) {
-    throw new Error("La contraseña de aplicación son 16 letras. No es la contraseña normal de tu cuenta.");
+    throw new Error("An app password is 16 letters. It is not your normal account password.");
   }
   const cleanLabel = String(label ?? "").trim().slice(0, MAX_LABEL) || cleanEmail;
   return { label: cleanLabel, email: cleanEmail, password: cleanPassword };
@@ -36,7 +36,7 @@ export function createAccountStore({ path = defaultStorePath(), encrypt, decrypt
       return JSON.parse(await readFile(path, "utf8")).accounts ?? [];
     } catch (error) {
       if (error.code === "ENOENT") return [];
-      throw new Error("No se pudieron leer las cuentas de Gmail guardadas.");
+      throw new Error("Could not read the saved Gmail accounts.");
     }
   };
   const write = async (accounts) => {
@@ -53,7 +53,7 @@ export function createAccountStore({ path = defaultStorePath(), encrypt, decrypt
     async add({ label, email, password }) {
       const accounts = await read();
       const others = accounts.filter((account) => account.email !== email);
-      if (others.length >= MAX_ACCOUNTS) throw new Error(`Puedes conectar hasta ${MAX_ACCOUNTS} cuentas.`);
+      if (others.length >= MAX_ACCOUNTS) throw new Error(`You can connect up to ${MAX_ACCOUNTS} accounts.`);
       await write([...others, { label, email, secret: encrypt(password) }]);
     },
     async remove(email) {
@@ -61,11 +61,11 @@ export function createAccountStore({ path = defaultStorePath(), encrypt, decrypt
     },
     async credentials(email) {
       const account = (await read()).find((item) => item.email === email);
-      if (!account) throw new Error("Esa cuenta ya no está conectada.");
+      if (!account) throw new Error("That account is no longer connected.");
       try {
         return { label: account.label, email: account.email, password: decrypt(account.secret) };
       } catch {
-        throw new Error("No se pudo leer la contraseña guardada. Desconecta la cuenta y vuelve a conectarla.");
+        throw new Error("Could not read the saved password. Disconnect the account and connect it again.");
       }
     },
   };
@@ -74,12 +74,12 @@ export function createAccountStore({ path = defaultStorePath(), encrypt, decrypt
 export function friendlyMailError(error) {
   const text = `${error?.responseText ?? ""} ${error?.response ?? ""} ${error?.message ?? ""} ${error?.authenticationFailed ? "AUTHENTICATIONFAILED" : ""}`;
   if (/AUTHENTICATIONFAILED|Invalid credentials|Username and Password not accepted|\b535\b/i.test(text)) {
-    return "Google rechazó el acceso. Revisa el correo y crea una contraseña de aplicación nueva.";
+    return "Google refused access. Check the email address and create a new app password.";
   }
   if (/ENOTFOUND|ETIMEDOUT|ECONNREFUSED|ENETUNREACH|EAI_AGAIN|Connection not available/i.test(text)) {
-    return "No se pudo conectar con Gmail. Revisa tu conexión a internet.";
+    return "Could not connect to Gmail. Check your internet connection.";
   }
-  return "Gmail no pudo completar la acción. Vuelve a intentar.";
+  return "Gmail could not complete the action. Try again.";
 }
 
 export function openImap({ email, password }) {
@@ -121,8 +121,8 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
     const wanted = String(reference ?? "").trim().toLowerCase();
     const matches = accounts.filter((account) => account.email === wanted || account.label.toLowerCase() === wanted);
     if (matches.length === 1) return matches[0];
-    if (matches.length > 1) throw new Error("Hay varias cuentas con ese nombre. Usa el correo.");
-    throw new Error("No hay una cuenta conectada con ese nombre. Usa gmail_list_accounts.");
+    if (matches.length > 1) throw new Error("Several accounts have that name. Use the email address.");
+    throw new Error("No connected account has that name. Use gmail_list_accounts.");
   };
 
   /** Searches run in All Mail, whose localized name is found through its special-use flag. */
@@ -186,7 +186,7 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
       const max = Math.min(Math.max(Number(limit) || 20, 1), 50);
       const gmailQuery = String(query || "in:inbox").slice(0, 500);
       const targets = account ? [await resolve(account)] : await store.list();
-      if (!targets.length) throw new Error("No hay cuentas de Gmail conectadas. Agrega una desde la app SMCP.");
+      if (!targets.length) throw new Error("No Gmail accounts are connected. Add one from the SMCP app.");
       const results = await Promise.all(
         targets.map(async (target) => {
           try {
@@ -204,7 +204,7 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
     },
 
     async read({ account, uid }) {
-      if (!Number.isInteger(uid) || uid < 1) throw new Error("Identificador de mensaje inválido.");
+      if (!Number.isInteger(uid) || uid < 1) throw new Error("Invalid message identifier.");
       const target = await resolve(account);
       try {
         return await withMailbox(target.email, async (client) => {
@@ -222,11 +222,11 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
             date: parsed.date ?? null,
             text: text.slice(0, MAX_READ_CHARS),
             truncated: text.length > MAX_READ_CHARS,
-            attachments: (parsed.attachments ?? []).map(({ filename, size }) => ({ filename: filename ?? "sin nombre", size })),
+            attachments: (parsed.attachments ?? []).map(({ filename, size }) => ({ filename: filename ?? "unnamed", size })),
           };
         });
       } catch (error) {
-        if (error.message === "NOT_FOUND") throw new Error("No se encontró ese mensaje.");
+        if (error.message === "NOT_FOUND") throw new Error("That message was not found.");
         throw new Error(friendlyMailError(error));
       }
     },
@@ -236,30 +236,30 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
       const target = await resolve(account);
       const recipients = (Array.isArray(to) ? to : [to]).map((item) => String(item ?? "").trim());
       if (!recipients.length || recipients.length > MAX_RECIPIENTS || !recipients.every((item) => EMAIL.test(item))) {
-        throw new Error(`Indica de 1 a ${MAX_RECIPIENTS} correos válidos.`);
+        throw new Error(`Give from 1 to ${MAX_RECIPIENTS} valid email addresses.`);
       }
       const cleanSubject = String(subject ?? "");
-      if (/[\r\n]/.test(cleanSubject) || cleanSubject.length > 200) throw new Error("El asunto no es válido.");
+      if (/[\r\n]/.test(cleanSubject) || cleanSubject.length > 200) throw new Error("The subject is not valid.");
       const text = String(body ?? "");
-      if (!text.trim()) throw new Error("El mensaje está vacío.");
+      if (!text.trim()) throw new Error("The message is empty.");
       if (text.length > MAX_BODY_CHARS) {
-        throw new Error(`El mensaje pasa de ${MAX_BODY_CHARS} caracteres y no se vería completo en la ventana de confirmación.`);
+        throw new Error(`The message is longer than ${MAX_BODY_CHARS} characters and would not be fully visible in the confirmation window.`);
       }
 
       let thread = {};
       if (replyToUid !== undefined) {
-        if (!Number.isInteger(replyToUid) || replyToUid < 1) throw new Error("Identificador de mensaje inválido.");
+        if (!Number.isInteger(replyToUid) || replyToUid < 1) throw new Error("Invalid message identifier.");
         thread = await withMailbox(target.email, async (client) => {
           const original = await client.fetchOne(String(replyToUid), { envelope: true }, { uid: true });
           const messageId = original?.envelope?.messageId;
-          if (!messageId) throw new Error("No se encontró el mensaje a responder.");
+          if (!messageId) throw new Error("The message to reply to was not found.");
           return { inReplyTo: messageId, references: messageId };
         });
       }
 
-      const summary = `De: ${target.label} (${target.email})\nPara: ${recipients.join(", ")}\nAsunto: ${cleanSubject || "(sin asunto)"}\n\nMensaje:\n${text}`;
-      if (!(await confirm(summary, "SMCP: enviar correo"))) {
-        return { sent: false, reason: "No se confirmó en la ventana de macOS. No se envió nada." };
+      const summary = `From: ${target.label} (${target.email})\nTo: ${recipients.join(", ")}\nSubject: ${cleanSubject || "(no subject)"}\n\nMessage:\n${text}`;
+      if (!(await confirm(summary, "SMCP: send email"))) {
+        return { sent: false, reason: "Not confirmed in the macOS window. Nothing was sent." };
       }
 
       const credentials = await store.credentials(target.email);
@@ -274,7 +274,7 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
         });
         return { sent: true, id: info.messageId, accepted: info.accepted };
       } catch (error) {
-        throw new Error(`${friendlyMailError(error)} El resultado puede ser incierto: revisa Enviados antes de reintentar.`);
+        throw new Error(`${friendlyMailError(error)} The outcome may be uncertain: check Sent before retrying.`);
       } finally {
         transport.close?.();
       }

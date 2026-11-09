@@ -33,7 +33,7 @@ export function defaultRemoteStatePath() {
 }
 
 function page(title, body) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)}</title><style>
 :root{color-scheme:light dark;--bg:oklch(.975 .005 172);--ink:oklch(.25 .022 172);--muted:oklch(.5 .018 172);--rule:oklch(.86 .012 172);--accent:oklch(.45 .08 172);--on:oklch(.98 .006 172);--warn:oklch(.54 .12 48)}
 @media(prefers-color-scheme:dark){:root{--bg:oklch(.2 .012 172);--ink:oklch(.94 .008 172);--muted:oklch(.71 .016 172);--rule:oklch(.36 .015 172);--accent:oklch(.76 .085 172);--on:oklch(.2 .02 172);--warn:oklch(.76 .11 55)}}
@@ -46,12 +46,12 @@ button{width:100%;margin-top:12px;padding:12px;font:600 15px/1 system-ui,sans-se
 
 function pairingPage(clientName, requestId, error = "") {
   return page(
-    "Conectar con SMCP",
-    `<h1>Conectar con SMCP</h1><p>${escapeHtml(clientName)} quiere acceder a tu computadora. Abre la app SMCP y escribe aquí el código de Acceso remoto.</p>
+    "Connect to SMCP",
+    `<h1>Connect to SMCP</h1><p>${escapeHtml(clientName)} wants to access your computer. Open the SMCP app and enter the Remote access code here.</p>
 ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
 <form method="post" action="/pair"><input type="hidden" name="request" value="${escapeHtml(requestId)}">
-<label for="code">Código</label><input id="code" name="code" required maxlength="12" autocomplete="off" autocapitalize="characters" autofocus>
-<button type="submit">Conectar</button></form>`,
+<label for="code">Code</label><input id="code" name="code" required maxlength="12" autocomplete="off" autocapitalize="characters" autofocus>
+<button type="submit">Connect</button></form>`,
   );
 }
 
@@ -106,7 +106,7 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
       if (entries.length >= MAX_CLIENTS) {
         // Registration is open by design, so drop the oldest clients that never finished pairing.
         const stale = entries.find(([, item]) => !item.smcp_connected_at);
-        if (!stale) throw new Error("Hay demasiados clientes registrados.");
+        if (!stale) throw new Error("Too many clients are registered.");
         delete store.data.clients[stale[0]];
       }
       store.data.clients[client.client_id] = client;
@@ -121,32 +121,32 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
       for (const [id, item] of pending) if (item.expiresAt < now()) pending.delete(id);
       const requestId = token();
       pending.set(requestId, { client, params, expiresAt: now() + PENDING_TTL_MS });
-      res.status(200).type("html").send(pairingPage(client.client_name || "Una app", requestId));
+      res.status(200).type("html").send(pairingPage(client.client_name || "An app", requestId));
     },
     async challengeForAuthorizationCode(_client, code) {
       const item = authCodes.get(code);
-      if (!item || item.expiresAt < now()) throw new InvalidGrantError("Código inválido o vencido.");
+      if (!item || item.expiresAt < now()) throw new InvalidGrantError("Invalid or expired code.");
       return item.params.codeChallenge;
     },
     async exchangeAuthorizationCode(client, code, _verifier, redirectUri) {
       const item = authCodes.get(code);
       authCodes.delete(code);
-      if (!item || item.expiresAt < now() || item.clientId !== client.client_id) throw new InvalidGrantError("Código inválido o vencido.");
-      if (redirectUri && redirectUri !== item.params.redirectUri) throw new InvalidGrantError("La dirección de retorno no coincide.");
+      if (!item || item.expiresAt < now() || item.clientId !== client.client_id) throw new InvalidGrantError("Invalid or expired code.");
+      if (redirectUri && redirectUri !== item.params.redirectUri) throw new InvalidGrantError("The redirect address does not match.");
       return issueTokens(client.client_id);
     },
     async exchangeRefreshToken(client, refreshToken) {
       const key = hash(refreshToken);
       const entry = store.data.tokens[key];
       if (!entry || entry.type !== "refresh" || entry.clientId !== client.client_id || entry.expiresAt < now()) {
-        throw new InvalidGrantError("Sesión vencida. Vuelve a conectar.");
+        throw new InvalidGrantError("Session expired. Connect again.");
       }
       delete store.data.tokens[key];
       return issueTokens(client.client_id);
     },
     async verifyAccessToken(accessToken) {
       const entry = store.data.tokens[hash(accessToken)];
-      if (!entry || entry.type !== "access" || entry.expiresAt < now()) throw new InvalidTokenError("Token inválido o vencido.");
+      if (!entry || entry.type !== "access" || entry.expiresAt < now()) throw new InvalidTokenError("Invalid or expired token.");
       const client = store.data.clients[entry.clientId];
       // Saved at most once a minute, so the app can show when each app last used SMCP.
       if (client && now() - (client.smcp_last_used_at ?? 0) > 60_000) {
@@ -165,7 +165,7 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
   };
 
   const checkPairing = (code) => {
-    if (!pairing || pairing.expiresAt < now()) return "No hay un código activo. Genera uno en la app SMCP.";
+    if (!pairing || pairing.expiresAt < now()) return "There is no active code. Generate one in the SMCP app.";
     const given = Buffer.from(hash(String(code ?? "").trim().toUpperCase()));
     const expected = Buffer.from(hash(pairing.code));
     if (timingSafeEqual(given, expected)) {
@@ -175,9 +175,9 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
     pairing.attempts += 1;
     if (pairing.attempts >= MAX_PAIRING_ATTEMPTS) {
       pairing = null;
-      return "Demasiados intentos. Genera un código nuevo en la app SMCP.";
+      return "Too many attempts. Generate a new code in the SMCP app.";
     }
-    return "Ese código no es correcto.";
+    return "That code is not correct.";
   };
 
   const buildApp = () => {
@@ -208,12 +208,12 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
     app.post("/pair", express.urlencoded({ extended: false, limit: "4kb" }), (req, res) => {
       const item = pending.get(String(req.body?.request ?? ""));
       if (!item || item.expiresAt < now()) {
-        res.status(400).type("html").send(page("Conectar con SMCP", "<h1>Vuelve a intentar</h1><p>Esta solicitud venció. Inicia la conexión de nuevo desde tu app de IA.</p>"));
+        res.status(400).type("html").send(page("Connect to SMCP", "<h1>Try again</h1><p>This request expired. Start the connection again from your AI app.</p>"));
         return;
       }
       const error = checkPairing(req.body.code);
       if (error) {
-        res.status(400).type("html").send(pairingPage(item.client.client_name || "Una app", String(req.body.request), error));
+        res.status(400).type("html").send(pairingPage(item.client.client_name || "An app", String(req.body.request), error));
         return;
       }
       pending.delete(String(req.body.request));
@@ -242,10 +242,10 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
       } catch {
-        if (!res.headersSent) res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Error interno." }, id: null });
+        if (!res.headersSent) res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal error." }, id: null });
       }
     });
-    const notAllowed = (_req, res) => res.status(405).set("Allow", "POST").json({ jsonrpc: "2.0", error: { code: -32000, message: "Método no permitido." }, id: null });
+    const notAllowed = (_req, res) => res.status(405).set("Allow", "POST").json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null });
     app.get("/mcp", auth, notAllowed);
     app.delete("/mcp", auth, notAllowed);
     return app;
@@ -284,7 +284,7 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
         .filter((client) => client.smcp_connected_at)
         .map((client) => ({
           id: client.client_id,
-          name: client.client_name || "App sin nombre",
+          name: client.client_name || "Unnamed app",
           connectedAt: client.smcp_connected_at,
           lastUsedAt: client.smcp_last_used_at ?? null,
         }));

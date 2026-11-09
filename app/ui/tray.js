@@ -23,30 +23,30 @@ function row(on, name, meta, action) {
 
 function machineRow(machine) {
   const wake = machine.canWake
-    ? element("button", { type: "button", textContent: "Encender", onclick: () => window.api.wake(machine.name) })
+    ? element("button", { type: "button", textContent: tr("Wake"), onclick: () => window.api.wake(machine.name) })
     : null;
-  const meta = machine.self ? "Esta computadora" : machine.online ? "En línea" : wake ? "" : "Sin conexión";
+  const meta = machine.self ? tr("This computer") : machine.online ? tr("Online") : wake ? "" : tr("Offline");
   return row(machine.online, machine.alias || machine.name, meta, wake);
 }
 
 function connectionRows(state) {
   const rows = [];
   for (const client of state.clients.items) {
-    if (client.connected) rows.push(row(true, client.name, "Conectado"));
+    if (client.connected) rows.push(row(true, client.name, tr("Connected")));
   }
   if (state.whatsapp.supported && state.whatsapp.installed) {
-    rows.push(row(state.whatsapp.linked, "WhatsApp", state.whatsapp.linked ? "Vinculado" : "Sin vincular"));
+    rows.push(row(state.whatsapp.linked, "WhatsApp", state.whatsapp.linked ? tr("Linked") : tr("Not linked")));
   }
   const vaults = state.notes.vaults.filter((vault) => vault.enabled);
-  if (vaults.length) rows.push(row(true, "Notas", vaults.length === 1 ? vaults[0].name : `${vaults.length} bóvedas`));
+  if (vaults.length) rows.push(row(true, tr("Notes"), vaults.length === 1 ? vaults[0].name : tr("{count} vaults", { count: vaults.length })));
   for (const account of state.gmail.accounts) {
     rows.push(row(true, account.label, "Gmail"));
   }
   if (state.remote.supported) {
     const count = state.remote.clients.length;
-    rows.push(row(state.remote.enabled, "Acceso remoto", !state.remote.enabled ? "Apagado" : count ? `${count} ${count === 1 ? "app" : "apps"}` : "Sin apps"));
+    rows.push(row(state.remote.enabled, tr("Remote access"), !state.remote.enabled ? tr("Off") : count === 1 ? tr("1 app") : count ? tr("{count} apps", { count }) : tr("No apps")));
   }
-  if (!rows.length) rows.push(row(false, "Sin conexiones", ""));
+  if (!rows.length) rows.push(row(false, tr("No connections"), ""));
   return rows;
 }
 
@@ -57,20 +57,20 @@ let undoTimer = null;
 const resize = () => window.api.panelResize(document.documentElement.scrollHeight);
 
 function dayLabel(iso) {
-  return new Date(`${iso}T12:00:00`).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+  return new Date(`${iso}T12:00:00`).toLocaleDateString(SMCP_I18N.locale(), { day: "numeric", month: "short" });
 }
 
 function taskMeta(task) {
   const parts = [];
   if (task.p !== "INBOX") parts.push(task.p);
-  if (task.min) parts.push(`${task.min} min`);
-  if (task.due) parts.push(`vence ${dayLabel(task.due)}`);
+  if (task.min) parts.push(tr("{minutes} min", { minutes: task.min }));
+  if (task.due) parts.push(tr("due {date}", { date: dayLabel(task.due) }));
   return parts.join(" · ");
 }
 
 function showUndo(task) {
   clearTimeout(undoTimer);
-  $("p-undo-text").textContent = "Completada";
+  $("p-undo-text").textContent = tr("Completed");
   $("p-undo").hidden = false;
   $("p-undo-button").onclick = async () => {
     $("p-undo").hidden = true;
@@ -87,7 +87,7 @@ function showUndo(task) {
 
 function taskRow(task) {
   const check = element("button", { type: "button", className: "task-check" });
-  check.setAttribute("aria-label", `Completar ${task.n}`);
+  check.setAttribute("aria-label", tr("Complete {name}", { name: task.n }));
   const item = element(
     "li",
     { className: "task" },
@@ -131,8 +131,8 @@ async function loadTasks() {
   if (!result.ok) {
     tasksKey = null;
     $("p-tasks").replaceChildren();
-    $("p-all").textContent = "Ver todas";
-    empty.textContent = "No se puede llegar a la computadora de tus tareas.";
+    $("p-all").textContent = tr("See all");
+    empty.textContent = tr("Can't reach the computer that holds your tasks.");
     empty.hidden = false;
     return;
   }
@@ -141,8 +141,8 @@ async function loadTasks() {
   if (key === tasksKey) return;
   tasksKey = key;
   $("p-tasks").replaceChildren(...top.map(taskRow));
-  $("p-all").textContent = result.value.length > TOP_TASKS ? `Ver las ${result.value.length}` : "Abrir tareas";
-  empty.textContent = "Nada disponible por ahora.";
+  $("p-all").textContent = result.value.length > TOP_TASKS ? tr("See all {count}", { count: result.value.length }) : tr("Open Tasks");
+  empty.textContent = tr("Nothing available right now.");
   empty.hidden = top.length > 0;
 }
 
@@ -152,7 +152,7 @@ async function refresh() {
   const state = result.value;
   const paused = state.policy.paused;
   const status = $("panel-status");
-  status.textContent = paused ? "En pausa" : "Activo";
+  status.textContent = paused ? tr("Paused") : tr("Active");
   status.classList.toggle("paused", paused);
   $("p-pause").checked = paused;
   await loadTasks();
@@ -160,7 +160,7 @@ async function refresh() {
   if (key === lastKey) return resize();
   lastKey = key;
   const machines = state.tailscale.machines;
-  $("p-machines").replaceChildren(...(machines.length ? machines.map(machineRow) : [row(false, "Tailscale sin conectar", "")]));
+  $("p-machines").replaceChildren(...(machines.length ? machines.map(machineRow) : [row(false, tr("Tailscale not connected"), "")]));
   $("p-connections-list").replaceChildren(...connectionRows(state));
   window.api.panelResize(document.documentElement.scrollHeight);
 }
@@ -180,7 +180,7 @@ $("p-add").onsubmit = async (event) => {
   const result = await window.api.tasks("create", { name });
   if (!result.ok) return;
   input.value = "";
-  $("p-all").textContent = "Abrir tareas";
+  $("p-all").textContent = tr("Open Tasks");
   $("p-undo").hidden = true;
   $("p-tasks-empty").hidden = true;
   $("p-add-saved").hidden = false;

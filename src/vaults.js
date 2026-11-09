@@ -54,8 +54,8 @@ export function isTooBroad(path, home = homedir()) {
 }
 
 export function setVault(path, enabled, configPath = vaultsConfigPath()) {
-  if (!isAbsolute(path)) throw new Error("Ruta inválida.");
-  if (enabled && isTooBroad(path)) throw new Error("Esa carpeta es demasiado amplia. Elige la carpeta de tus notas.");
+  if (!isAbsolute(path)) throw new Error("Invalid path.");
+  if (enabled && isTooBroad(path)) throw new Error("That folder is too broad. Choose your notes folder.");
   const vaults = readVaultConfig(configPath).filter((vault) => vault.path !== path);
   vaults.push({ path, enabled: Boolean(enabled) });
   writeVaultConfig(vaults, configPath);
@@ -102,7 +102,7 @@ export function enabledVaults(options) {
 function findVault(vaults, reference) {
   const wanted = String(reference ?? "").trim().toLowerCase();
   const vault = vaults.find((item) => item.name.toLowerCase() === wanted);
-  if (!vault) throw new Error("No hay una bóveda conectada con ese nombre. Usa notes_list_vaults.");
+  if (!vault) throw new Error("No connected vault has that name. Use notes_list_vaults.");
   return vault;
 }
 
@@ -112,18 +112,18 @@ export async function resolveNote(vault, notePath, { mustExist = true } = {}) {
   const target = resolve(root, String(notePath ?? ""));
   const parts = relative(root, target).split(sep);
   if (!target.startsWith(root + sep) || parts.some((part) => part === ".." || part.startsWith("."))) {
-    throw new Error("Esa ruta está fuera de la bóveda.");
+    throw new Error("That path is outside the vault.");
   }
-  if (!NOTE_EXTENSIONS.has(extname(target).toLowerCase())) throw new Error("Solo se pueden usar notas .md, .txt o .canvas.");
+  if (!NOTE_EXTENSIONS.has(extname(target).toLowerCase())) throw new Error("Only .md, .txt or .canvas notes can be used.");
   let existing = target;
   const missing = [];
   for (;;) {
     try {
       const real = join(await realpath(existing), ...missing);
-      if (!real.startsWith(root + sep)) throw new Error("Esa ruta está fuera de la bóveda.");
+      if (!real.startsWith(root + sep)) throw new Error("That path is outside the vault.");
       return real;
     } catch (error) {
-      if (error.code !== "ENOENT" || mustExist) throw error.code === "ENOENT" ? new Error("No existe esa nota.") : error;
+      if (error.code !== "ENOENT" || mustExist) throw error.code === "ENOENT" ? new Error("That note does not exist.") : error;
       missing.unshift(basename(existing));
       existing = dirname(existing);
     }
@@ -169,7 +169,7 @@ function snippet(text, term) {
 export function createNotes({ vaults = () => enabledVaults() } = {}) {
   const targets = (reference) => {
     const list = vaults();
-    if (!list.length) throw new Error("No hay bóvedas conectadas. Enciende una en la app SMCP, en Conexiones > Notas.");
+    if (!list.length) throw new Error("No vaults are connected. Turn one on in the SMCP app, under Connections > Notes.");
     return reference ? [findVault(list, reference)] : list;
   };
 
@@ -178,7 +178,7 @@ export function createNotes({ vaults = () => enabledVaults() } = {}) {
 
     async search({ query, vault, limit = 20 }) {
       const terms = String(query ?? "").toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
-      if (!terms.length) throw new Error("Escribe qué buscar.");
+      if (!terms.length) throw new Error("Type what to search for.");
       const max = Math.min(Math.max(Number(limit) || 20, 1), 50);
       const results = [];
       for (const target of targets(vault)) {
@@ -223,7 +223,7 @@ export function createNotes({ vaults = () => enabledVaults() } = {}) {
       await mkdir(dirname(file), { recursive: true });
       if (mode === "append") await appendFile(file, content, "utf8");
       else await writeFile(file, content, { encoding: "utf8", flag: mode === "overwrite" ? "w" : "wx" }).catch((error) => {
-        throw error.code === "EEXIST" ? new Error("Esa nota ya existe. Usa mode append u overwrite.") : error;
+        throw error.code === "EEXIST" ? new Error("That note already exists. Use mode append or overwrite.") : error;
       });
       return { written: true, vault: target.name, path, mode };
     },

@@ -65,8 +65,8 @@ function fakeSmtp() {
 test("valida correo y contraseña; acepta la contraseña con espacios como la muestra Google", () => {
   const clean = normalizeCredentials({ label: " Trabajo ", email: " Ana@X.COM ", password: "abcd efgh ijkl mnop" });
   assert.deepEqual(clean, { label: "Trabajo", email: "ana@x.com", password: PASSWORD });
-  assert.throws(() => normalizeCredentials({ email: "no", password: PASSWORD }), /correo/);
-  assert.throws(() => normalizeCredentials({ email: "a@x.com", password: "MiClaveNormal1" }), /16 letras/);
+  assert.throws(() => normalizeCredentials({ email: "no", password: PASSWORD }), /email/);
+  assert.throws(() => normalizeCredentials({ email: "a@x.com", password: "MiClaveNormal1" }), /16 letters/);
 });
 
 test("la contraseña se guarda cifrada, con permisos privados, y nunca sale en la lista", async () => {
@@ -90,7 +90,7 @@ test("varias cuentas: agregar la misma la reemplaza y quitar borra solo esa", as
 test("si Google rechaza el acceso, la cuenta no se guarda", async () => {
   const { factory } = fakeImap({ connectError: Object.assign(new Error("x"), { authenticationFailed: true }) });
   const gmail = createGmail({ store, confirm: async () => true, imap: factory });
-  await assert.rejects(gmail.verifyAndAdd({ email: "a@x.com", password: PASSWORD }), /rechazó/);
+  await assert.rejects(gmail.verifyAndAdd({ email: "a@x.com", password: PASSWORD }), /refused/);
   assert.deepEqual(await store.list(), []);
 });
 
@@ -136,8 +136,8 @@ test("lee el correo con acentos", async () => {
   const message = await gmail.read({ account: "a@x.com", uid: 7 });
   assert.equal(message.subject, "Hola");
   assert.equal(message.text, "Cuerpo ñ");
-  await assert.rejects(gmail.read({ account: "a@x.com", uid: 0 }), /inválido/);
-  await assert.rejects(gmail.read({ account: "nadie", uid: 1 }), /No hay una cuenta/);
+  await assert.rejects(gmail.read({ account: "a@x.com", uid: 0 }), /Invalid/);
+  await assert.rejects(gmail.read({ account: "nadie", uid: 1 }), /No connected account/);
 });
 
 test("cancelar la ventana no envía; la ventana muestra cuenta, destino, asunto y texto", async () => {
@@ -148,7 +148,7 @@ test("cancelar la ventana no envía; la ventana muestra cuenta, destino, asunto 
   const result = await gmail.send({ account: "trabajo", to: ["b@y.com"], subject: "Asunto", body: "Texto" });
   assert.equal(result.sent, false);
   assert.equal(smtp.sent.length, 0);
-  assert.ok(shown.startsWith("De: Trabajo (a@x.com)\nPara: b@y.com\nAsunto: Asunto"));
+  assert.ok(shown.startsWith("From: Trabajo (a@x.com)\nTo: b@y.com\nSubject: Asunto"));
   assert.ok(shown.endsWith("Texto"));
 });
 
@@ -186,7 +186,7 @@ test("Gmail tiene su propio permiso y respeta solo lectura", () => {
   assert.equal(toolGroup("gmail_send"), "gmail");
   const policy = readPolicy(join(dir, "no-existe.json"));
   assert.equal(policy.disabled.gmail, false);
-  assert.match(denialFor("gmail_send", { destructiveHint: true }, { ...policy, readOnly: true }), /solo lectura/);
+  assert.match(denialFor("gmail_send", { destructiveHint: true }, { ...policy, readOnly: true }), /read-only/);
   assert.equal(denialFor("gmail_search", { readOnlyHint: true }, { ...policy, readOnly: true }), null);
-  assert.match(denialFor("gmail_search", { readOnlyHint: true }, { ...policy, disabled: { ...policy.disabled, gmail: true } }), /desactivado/);
+  assert.match(denialFor("gmail_search", { readOnlyHint: true }, { ...policy, disabled: { ...policy.disabled, gmail: true } }), /turned off/);
 });

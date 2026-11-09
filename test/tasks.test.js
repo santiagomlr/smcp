@@ -97,15 +97,15 @@ test("una fecha límite conserva su día aunque ya sea otro día en UTC", () => 
 
 test("no inventa proyectos ni tags", () => {
   const { store } = fresh();
-  assert.throws(() => store.create({ name: "X", project: "Peptilab" }), /No existe el proyecto/);
-  assert.throws(() => store.create({ name: "X", tags: ["Nuevo"] }), /No existe el tag/);
+  assert.throws(() => store.create({ name: "X", project: "Peptilab" }), /The project .* does not exist/);
+  assert.throws(() => store.create({ name: "X", tags: ["Nuevo"] }), /The tag .* does not exist/);
 });
 
 test("valida nombre, fechas y minutos", () => {
   const { store } = fresh();
-  assert.throws(() => store.create({ name: "  " }), /nombre/);
-  assert.throws(() => store.create({ name: "X", due: "mañana" }), /fecha/);
-  assert.throws(() => store.create({ name: "X", estimated_minutes: -1 }), /minutos/);
+  assert.throws(() => store.create({ name: "  " }), /name/);
+  assert.throws(() => store.create({ name: "X", due: "mañana" }), /date/);
+  assert.throws(() => store.create({ name: "X", estimated_minutes: -1 }), /minutes/);
 });
 
 test("buscar ignora acentos, incluidos los que vienen descompuestos", () => {
@@ -186,7 +186,7 @@ test("los datos sobreviven al reinicio, con permisos privados y respaldo", async
 test("un archivo dañado no se reemplaza por una lista vacía", async () => {
   const path = join(dir, "roto.json");
   await writeFile(path, "{ dañado");
-  assert.throws(() => createTaskStore({ path }), /respaldo/);
+  assert.throws(() => createTaskStore({ path }), /backup/);
   assert.equal(await readFile(path, "utf8"), "{ dañado");
 });
 
@@ -199,18 +199,18 @@ test("la otra computadora comparte la lista, y un equipo ajeno no entra", async 
   try {
     const created = await remote.create({ name: "Desde la M4", project: "Atlas" });
     assert.equal(store.available().accionables[0].id, created.id);
-    await assert.rejects(remote.create({ name: "X", project: "No existe" }), /No existe el proyecto/);
+    await assert.rejects(remote.create({ name: "X", project: "No existe" }), /The project .* does not exist/);
     caller = "otro";
-    await assert.rejects(remote.summary(), /no pertenece/);
+    await assert.rejects(remote.summary(), /does not belong/);
     caller = null;
-    await assert.rejects(remote.summary(), /no pertenece/);
+    await assert.rejects(remote.summary(), /does not belong/);
     caller = "owner";
     const bad = await fetch("http://127.0.0.1:47877/tasks", { method: "POST", body: JSON.stringify({ op: "importOmniFocus", args: {} }) });
     assert.equal(bad.status, 400);
   } finally {
     await hub.stop();
   }
-  await assert.rejects(createRemoteTasks({ host: "127.0.0.1", port: 47878 }).summary(), /No se puede llegar/);
+  await assert.rejects(createRemoteTasks({ host: "127.0.0.1", port: 47878 }).summary(), /Cannot reach/);
 });
 
 test("la identidad viene de Tailscale, y sin ella nadie entra", async () => {
@@ -272,7 +272,7 @@ test("consultas: bandera, proyecto, tag con sus hijos y perspectivas", () => {
   assert.deepEqual(store.query({ kind: "tag", value: "⏳ Esperando a" }).map((task) => task.n), ["Espera"]);
   assert.deepEqual(store.query({ kind: "deep" }).map((task) => task.n), ["Profunda"]);
   assert.deepEqual(store.query({ kind: "hoy" }).map((task) => task.n), ["Con bandera"]);
-  assert.throws(() => store.query({ kind: "rara" }), /desconocida/);
+  assert.throws(() => store.query({ kind: "rara" }), /Unknown view/);
 });
 
 test("revisión: aparece cuando toca, y al marcarla se programa la siguiente", () => {
@@ -292,7 +292,7 @@ test("renombrar un proyecto lleva sus tareas consigo", () => {
   store.create({ name: "X", project: "Atlas" });
   store.updateProject({ name: "Atlas", rename: "Atlas 2" });
   assert.equal(store.query({ kind: "project", value: "Atlas 2" }).length, 1);
-  assert.throws(() => store.updateProject({ name: "Atlas 2", rename: "Orion" }), /Ya existe/);
+  assert.throws(() => store.updateProject({ name: "Atlas 2", rename: "Orion" }), /already exists/);
 });
 
 test("reimportar solo campos nuevos no pisa lo editado en SMCP", () => {
@@ -338,6 +338,20 @@ test("restaurar un proyecto recupera el estado que tenía", () => {
   assert.equal(Object.values(store.catalog().folders).flat().find((project) => project.name === "Pausado").status, "onhold");
 });
 
+test("un proyecto archivado no recibe tareas nuevas, y restaurado sí", () => {
+  const { store } = fresh();
+  const inside = store.create({ name: "Adentro", project: "Atlas" });
+  const inbox = store.create({ name: "Suelta" });
+  store.updateProject({ name: "Atlas", status: "dropped" });
+  assert.throws(() => store.create({ name: "Invisible", project: "Atlas" }), /archived/);
+  assert.throws(() => store.update({ id: inbox.id, project: "atlas" }), /archived/);
+  assert.equal(store.update({ id: inside.id, project: "Atlas", note: "sigue aquí" }).p, "Atlas");
+  assert.equal(store.update({ id: inside.id, project: null }).p, "INBOX");
+  store.restoreProject({ name: "Atlas" });
+  assert.equal(store.create({ name: "Visible", project: "Atlas" }).p, "Atlas");
+  assert.equal(store.search({ query: "visible" }).total, 1);
+});
+
 test("archivar todo no se puede pedir desde otra computadora", () => {
   assert.ok(!TASK_OPERATIONS.includes("archiveAll"));
 });
@@ -352,7 +366,7 @@ test("Hoy incluye lo planeado para hoy", () => {
 test("permisos: grupo propio, solo lectura bloquea escribir, y el teléfono solo lee", () => {
   assert.equal(toolGroup("tasks_create"), "tasks");
   const policy = { paused: false, readOnly: true, disabled: { tasks: false } };
-  assert.match(denialFor("tasks_create", { destructiveHint: true }, policy), /solo lectura/);
+  assert.match(denialFor("tasks_create", { destructiveHint: true }, policy), /read-only/);
   assert.equal(denialFor("tasks_available", { readOnlyHint: true }, policy), null);
   assert.ok(REMOTE_TOOLS.has("tasks_available"));
   for (const name of ["tasks_create", "tasks_update", "tasks_complete", "tasks_append_note"]) assert.ok(!REMOTE_TOOLS.has(name), name);

@@ -1,41 +1,51 @@
 # SMCP
 
-App personal para macOS que conecta a tu IA con tu computadora: WhatsApp, Gmail, notas de Obsidian, tareas, archivos, terminal y control de apps. Funciona sin cuenta de SMCP, sin servidores propios y sin telemetría.
+SMCP connects your AI to your computer: WhatsApp, Gmail, Obsidian notes, tasks, files, the terminal and app control. It needs no SMCP account, runs no servers of its own and collects no telemetry.
 
-Vive en la barra superior y se conecta a Claude Code, Claude Desktop, Cursor, VS Code y Antigravity. Claude móvil, Claude web y ChatGPT entran por una URL privada.
+It lives in the menu bar and connects to Claude Code, Claude Desktop, Cursor, VS Code and Antigravity. Claude mobile, Claude web and ChatGPT connect through a private URL.
 
-Usa [wacli](https://github.com/openclaw/wacli) (MIT), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT) y APIs públicas. Puedes descargar SMCP y usarlo gratis según la [licencia](LICENSE); este repositorio no acepta contribuciones.
+SMCP is available in English and Spanish. You can change the language in Settings.
 
-## Qué incluye
+It uses [wacli](https://github.com/openclaw/wacli) (MIT), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT) and public APIs. You can download and use SMCP for free under the [license](LICENSE). This repository does not accept contributions.
 
-| Área | Herramientas | Desde el teléfono |
+## Download
+
+Get the latest version from [Releases](https://github.com/santiagomlr/smcp/releases/latest): the `.dmg` for Apple Silicon Macs or the `Setup .exe` for Windows.
+
+## What's included
+
+| Area | Tools | From your phone |
 |---|---|---|
-| WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_transcribe_audio` | Todo menos enviar y escuchar audios |
-| Gmail, varias cuentas | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_send` | Todo menos enviar |
-| Notas, Obsidian o Markdown | `notes_list_vaults`, `notes_search`, `notes_recent`, `notes_read`, `notes_write` | Todo menos escribir |
-| Tareas | `tasks_available`, `tasks_search`, `tasks_list_projects`, `tasks_claude_queue`, `tasks_hygiene`, `tasks_forecast`, `tasks_review_list`, `tasks_mark_reviewed`, `tasks_create`, `tasks_update`, `tasks_append_note`, `tasks_complete` | Solo lectura |
-| Archivos | `file_list`, `file_read`, `file_search`, `file_write` | Todo menos escribir |
-| Terminal | `run_command` | No disponible |
-| Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot` | No disponible |
+| WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_transcribe_audio` | Everything except sending and listening to audio |
+| Gmail, multiple accounts | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_send` | Everything except sending |
+| Notes, Obsidian or Markdown | `notes_list_vaults`, `notes_search`, `notes_recent`, `notes_read`, `notes_write` | Everything except writing |
+| Tasks | `tasks_available`, `tasks_search`, `tasks_list_projects`, `tasks_claude_queue`, `tasks_hygiene`, `tasks_forecast`, `tasks_review_list`, `tasks_mark_reviewed`, `tasks_create`, `tasks_update`, `tasks_append_note`, `tasks_complete` | Read only |
+| Files | `file_list`, `file_read`, `file_search`, `file_write` | Everything except writing |
+| Terminal | `run_command` | Not available |
+| Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot` | Not available |
 
-Terminal y Apps empiezan apagados. Se encienden en Ajustes, y con Terminal encendida la IA podría enviar mensajes sin pasar por la ventana de confirmación.
+Terminal and Apps start turned off. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
 
-Al vincular WhatsApp eliges qué puede hacer la IA: **leer tus chats** y **escribir con tu aprobación**. Leer empieza encendido y escribir, apagado. Se cambia en Ajustes y aplica en la siguiente llamada, también desde el teléfono. Escribir encendido nunca evita la ventana de confirmación. Las instalaciones anteriores a esta opción conservan ambas encendidas.
+When you link WhatsApp, you choose what the AI can do: **read your chats** and **write with your approval**. Reading starts on and writing starts off. You can change this in Settings, and the change applies on the next call, including from your phone. Turning writing on never skips the confirmation window. Installations from before this option keep both on.
 
-**Escuchar audios** es gratis y empieza apagado. Convierte tus notas de voz en texto con whisper.cpp en tu computadora, sin cuentas ni claves; a tu IA solo le llega el texto, y el audio temporal se borra al terminar. La primera vez descarga un modelo abierto de unos 490 MB y comprueba que llegó completo. Necesita leer tus chats encendido y una versión de macOS que abra el formato de audio de WhatsApp; si la tuya no puede, la opción no aparece.
+**Listen to audio** is free and starts off. It turns your voice notes into text with whisper.cpp on your computer, with no accounts or keys. Your AI only receives the text, and the temporary audio is deleted afterwards. The first time, it downloads an open model of about 490 MB and checks that it arrived complete. It needs reading your chats turned on and a version of macOS that can open WhatsApp's audio format. If yours can't, the option doesn't appear.
 
-## Uso
+## Usage
 
-Abre **SMCP**. La primera vez, el onboarding guía cada paso y todos se pueden omitir.
+Open **SMCP**. The first time, setup walks you through each step, and you can skip any of them.
 
-- **Barra superior:** tareas para hoy, captura rápida, dispositivos y conexiones. El punto verde indica activo; el rojo, en pausa.
-- **Conexiones:** apps de IA, acceso remoto, WhatsApp, Gmail, notas y máquinas de Tailscale.
-- **Ajustes:** pausa, solo lectura, permisos por área, permisos de macOS y dónde viven tus tareas.
-- **Tareas ↗:** Hoy, Bandeja, Próximo y tus proyectos. Escribe y da Enter para agregar. Cada tarea indica quién la hace, **Yo** o **Claude**.
+- **Menu bar:** today's tasks, quick capture, devices and connections. A green dot means active; red means paused.
+- **Connections:** AI apps, remote access, WhatsApp, Gmail, notes and Tailscale machines.
+- **Settings:** language, pause, read only, permissions by area, macOS permissions, updates and where your tasks live.
+- **Tasks ↗:** Today, Inbox, Upcoming and your projects. Type and press Enter to add. Each task shows who does it, **Me** or **Claude**.
 
-## Instalación desde el código
+## Updates
 
-Requiere Node 20 o posterior. El `wacli` oficial requiere macOS 15 o posterior.
+SMCP can check for new versions from Settings, and asks whether you want it to update automatically. Every update is verified against a signature before it is installed. On Windows, SMCP tells you about a new version and takes you to the download.
+
+## Build from source
+
+Requires Node 20 or later. The official `wacli` requires macOS 15 or later.
 
 ```bash
 npm install
@@ -57,39 +67,39 @@ npm run icons
 npm run dist:mac
 ```
 
-La app queda en `~/Library/Caches/smcp-build/mac-arm64/SMCP.app`. Cópiala a `/Applications`. `npm run dist:win` genera los `.exe`; en Windows la app funciona como panel, sin servidor MCP local.
+The app is created at `~/Library/Caches/smcp-build/mac-arm64/SMCP.app`. Copy it to `/Applications`. `npm run dist:win` builds the `.exe` files. On Windows the app works as a panel, with no local MCP server.
 
-Para desarrollo, `npm run app` abre la app sin empaquetar y `npm test` corre las pruebas.
+For development, `npm run app` opens the unpackaged app and `npm test` runs the tests.
 
-## Dónde se guardan tus datos
+## Where your data is stored
 
-Todo está en `~/.smcp/`, con permisos solo para tu usuario.
+Everything is in `~/.smcp/`, with permissions for your user only.
 
-| Archivo | Contenido |
+| File | Contents |
 |---|---|
-| `tasks.json` | Tareas, con respaldo diario en `tasks.json.bak` |
-| `wacli/` | Sesión y mensajes de WhatsApp, sin cifrar |
-| `whisper/` | Modelo para escuchar audios, si lo encendiste |
-| `gmail.json` | Cuentas, con contraseñas cifradas por el llavero del sistema |
-| `vaults.json` | Bóvedas encendidas |
-| `config.json` | Pausa, solo lectura, permisos por área y lo que la IA puede hacer con WhatsApp |
-| `remote.json` | Apps remotas conectadas, con sus tokens solo como hash |
+| `tasks.json` | Tasks, with a daily backup in `tasks.json.bak` |
+| `wacli/` | WhatsApp session and messages, unencrypted |
+| `whisper/` | Audio model, if you turned it on |
+| `gmail.json` | Accounts, with passwords encrypted by the system keychain |
+| `vaults.json` | Vaults that are turned on |
+| `config.json` | Pause, read only, permissions by area and what the AI can do with WhatsApp |
+| `remote.json` | Connected remote apps, with their tokens stored only as hashes |
 
-Lo que la IA lee se envía al proveedor de esa IA.
+Whatever the AI reads is sent to that AI's provider.
 
-## Seguridad
+## Security
 
-- **Envíos:** cada WhatsApp y cada correo abre una ventana de macOS con destinatario y texto. Solo sale si presionas Enviar. No se puede desactivar por configuración.
-- **Acceso remoto:** usa [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). La URL es pública, pero exige OAuth y un código de emparejamiento que solo aparece en la app: sirve una vez, dura 10 minutos y se invalida tras 5 intentos.
-- **Tareas entre computadoras:** van por Tailscale Serve, sin abrir el firewall, y solo aceptan tu propia cuenta de Tailscale.
-- **Notas:** apagadas hasta que las enciendes. Las herramientas no salen de la bóveda ni entran a carpetas ocultas.
-- **Archivos:** bloquean credenciales y `~/.smcp`. Es una barrera contra accidentes: `run_command` no tiene ese límite.
-- **No dejes en "permitir siempre"** `run_command`, `ui_click`, `ui_type` ni `ui_key`. Un mensaje malicioso podría intentar engañar a la IA para usarlas.
+- **Sending:** every WhatsApp message and email opens a macOS window showing the recipient and the text. It only goes out if you press Send. This can't be turned off in settings.
+- **Remote access:** uses [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). The URL is public, but it requires OAuth and a pairing code that only appears in the app. The code works once, lasts 10 minutes and is invalidated after 5 attempts.
+- **Tasks across computers:** go through Tailscale Serve, without opening the firewall, and only accept your own Tailscale account.
+- **Notes:** off until you turn them on. The tools can't leave the vault or enter hidden folders.
+- **Files:** credentials and `~/.smcp` are blocked. This is a barrier against accidents: `run_command` doesn't have this limit.
+- **Don't set** `run_command`, `ui_click`, `ui_type` or `ui_key` **to "always allow".** A malicious message could try to trick the AI into using them.
 
-## Limitaciones
+## Limitations
 
-- WhatsApp funciona con `wacli`, que no es un cliente oficial, así que tu cuenta podría sufrir restricciones. Evita los envíos masivos.
-- Gmail usa contraseñas de aplicación, que dan acceso amplio a la cuenta y algunas empresas bloquean.
-- El acceso remoto requiere que la computadora esté encendida, sin dormir y con SMCP abierta.
-- La app está firmada solo para pruebas. macOS advierte al abrirla si se descarga, y cada versión nueva vuelve a pedir Accesibilidad, Grabación de pantalla y Calendario.
-- Windows muestra una advertencia de SmartScreen.
+- WhatsApp works through `wacli`, which isn't an official client, so your account could face restrictions. Avoid bulk sending.
+- Gmail uses app passwords, which give broad access to the account and which some companies block.
+- Remote access requires the computer to be on, awake and running SMCP.
+- The app is not signed by Apple. macOS shows a warning when you open a downloaded copy, and every new version asks again for Accessibility, Screen Recording and Calendar.
+- Windows shows a SmartScreen warning.

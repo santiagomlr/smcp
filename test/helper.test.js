@@ -37,8 +37,8 @@ test("responde y conserva acentos y saltos de línea", async () => {
 });
 
 test("rechaza operaciones que no están en la lista, incluidas las heredadas", async () => {
-  await assert.rejects(requestHelper("borrar", {}, { path }), /desconocida/);
-  await assert.rejects(requestHelper("constructor", {}, { path }), /desconocida/);
+  await assert.rejects(requestHelper("borrar", {}, { path }), /Unknown operation/);
+  await assert.rejects(requestHelper("constructor", {}, { path }), /Unknown operation/);
 });
 
 test("un error de la operación se reporta y no cae al modo local", async () => {

@@ -54,8 +54,8 @@ const audioFolder = (calls) => {
 
 test("escuchar audios está apagado hasta encenderlo, y necesita leer", () => {
   const name = "whatsapp_transcribe_audio";
-  assert.match(denialFor(name, LOCAL, policy({ read: true, send: true, audio: false })), /Escuchar audios de WhatsApp está apagado/);
-  assert.match(denialFor(name, LOCAL, policy({ read: false, send: false, audio: true })), /Leer los chats.*necesita/);
+  assert.match(denialFor(name, LOCAL, policy({ read: true, send: true, audio: false })), /Listening to WhatsApp audio is off/);
+  assert.match(denialFor(name, LOCAL, policy({ read: false, send: false, audio: true })), /Reading WhatsApp chats.*needs it/);
   assert.equal(denialFor(name, LOCAL, policy({ read: true, send: false, audio: true })), null);
   assert.equal(denialFor(name, LOCAL, { ...policy({ read: true, audio: true }), readOnly: true }), null);
 });
@@ -79,14 +79,14 @@ test("usa el idioma pedido y avisa si no hay voz", async () => {
   const { calls, transcribe } = pipeline({ whisper: { code: 0, stdout: " [BLANK_AUDIO]\n", stderr: "" } });
   const result = await transcribe({ chat: JID, id: "ABC123DEF", language: "es" });
   assert.ok(calls.at(-1).args.join(" ").includes("-l es"));
-  assert.match(result.content[0].text, /no se detectó voz/);
+  assert.match(result.content[0].text, /no speech detected/);
 });
 
 test("rechaza mensajes que no son audio sin descargarlos", async () => {
   const { calls, transcribe } = pipeline({ show: { MediaType: "image" } });
   const result = await transcribe({ chat: JID, id: "ABC123DEF" });
   assert.equal(result.isError, true);
-  assert.match(result.content[0].text, /no es un audio/);
+  assert.match(result.content[0].text, /not audio/);
   assert.ok(!calls.some(({ args }) => args.includes("media")));
 });
 
@@ -103,7 +103,7 @@ test("sin el modelo, dice dónde encenderlo", async () => {
     const { calls, transcribe } = pipeline();
     const result = await transcribe({ chat: JID, id: "ABC123DEF" });
     assert.equal(result.isError, true);
-    assert.match(result.content[0].text, /Ajustes/);
+    assert.match(result.content[0].text, /Settings/);
     assert.equal(calls.length, 0);
   } finally {
     process.env.WHISPER_MODEL = join(dir, "modelo.bin");
@@ -135,7 +135,7 @@ test("el modelo solo se guarda si la suma coincide, con avance por porcentaje en
 test("un modelo dañado o una descarga cancelada no dejan nada", async () => {
   const body = Buffer.alloc(1000, 1);
   const path = join(dir, "malo", "modelo.bin");
-  await withServer(body, (url) => assert.rejects(downloadModel({ url, bytes: body.length, sha256: "0".repeat(64), path }), /dañado/));
+  await withServer(body, (url) => assert.rejects(downloadModel({ url, bytes: body.length, sha256: "0".repeat(64), path }), /damaged/));
   assert.equal(existsSync(path), false);
   assert.equal(existsSync(`${path}.part`), false);
   const stop = new AbortController();

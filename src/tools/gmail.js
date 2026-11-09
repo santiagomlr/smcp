@@ -10,7 +10,7 @@ function callApp(op, params, options) {
     op,
     params,
     () => {
-      throw new Error("Abre la app SMCP para usar Gmail.");
+      throw new Error("Open the SMCP app to use Gmail.");
     },
     options,
   );
@@ -28,11 +28,11 @@ function tool(op, wrap, options) {
 
 export function registerGmail(server) {
   const readOnly = { readOnlyHint: true, openWorldHint: true };
-  const account = z.string().max(200).describe("Correo o nombre de la cuenta, según gmail_list_accounts.");
+  const account = z.string().max(200).describe("Account email or name, as listed by gmail_list_accounts.");
 
   server.registerTool(
     "gmail_list_accounts",
-    { description: "Lista las cuentas de Gmail conectadas en SMCP, con su nombre.", annotations: readOnly },
+    { description: "Lists the Gmail accounts connected in SMCP, with their names.", annotations: readOnly },
     async () => {
       try {
         return textResult(await callApp("gmailAccounts", {}));
@@ -46,11 +46,11 @@ export function registerGmail(server) {
     "gmail_search",
     {
       description:
-        "Busca correos con la sintaxis de Gmail (por ejemplo, `is:unread from:ana newer_than:7d`). Sin `account`, busca en todas las cuentas. Sin `query`, muestra la bandeja de entrada.",
+        "Searches email with Gmail syntax (for example, `is:unread from:ana newer_than:7d`). Without `account`, searches every account. Without `query`, shows the inbox.",
       inputSchema: {
         account: account.optional(),
         query: z.string().max(500).optional(),
-        limit: z.number().int().min(1).max(50).default(20).describe("Máximo de mensajes por cuenta."),
+        limit: z.number().int().min(1).max(50).default(20).describe("Maximum messages per account."),
       },
       annotations: readOnly,
     },
@@ -60,7 +60,7 @@ export function registerGmail(server) {
   server.registerTool(
     "gmail_read",
     {
-      description: "Lee un correo completo con el `uid` y la cuenta que devolvió gmail_search.",
+      description: "Reads a full email using the `uid` and account returned by gmail_search.",
       inputSchema: { account, uid: z.number().int().min(1) },
       annotations: readOnly,
     },
@@ -71,13 +71,13 @@ export function registerGmail(server) {
     "gmail_send",
     {
       description:
-        "Envía un correo de texto. Abre una ventana de macOS y solo envía si la persona presiona Enviar. Para responder dentro de una conversación, usa `reply_to_uid`.",
+        "Sends a plain-text email. Opens a macOS window and sends only if the person presses Send. To reply within a conversation, use `reply_to_uid`.",
       inputSchema: {
         account,
         to: z.array(z.string().max(254)).min(1).max(10),
         subject: z.string().max(200),
         body: z.string().min(1).max(2000),
-        reply_to_uid: z.number().int().min(1).optional().describe("uid del correo que se responde."),
+        reply_to_uid: z.number().int().min(1).optional().describe("uid of the email being answered."),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     },

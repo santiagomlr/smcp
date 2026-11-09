@@ -60,7 +60,7 @@ test("durante una confirmación se rechazan clics y teclas, y se siguen permitie
   const open = gate.confirm(() => new Promise((resolve) => (close = resolve)));
   await new Promise((resolve) => setImmediate(resolve));
   for (const name of ["clickPath", "clickAt", "type", "key"]) {
-    assert.match((await localJxa(name, {}, 1000, { gate, exec })).error, /confirmación/);
+    assert.match((await localJxa(name, {}, 1000, { gate, exec })).error, /confirmation/);
   }
   assert.equal(calls.length, 0);
   assert.deepEqual(await localJxa("tree", {}, 1000, { gate, exec }), { value: {} });
@@ -183,19 +183,19 @@ test("MIT es una palabra completa", async () => {
 
 test("un id como __proto__ no existe", async () => {
   const tasks = await store();
-  assert.throws(() => tasks.appendNote({ id: "__proto__", text: "x" }), /No existe/);
+  assert.throws(() => tasks.appendNote({ id: "__proto__", text: "x" }), /does not exist/);
   assert.equal({}.note, undefined);
 });
 
 test("una fecha que no existe se rechaza", async () => {
   const tasks = await store();
-  assert.throws(() => tasks.create({ name: "x", due: "2026-02-31" }), /no es válida/);
+  assert.throws(() => tasks.create({ name: "x", due: "2026-02-31" }), /not valid/);
   assert.equal(tasks.create({ name: "y", due: "2028-02-29" }).due, "2028-02-29");
 });
 
 test("una respuesta que no es JSON da el mensaje claro", async () => {
   const remote = createRemoteTasks({ host: "x", fetchImpl: async () => new Response("", { status: 502 }) });
-  await assert.rejects(remote.summary(), /No se puede llegar/);
+  await assert.rejects(remote.summary(), /Cannot reach/);
 });
 
 test("wacli con success:false y código 0 cuenta como fallo", () => {

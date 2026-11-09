@@ -5,7 +5,7 @@ import { storeDir, wacliBin } from "./tools/whatsapp.js";
 
 const result = spawnSync(wacliBin(), [`--store=${storeDir()}`, "auth"], { stdio: "inherit" });
 if (result.error?.code === "ENOENT") {
-  console.error("wacli no está instalado. Corre: npm run whatsapp:install");
+  console.error("wacli is not installed. Run: npm run whatsapp:install");
   process.exit(1);
 }
 process.exit(result.status ?? 1);

@@ -51,7 +51,7 @@ export function isBlocked(path) {
 /** Resolves ~ and symlinks, including for paths that do not exist yet. */
 export async function resolveSafe(input) {
   const expanded = input === "~" ? homedir() : input.startsWith("~/") ? join(homedir(), input.slice(2)) : input;
-  if (!isAbsolute(expanded)) throw new Error("Usa una ruta absoluta o que empiece con ~/.");
+  if (!isAbsolute(expanded)) throw new Error("Use an absolute path or one that starts with ~/.");
   let current = resolve(expanded);
   const missing = [];
   for (;;) {
@@ -77,7 +77,7 @@ export async function resolveSafe(input) {
 
 class BlockedError extends Error {
   constructor() {
-    super("Esa ruta está bloqueada porque contiene credenciales o datos privados.");
+    super("That path is blocked because it contains credentials or private data.");
   }
 }
 
@@ -105,13 +105,13 @@ export async function listDir({ path, limit }) {
 export async function readText({ path, offset, max_bytes }) {
   const file = await resolveSafe(path);
   const info = await stat(file);
-  if (!info.isFile()) throw new Error("Esa ruta no es un archivo.");
+  if (!info.isFile()) throw new Error("That path is not a file.");
   const handleFile = await open(file, "r");
   try {
     const buffer = Buffer.alloc(Math.min(max_bytes, Math.max(info.size - offset, 0)));
     const { bytesRead } = await handleFile.read(buffer, 0, buffer.length, offset);
     const chunk = buffer.subarray(0, bytesRead);
-    if (chunk.includes(0)) throw new Error("Parece un archivo binario; no se puede leer como texto.");
+    if (chunk.includes(0)) throw new Error("It looks like a binary file; it cannot be read as text.");
     return externalResult({
       path: file,
       size: info.size,
@@ -165,9 +165,9 @@ export function registerFiles(server) {
   server.registerTool(
     "file_list",
     {
-      description: "Lista el contenido de una carpeta.",
+      description: "Lists the contents of a folder.",
       inputSchema: {
-        path: z.string().describe("Ruta absoluta o con ~/."),
+        path: z.string().describe("Absolute path or one with ~/."),
         limit: z.number().int().min(1).max(1000).default(200),
       },
       annotations: readOnly,
@@ -178,7 +178,7 @@ export function registerFiles(server) {
   server.registerTool(
     "file_read",
     {
-      description: "Lee un archivo de texto. Para archivos grandes, usa next_offset para seguir leyendo.",
+      description: "Reads a text file. For large files, use next_offset to keep reading.",
       inputSchema: {
         path: z.string(),
         offset: z.number().int().min(0).default(0),
@@ -192,10 +192,10 @@ export function registerFiles(server) {
   server.registerTool(
     "file_search",
     {
-      description: "Busca archivos y carpetas por nombre dentro de una carpeta. Omite node_modules, .git y Library.",
+      description: "Searches files and folders by name inside a folder. Skips node_modules, .git and Library.",
       inputSchema: {
-        root: z.string().describe("Carpeta donde empezar."),
-        name: z.string().min(1).max(200).describe("Parte del nombre, sin distinguir mayúsculas."),
+        root: z.string().describe("Folder to start from."),
+        name: z.string().min(1).max(200).describe("Part of the name, case-insensitive."),
         limit: z.number().int().min(1).max(500).default(50),
       },
       annotations: readOnly,
@@ -206,7 +206,7 @@ export function registerFiles(server) {
   server.registerTool(
     "file_write",
     {
-      description: "Escribe un archivo de texto. Por defecto falla si ya existe; usa overwrite o append para cambiarlo.",
+      description: "Writes a text file. By default it fails if the file exists; use overwrite or append to change it.",
       inputSchema: {
         path: z.string(),
         content: z.string(),

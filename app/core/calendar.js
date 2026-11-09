@@ -46,7 +46,7 @@ async function call(name, params = {}, timeoutMs = 20_000) {
   const body = `${PRELUDE}${SCRIPTS[name]}
 function run(argv) { return JSON.stringify(main(JSON.parse(argv[0]))); }`;
   const result = await run("/usr/bin/osascript", ["-l", "JavaScript", "-e", body, JSON.stringify(params)], { timeoutMs });
-  if (result.code !== 0 || result.timedOut) throw new Error("No se pudo leer el Calendario de esta Mac.");
+  if (result.code !== 0 || result.timedOut) throw new Error("Could not read this Mac's Calendar.");
   return JSON.parse(result.stdout);
 }
 

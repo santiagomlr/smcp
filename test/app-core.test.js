@@ -56,7 +56,7 @@ test("usuario SSH: el personalizado gana y la PC usa su configuración", () => {
 
 test("rechaza usuarios e IP que podrían inyectar comandos", () => {
   const settings = { machines: { m1: { user: "a; rm -rf ~" } } };
-  assert.throws(() => sshTarget({ name: "m1", os: "macos", ip: "100.0.0.3" }, { settings }), /usuario/);
+  assert.throws(() => sshTarget({ name: "m1", os: "macos", ip: "100.0.0.3" }, { settings }), /SSH user/);
   assert.throws(() => sshTarget({ name: "m1", os: "macos", ip: "$(x)" }, { localUser: "yo" }), /IP/);
 });
 
@@ -94,7 +94,7 @@ test("Claude Desktop: agrega sin tocar lo demás, respalda y se puede quitar", a
 test("un JSON dañado no se sobrescribe", async () => {
   const path = join(dir, "roto.json");
   await writeFile(path, "{ no json");
-  await assert.rejects(addToDesktop(path, {}), /No se pudo leer/);
+  await assert.rejects(addToDesktop(path, {}), /Could not read/);
   assert.equal(await readFile(path, "utf8"), "{ no json");
   assert.equal(await isRegistered(path), false);
 });

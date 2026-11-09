@@ -16,7 +16,7 @@ export function tailscaleCandidates(platform = process.platform) {
 
 function shortName(node) {
   const dns = (node.DNSName || "").split(".")[0];
-  return dns || node.HostName || "desconocido";
+  return dns || node.HostName || "unknown";
 }
 
 function toMachine(node, isSelf) {
@@ -66,8 +66,8 @@ export async function readPcConfig(home = homedir()) {
 export function sshTarget(machine, { settings = {}, pcConfig = {}, localUser = userInfo().username } = {}) {
   const custom = settings.machines?.[machine.name]?.user;
   const user = custom || (machine.os === "windows" ? pcConfig.user : localUser);
-  if (!user || !SAFE_NAME.test(user)) throw new Error("Falta un usuario SSH válido para esta máquina.");
-  if (!machine.ip || !SAFE_IP.test(machine.ip)) throw new Error("Esta máquina no tiene una IP de Tailscale.");
+  if (!user || !SAFE_NAME.test(user)) throw new Error("A valid SSH user is missing for this machine.");
+  if (!machine.ip || !SAFE_IP.test(machine.ip)) throw new Error("This machine has no Tailscale IP.");
   const identity = machine.os === "windows" ? pcConfig.identity : null;
   return { user, ip: machine.ip, identity };
 }
@@ -84,7 +84,7 @@ export function sshCommandFile({ user, ip, identity }, home = homedir()) {
 }
 
 export function magicPacket(mac) {
-  if (!MAC_ADDRESS.test(mac ?? "")) throw new Error("La dirección MAC de la PC no es válida.");
+  if (!MAC_ADDRESS.test(mac ?? "")) throw new Error("The PC's MAC address is not valid.");
   const bytes = Buffer.from(mac.replace(/[:-]/g, ""), "hex");
   return Buffer.concat([Buffer.alloc(6, 0xff), ...Array(16).fill(bytes)]);
 }

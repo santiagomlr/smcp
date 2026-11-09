@@ -4,7 +4,7 @@ import { tailscaleCandidates } from "./machines.js";
 
 function bin() {
   const path = tailscaleCandidates().find((candidate) => existsSync(candidate));
-  if (!path) throw new Error("Instala Tailscale para activar el acceso remoto.");
+  if (!path) throw new Error("Install Tailscale to turn on remote access.");
   return path;
 }
 
@@ -15,9 +15,9 @@ export function publicBaseUrl(status) {
 
 export async function readBaseUrl() {
   const result = await run(bin(), ["status", "--json"], { timeoutMs: 8_000 });
-  if (result.code !== 0) throw new Error("Inicia sesión en Tailscale para activar el acceso remoto.");
+  if (result.code !== 0) throw new Error("Sign in to Tailscale to turn on remote access.");
   const url = publicBaseUrl(JSON.parse(result.stdout));
-  if (!url) throw new Error("Tailscale no reporta un nombre para esta computadora.");
+  if (!url) throw new Error("Tailscale does not report a name for this computer.");
   return url;
 }
 
@@ -43,7 +43,7 @@ export async function enableFunnel(port) {
   if (result.code === 0 && (await isFunnelOn(port))) return;
   const detail = `${result.stderr}\n${result.stdout}`;
   const link = detail.match(/https:\/\/login\.tailscale\.com\/\S+/)?.[0];
-  throw new Error(link ? `Tailscale necesita que apruebes Funnel en: ${link}` : "No se pudo activar Tailscale Funnel.");
+  throw new Error(link ? `Tailscale needs you to approve Funnel at: ${link}` : "Could not turn on Tailscale Funnel.");
 }
 
 export async function disableFunnel() {

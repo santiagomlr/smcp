@@ -5,7 +5,7 @@ import { errorResult, run, textResult } from "../util.js";
 const MAX_RETURNED_CHARS = 100_000;
 
 function clip(text) {
-  return text.length > MAX_RETURNED_CHARS ? `${text.slice(0, MAX_RETURNED_CHARS)}\n[salida recortada]` : text;
+  return text.length > MAX_RETURNED_CHARS ? `${text.slice(0, MAX_RETURNED_CHARS)}\n[output truncated]` : text;
 }
 
 export async function runCommand({ command, cwd, timeout_seconds }) {
@@ -13,7 +13,7 @@ export async function runCommand({ command, cwd, timeout_seconds }) {
     cwd: cwd ?? homedir(),
     timeoutMs: timeout_seconds * 1000,
   });
-  if (result.spawnError) return errorResult(`No se pudo ejecutar: ${result.spawnError.message}`);
+  if (result.spawnError) return errorResult(`Could not run: ${result.spawnError.message}`);
   return textResult({
     exit_code: result.code,
     timed_out: result.timedOut,
@@ -26,10 +26,10 @@ export function registerTerminal(server) {
   server.registerTool(
     "run_command",
     {
-      description: "Ejecuta un comando de zsh en este Mac, sin restricciones de ruta. Devuelve salida y código de salida.",
+      description: "Runs a zsh command on this Mac, with no path restrictions. Returns output and exit code.",
       inputSchema: {
         command: z.string().min(1),
-        cwd: z.string().optional().describe("Carpeta de trabajo; por defecto, tu carpeta de usuario."),
+        cwd: z.string().optional().describe("Working folder; by default, your home folder."),
         timeout_seconds: z.number().int().min(1).max(600).default(60),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },

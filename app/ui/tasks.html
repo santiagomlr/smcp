@@ -1,19 +1,19 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data: 'self'" />
-    <title>SMCP Tareas</title>
+    <title>SMCP Tasks</title>
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="tasks.css" />
   </head>
   <body>
     <div class="workspace">
-      <nav class="side" aria-label="Secciones">
+      <nav class="side" aria-label="Sections">
         <div id="side-main"></div>
         <div class="side-head">
-          <span>Proyectos</span>
-          <button id="new-project" type="button" class="icon-button" aria-label="Nuevo proyecto" title="Nuevo proyecto">+</button>
+          <span>Projects</span>
+          <button id="new-project" type="button" class="icon-button" aria-label="New project" title="New project">+</button>
         </div>
         <div id="side-projects" class="side-projects"></div>
         <div id="side-foot" class="side-foot"></div>
@@ -21,11 +21,11 @@
 
       <main class="main">
         <header class="head">
-          <input id="title" class="title" aria-label="Nombre" maxlength="300" readonly />
+          <input id="title" class="title" aria-label="Name" maxlength="300" readonly />
           <div class="head-actions">
-            <input id="search" type="search" placeholder="Buscar" aria-label="Buscar tareas" />
+            <input id="search" type="search" placeholder="Search" aria-label="Search tasks" />
             <div id="project-actions" hidden>
-              <button id="project-menu" type="button" class="icon-button" aria-label="Opciones del proyecto">···</button>
+              <button id="project-menu" type="button" class="icon-button" aria-label="Project options">···</button>
               <div id="project-pop" class="pop" hidden></div>
             </div>
           </div>
@@ -34,17 +34,21 @@
           <div id="list" class="list"></div>
           <form id="add" class="add">
             <span class="add-plus" aria-hidden="true">+</span>
-            <input id="add-name" type="text" placeholder="Agregar tarea" maxlength="300" autocomplete="off" aria-label="Agregar tarea" />
+            <input id="add-name" type="text" placeholder="Add task" maxlength="300" autocomplete="off" aria-label="Add task" />
           </form>
           <p id="empty" class="empty" hidden></p>
         </div>
       </main>
 
-      <aside id="drawer" class="drawer" aria-label="Detalle" hidden></aside>
+      <aside id="drawer" class="drawer" aria-label="Details" hidden></aside>
     </div>
 
-    <div id="toast" class="toast" role="status" hidden><span id="toast-text"></span><button id="toast-undo" type="button">Deshacer</button></div>
+    <div id="toast" class="toast" role="status" hidden><span id="toast-text"></span><button id="toast-undo" type="button">Undo</button></div>
     <p id="error" class="task-error" role="alert" hidden></p>
+    <script src="i18n.js"></script>
+    <script src="i18n/es-settings.js"></script>
+    <script src="i18n/es-tasks.js"></script>
+    <script src="i18n/es-main.js"></script>
     <script src="tasks.js"></script>
   </body>
 </html>

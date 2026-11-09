@@ -59,14 +59,14 @@ test("compara versiones como números, no como texto", () => {
 test("rechaza un manifiesto alterado o con otra llave", () => {
   const text = manifestFor("0.2.0");
   assert.equal(readSignedManifest(text, signed(text), PUBLIC).version, "0.2.0");
-  assert.throws(() => readSignedManifest(text.replace("0.2.0", "9.9.9"), signed(text), PUBLIC), /firma/);
+  assert.throws(() => readSignedManifest(text.replace("0.2.0", "9.9.9"), signed(text), PUBLIC), /signature/);
   const other = generateKeyPairSync("ed25519").privateKey;
-  assert.throws(() => readSignedManifest(text, sign(null, Buffer.from(text), other).toString("base64"), PUBLIC), /firma/);
+  assert.throws(() => readSignedManifest(text, sign(null, Buffer.from(text), other).toString("base64"), PUBLIC), /signature/);
 });
 
 test("rechaza nombres de archivo que podrían salir de la carpeta de descargas", () => {
   const text = manifestFor("0.2.0", { file: "../../evil.zip" });
-  assert.throws(() => readSignedManifest(text, signed(text), PUBLIC), /incompleta/);
+  assert.throws(() => readSignedManifest(text, signed(text), PUBLIC), /incomplete/);
 });
 
 test("no ofrece una versión igual o anterior", async () => {

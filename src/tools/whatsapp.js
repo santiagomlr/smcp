@@ -47,29 +47,29 @@ export async function confirmWithDialog(body) {
   }
 }
 
-/** Native macOS dialog. Returns true only if a person pressed "Enviar". */
-export async function localConfirm(body, title = "SMCP: enviar WhatsApp") {
+/** Native macOS dialog. Returns true only if a person pressed the send button; Cancel is the default. */
+export async function localConfirm(body, title = "SMCP: send WhatsApp", { cancel = "Cancel", send = "Send" } = {}) {
   const script = `on run argv
-  set r to display dialog (item 1 of argv) with title (item 2 of argv) buttons {"Cancelar", "Enviar"} default button "Cancelar" cancel button "Cancelar" giving up after 120 with icon caution
+  set r to display dialog (item 1 of argv) with title (item 2 of argv) buttons {item 3 of argv, item 4 of argv} default button 1 cancel button 1 giving up after 120 with icon caution
   if gave up of r then return "TIMEOUT"
   return button returned of r
 end run`;
-  const result = await confirmGate.confirm(() => run("/usr/bin/osascript", ["-e", script, body, title], { timeoutMs: 130_000 }));
-  return result.code === 0 && result.stdout.trim() === "Enviar";
+  const result = await confirmGate.confirm(() => run("/usr/bin/osascript", ["-e", script, body, title, cancel, send], { timeoutMs: 130_000 }));
+  return result.code === 0 && result.stdout.trim() === send;
 }
 
 function wacliFailure(result, action) {
   if (result.spawnError?.code === "ENOENT") {
-    return "wacli no está instalado. Corre `npm run whatsapp:install` en la carpeta del proyecto.";
+    return "wacli is not installed. Run `npm run whatsapp:install` in the project folder.";
   }
-  if (result.timedOut) return `${action}: se agotó el tiempo de espera.`;
+  if (result.timedOut) return `${action}: timed out.`;
   // wacli writes its JSON error envelope to stderr or stdout depending on the command.
   const parsed = parseJson(result.stderr) ?? parseJson(result.stdout);
   const detail = String(parsed?.error || result.stderr || result.stdout).trim().slice(0, 2000);
   if (/wacli\.db: no such file|not authenticated/.test(detail)) {
-    return `WhatsApp no está vinculado. Corre \`npm run whatsapp:login\` en la carpeta del proyecto y escanea el QR.\nDetalle: ${detail}`;
+    return `WhatsApp is not linked. Run \`npm run whatsapp:login\` in the project folder and scan the QR code.\nDetail: ${detail}`;
   }
-  return `${action} falló: ${detail}`;
+  return `${action} failed: ${detail}`;
 }
 
 /** wacli's JSON envelope can report failure, so the exit code alone is not enough. */
@@ -120,20 +120,20 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog } = {})
     const recipient = to.trim();
     if (!isValidRecipient(recipient)) {
       return errorResult(
-        "`to` debe ser un JID o un teléfono. Usa whatsapp_search_contacts o whatsapp_list_chats para obtenerlo.",
+        "`to` must be a JID or a phone number. Use whatsapp_search_contacts or whatsapp_list_chats to get it.",
       );
     }
-    if (!message.trim()) return errorResult("El mensaje está vacío.");
+    if (!message.trim()) return errorResult("The message is empty.");
     if (message.length > MAX_MESSAGE_CHARS) {
       return errorResult(
-        `El mensaje pasa de ${MAX_MESSAGE_CHARS} caracteres y no se vería completo en la ventana de confirmación.`,
+        `The message is longer than ${MAX_MESSAGE_CHARS} characters and would not be fully visible in the confirmation window.`,
       );
     }
 
     const name = await displayName(recipient);
-    const header = name ? `Para: ${name} (${recipient})` : `Para: ${recipient}`;
-    if (!(await confirm(`${header}\n\nMensaje:\n${message}`))) {
-      return textResult({ sent: false, reason: "No se confirmó en la ventana de macOS. No se envió nada." });
+    const header = name ? `To: ${name} (${recipient})` : `To: ${recipient}`;
+    if (!(await confirm(`${header}\n\nMessage:\n${message}`))) {
+      return textResult({ sent: false, reason: "Not confirmed in the macOS window. Nothing was sent." });
     }
 
     const result = await wacli(
@@ -142,7 +142,7 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog } = {})
     );
     if (!succeeded(result)) {
       return errorResult(
-        `${wacliFailure(result, "El envío")}\nEl resultado puede ser incierto: revisa el chat antes de reintentar.`,
+        `${wacliFailure(result, "Send")}\nThe outcome may be uncertain: check the chat before retrying.`,
       );
     }
     return textResult(parseJson(result.stdout) ?? result.stdout);
@@ -152,27 +152,27 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog } = {})
   const transcribe = async ({ chat, id, language = "auto" }) => {
     const bin = whisperBin();
     if (!bin || !modelReady()) {
-      return errorResult("Escuchar audios aún no está listo en esta computadora. Enciéndelo en SMCP, en Ajustes.");
+      return errorResult("Listening to audio is not ready on this computer yet. Turn it on in SMCP, under Settings.");
     }
     const message = await lookup(["messages", "show", `--chat=${chat}`, `--id=${id}`]);
-    if (!message) return errorResult("No encontré ese mensaje entre los guardados. Prueba con whatsapp_sync.");
-    if (message.MediaType !== "audio") return errorResult("Ese mensaje no es un audio.");
+    if (!message) return errorResult("That message is not among the saved ones. Try whatsapp_sync.");
+    if (message.MediaType !== "audio") return errorResult("That message is not audio.");
 
     const folder = await mkdtemp(join(tmpdir(), "smcp-audio-"));
     try {
       const audio = join(folder, "audio.ogg");
       const wave = join(folder, "audio.wav");
       const download = await wacli(["--read-only", "--json", "media", "download", `--chat=${chat}`, `--id=${id}`, `--output=${audio}`], 120_000);
-      if (!succeeded(download)) return errorResult(wacliFailure(download, "Descargar el audio"));
+      if (!succeeded(download)) return errorResult(wacliFailure(download, "Download audio"));
 
       const decoded = await exec("/usr/bin/afconvert", ["-f", "WAVE", "-d", "LEI16@16000", "-c", "1", audio, wave], { timeoutMs: 60_000 });
-      if (decoded.code !== 0) return errorResult("No se pudo abrir el audio en esta computadora.");
+      if (decoded.code !== 0) return errorResult("Could not open the audio on this computer.");
 
       const heard = await exec(bin, ["-m", modelPath(), "-f", wave, "-l", language, "-nt", "-np"], { timeoutMs: TRANSCRIBE_TIMEOUT_MS });
-      if (heard.timedOut) return errorResult("El audio tardó demasiado en transcribirse.");
-      if (heard.code !== 0) return errorResult("No se pudo transcribir el audio.");
+      if (heard.timedOut) return errorResult("The audio took too long to transcribe.");
+      if (heard.code !== 0) return errorResult("Could not transcribe the audio.");
       const text = heard.stdout.replace(/\[BLANK_AUDIO\]/g, "").trim();
-      return externalResult({ chat, id, sender: message.SenderName, timestamp: message.Timestamp, transcript: text || "(no se detectó voz)" });
+      return externalResult({ chat, id, sender: message.SenderName, timestamp: message.Timestamp, transcript: text || "(no speech detected)" });
     } finally {
       await rm(folder, { recursive: true, force: true });
     }
@@ -189,18 +189,18 @@ export function registerWhatsApp(server) {
   server.registerTool(
     "whatsapp_status",
     {
-      description: "Estado de WhatsApp: si está vinculado, última sincronización y conteos locales.",
+      description: "WhatsApp status: whether it is linked, last sync, and local counts.",
       annotations: readOnly,
     },
-    () => read(["doctor"], "El diagnóstico"),
+    () => read(["doctor"], "Diagnostics"),
   );
 
   server.registerTool(
     "whatsapp_list_chats",
     {
-      description: "Lista chats guardados localmente, los más recientes primero. Sirve para obtener el JID.",
+      description: "Lists locally saved chats, most recent first. Useful for getting the JID.",
       inputSchema: {
-        query: z.string().max(200).optional().describe("Filtra por nombre o JID."),
+        query: z.string().max(200).optional().describe("Filters by name or JID."),
         unread_only: z.boolean().default(false),
         limit: limit(20),
       },
@@ -210,20 +210,20 @@ export function registerWhatsApp(server) {
       const args = ["chats", "list", `--limit=${limit}`];
       if (query) args.push(`--query=${query}`);
       if (unread_only) args.push("--unread");
-      return read(args, "Listar chats");
+      return read(args, "List chats");
     },
   );
 
   server.registerTool(
     "whatsapp_read_messages",
     {
-      description: "Lee mensajes guardados de un chat, los más recientes primero.",
+      description: "Reads saved messages from a chat, most recent first.",
       inputSchema: {
-        chat: z.string().regex(JID).describe("JID del chat."),
+        chat: z.string().regex(JID).describe("Chat JID."),
         limit: limit(50),
-        after: z.string().max(40).optional().describe("Fecha mínima, por ejemplo 2026-11-01."),
-        before: z.string().max(40).optional().describe("Fecha máxima."),
-        cursor: z.string().max(500).optional().describe("next_cursor de la página anterior."),
+        after: z.string().max(40).optional().describe("Earliest date, for example 2026-11-01."),
+        before: z.string().max(40).optional().describe("Latest date."),
+        cursor: z.string().max(500).optional().describe("next_cursor from the previous page."),
       },
       annotations: readOnly,
     },
@@ -232,17 +232,17 @@ export function registerWhatsApp(server) {
       if (after) args.push(`--after=${after}`);
       if (before) args.push(`--before=${before}`);
       if (cursor) args.push(`--cursor=${cursor}`);
-      return read(args, "Leer mensajes");
+      return read(args, "Read messages");
     },
   );
 
   server.registerTool(
     "whatsapp_search_messages",
     {
-      description: "Busca texto en los mensajes guardados localmente.",
+      description: "Searches text in locally saved messages.",
       inputSchema: {
         query: z.string().min(1).max(200),
-        chat: z.string().regex(JID).optional().describe("Limita la búsqueda a un chat."),
+        chat: z.string().regex(JID).optional().describe("Limits the search to one chat."),
         limit: limit(20),
       },
       annotations: readOnly,
@@ -251,7 +251,7 @@ export function registerWhatsApp(server) {
       const args = ["messages", "search", `--limit=${limit}`];
       if (chat) args.push(`--chat=${chat}`);
       args.push("--", query);
-      return read(args, "Buscar mensajes");
+      return read(args, "Search messages");
     },
   );
 
@@ -259,11 +259,11 @@ export function registerWhatsApp(server) {
     "whatsapp_transcribe_audio",
     {
       description:
-        "Convierte en texto una nota de voz, en esta computadora y sin costo. Úsala con mensajes cuyo MediaType sea audio en whatsapp_read_messages.",
+        "Turns a voice note into text, on this computer and at no cost. Use it with messages whose MediaType is audio in whatsapp_read_messages.",
       inputSchema: {
-        chat: z.string().regex(JID).describe("JID del chat."),
-        id: z.string().regex(MESSAGE_ID).describe("MsgID del mensaje."),
-        language: z.string().regex(LANGUAGE).default("auto").describe("Código de idioma, por ejemplo es, o auto para detectarlo."),
+        chat: z.string().regex(JID).describe("Chat JID."),
+        id: z.string().regex(MESSAGE_ID).describe("Message MsgID."),
+        language: z.string().regex(LANGUAGE).default("auto").describe("Language code, for example es, or auto to detect it."),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
@@ -273,22 +273,22 @@ export function registerWhatsApp(server) {
   server.registerTool(
     "whatsapp_search_contacts",
     {
-      description: "Busca contactos por nombre o teléfono. Sirve para obtener el JID.",
+      description: "Searches contacts by name or phone number. Useful for getting the JID.",
       inputSchema: { query: z.string().min(1).max(200), limit: limit(20) },
       annotations: readOnly,
     },
-    ({ query, limit }) => read(["contacts", "search", `--limit=${limit}`, "--", query], "Buscar contactos"),
+    ({ query, limit }) => read(["contacts", "search", `--limit=${limit}`, "--", query], "Search contacts"),
   );
 
   server.registerTool(
     "whatsapp_sync",
     {
-      description: "Trae los mensajes nuevos de WhatsApp a la base local y termina. Puede tardar un par de minutos.",
+      description: "Brings new WhatsApp messages into the local database and stops. It can take a couple of minutes.",
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
     async () => {
       const result = await wacli(["--json", "sync", "--once", "--idle-exit=30s"], 240_000);
-      if (!succeeded(result)) return errorResult(wacliFailure(result, "La sincronización"));
+      if (!succeeded(result)) return errorResult(wacliFailure(result, "Sync"));
       return textResult({ synced: true, truncated_output: result.truncated });
     },
   );
@@ -297,9 +297,9 @@ export function registerWhatsApp(server) {
     "whatsapp_send",
     {
       description:
-        "Envía un mensaje de texto. Abre una ventana de macOS y solo envía si la persona presiona Enviar; si cancela o no responde, no se envía nada.",
+        "Sends a text message. Opens a macOS window and sends only if the person presses Send; if they cancel or do not answer, nothing is sent.",
       inputSchema: {
-        to: z.string().max(100).describe("JID o teléfono con código de país."),
+        to: z.string().max(100).describe("JID or phone number with country code."),
         message: z.string().min(1).max(MAX_MESSAGE_CHARS),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },

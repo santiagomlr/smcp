@@ -40,7 +40,7 @@ test("cada herramienta de WhatsApp tiene un permiso definido", () => {
 });
 
 test("una herramienta nueva sin permiso definido se niega", () => {
-  assert.match(denialFor("whatsapp_borrar_todo", READ, policyWith({ read: true, send: true })), /no tiene un permiso/);
+  assert.match(denialFor("whatsapp_borrar_todo", READ, policyWith({ read: true, send: true })), /no permission defined/);
 });
 
 test("solo leer permite leer y bloquea escribir con un error claro", () => {
@@ -49,7 +49,7 @@ test("solo leer permite leer y bloquea escribir con un error claro", () => {
     assert.equal(denialFor(name, READ, policy), null, name);
   }
   assert.equal(denialFor("whatsapp_sync", LOCAL, policy), null);
-  assert.match(denialFor("whatsapp_send", SEND, policy), /Escribir por WhatsApp está apagado.*no se envió nada/);
+  assert.match(denialFor("whatsapp_send", SEND, policy), /Writing on WhatsApp is off.*nothing was sent/);
 });
 
 test("solo escribir encuentra el chat, pero no lee mensajes", () => {
@@ -58,23 +58,23 @@ test("solo escribir encuentra el chat, pero no lee mensajes", () => {
   assert.equal(denialFor("whatsapp_list_chats", READ, policy), null);
   assert.equal(denialFor("whatsapp_search_contacts", READ, policy), null);
   for (const name of ["whatsapp_read_messages", "whatsapp_search_messages"]) {
-    assert.match(denialFor(name, READ, policy), /Leer los chats de WhatsApp está apagado/, name);
+    assert.match(denialFor(name, READ, policy), /Reading WhatsApp chats is off/, name);
   }
-  assert.match(denialFor("whatsapp_sync", LOCAL, policy), /Leer los chats/);
+  assert.match(denialFor("whatsapp_sync", LOCAL, policy), /Reading WhatsApp chats/);
 });
 
 test("con todo apagado solo queda el estado de la vinculación", () => {
   const policy = policyWith({ read: false, send: false });
   assert.equal(denialFor("whatsapp_status", READ, policy), null);
-  assert.match(denialFor("whatsapp_list_chats", READ, policy), /Leer y escribir por WhatsApp están apagados/);
-  assert.match(denialFor("whatsapp_send", SEND, policy), /apagado/);
+  assert.match(denialFor("whatsapp_list_chats", READ, policy), /Reading and writing on WhatsApp are off/);
+  assert.match(denialFor("whatsapp_send", SEND, policy), /is off/);
 });
 
 test("la pausa, el grupo apagado y solo lectura siguen ganando sobre la elección", () => {
   const open = { read: true, send: true };
-  assert.match(denialFor("whatsapp_send", SEND, policyWith(open, { paused: true })), /pausa/);
-  assert.match(denialFor("whatsapp_send", SEND, policyWith(open, { readOnly: true })), /solo lectura/);
-  assert.match(denialFor("whatsapp_read_messages", READ, policyWith(open, { disabled: { ...allOn, whatsapp: true } })), /desactivado/);
+  assert.match(denialFor("whatsapp_send", SEND, policyWith(open, { paused: true })), /paused/);
+  assert.match(denialFor("whatsapp_send", SEND, policyWith(open, { readOnly: true })), /read-only/);
+  assert.match(denialFor("whatsapp_read_messages", READ, policyWith(open, { disabled: { ...allOn, whatsapp: true } })), /turned off/);
 });
 
 test("una instalación nueva lee, pero escribir hay que encenderlo", () => {
@@ -113,7 +113,7 @@ test("el servidor aplica la elección en cada llamada, sin llegar a wacli ni a l
   try {
     const denied = await client.callTool({ name: "whatsapp_send", arguments: { to: JID, message: "hola" } });
     assert.equal(denied.isError, true);
-    assert.match(denied.content[0].text, /no se envió nada/);
+    assert.match(denied.content[0].text, /nothing was sent/);
     assert.doesNotMatch(await calls(), /send/);
 
     assert.equal((await client.callTool(readTool)).isError, undefined);
@@ -123,7 +123,7 @@ test("el servidor aplica la elección en cada llamada, sin llegar a wacli ni a l
     writePolicy(policyWith({ read: false, send: false }), config);
     const off = await client.callTool(readTool);
     assert.equal(off.isError, true);
-    assert.match(off.content[0].text, /Leer los chats/);
+    assert.match(off.content[0].text, /Reading WhatsApp chats/);
     assert.equal(await calls(), "");
   } finally {
     await client.close();
@@ -143,7 +143,7 @@ test("el acceso remoto respeta la misma elección", async () => {
     await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
     const denied = await client.callTool({ name: "whatsapp_read_messages", arguments: { chat: JID } });
     assert.equal(denied.isError, true);
-    assert.match(denied.content[0].text, /Leer los chats/);
+    assert.match(denied.content[0].text, /Reading WhatsApp chats/);
     const { tools } = await client.listTools();
     assert.ok(!tools.some((tool) => tool.name === "whatsapp_send"));
   } finally {

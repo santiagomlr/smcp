@@ -96,15 +96,15 @@ test("sin el código de emparejamiento no se obtiene acceso", async () => {
   const { request } = await startAuthorize(await register("Intruso"));
   const noCode = await post("/pair", { request, code: "AAAAAAAA" });
   assert.equal(noCode.status, 400);
-  assert.match(await noCode.text(), /No hay un código activo/);
+  assert.match(await noCode.text(), /no active code/);
 });
 
 test("cinco intentos fallidos invalidan el código", async () => {
   const { request } = await startAuthorize(await register("Intruso"));
   const { code } = remote.newPairingCode();
-  for (let i = 0; i < 4; i++) assert.match(await (await post("/pair", { request, code: "MALO" })).text(), /no es correcto/);
-  assert.match(await (await post("/pair", { request, code: "MALO" })).text(), /Demasiados intentos/);
-  assert.match(await (await post("/pair", { request, code })).text(), /No hay un código activo/);
+  for (let i = 0; i < 4; i++) assert.match(await (await post("/pair", { request, code: "MALO" })).text(), /not correct/);
+  assert.match(await (await post("/pair", { request, code: "MALO" })).text(), /Too many attempts/);
+  assert.match(await (await post("/pair", { request, code })).text(), /no active code/);
 });
 
 test("el código sirve una sola vez", async () => {

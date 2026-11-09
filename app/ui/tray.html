@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data: 'self'" />
@@ -29,37 +29,41 @@
       </header>
       <section aria-labelledby="p-today" class="panel-today">
         <div class="panel-section-head">
-          <h2 id="p-today">Para hoy</h2>
-          <button id="p-all" type="button" class="quiet">Ver todas</button>
+          <h2 id="p-today">For today</h2>
+          <button id="p-all" type="button" class="quiet">See all</button>
         </div>
         <form id="p-add" class="panel-add">
-          <input id="p-add-name" type="text" placeholder="Anota un pendiente" maxlength="300" autocomplete="off" aria-label="Nuevo pendiente" />
+          <input id="p-add-name" type="text" placeholder="Jot down a task" maxlength="300" autocomplete="off" aria-label="New task" />
         </form>
-        <p id="p-add-saved" class="panel-saved" role="status" hidden>Guardado en tu Bandeja</p>
+        <p id="p-add-saved" class="panel-saved" role="status" hidden>Saved to your Inbox</p>
         <ul id="p-tasks" class="panel-tasks"></ul>
         <p id="p-tasks-empty" class="panel-empty" hidden></p>
         <div id="p-undo" class="panel-undo" role="status" hidden>
           <span id="p-undo-text"></span>
-          <button id="p-undo-button" type="button" class="quiet">Deshacer</button>
+          <button id="p-undo-button" type="button" class="quiet">Undo</button>
         </div>
       </section>
 
       <section aria-labelledby="p-devices">
-        <h2 id="p-devices">Dispositivos</h2>
+        <h2 id="p-devices">Devices</h2>
         <ul id="p-machines" class="panel-list"></ul>
       </section>
       <section aria-labelledby="p-connections">
-        <h2 id="p-connections">Conexiones</h2>
+        <h2 id="p-connections">Connections</h2>
         <ul id="p-connections-list" class="panel-list"></ul>
       </section>
       <footer class="panel-foot">
-        <label class="panel-toggle" for="p-pause">Pausar SMCP<input id="p-pause" class="switch" type="checkbox" role="switch" /></label>
+        <label class="panel-toggle" for="p-pause">Pause SMCP<input id="p-pause" class="switch" type="checkbox" role="switch" /></label>
         <div class="panel-actions">
-          <button id="p-open" type="button" class="primary">Abrir SMCP</button>
-          <button id="p-quit" type="button" class="quiet">Salir</button>
+          <button id="p-open" type="button" class="primary">Open SMCP</button>
+          <button id="p-quit" type="button" class="quiet">Quit</button>
         </div>
       </footer>
     </div>
+    <script src="i18n.js"></script>
+    <script src="i18n/es-settings.js"></script>
+    <script src="i18n/es-tasks.js"></script>
+    <script src="i18n/es-main.js"></script>
     <script src="tray.js"></script>
   </body>
 </html>

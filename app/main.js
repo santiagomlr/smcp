@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,10 @@ import {
   Tray,
 } from "electron";
 import QRCode from "qrcode";
+import "./ui/i18n.js";
+import "./ui/i18n/es-settings.js";
+import "./ui/i18n/es-tasks.js";
+import "./ui/i18n/es-main.js";
 import {
   addToClaudeCode,
   addToDesktop,
@@ -69,21 +73,37 @@ let cancelLogin = null;
 let lastState = null;
 const startedInBackground = process.argv.includes("--background") || app.getLoginItemSettings().wasOpenedAtLogin;
 
+/** The same dialog as ever, worded in the app's language. The AI supplies only the body. */
+function confirmInApp(body, title = "SMCP: send WhatsApp") {
+  return localConfirm(body, tr(title), { cancel: tr("Cancel"), send: tr("Send") });
+}
+
 const gmail = createGmail({
   store: createAccountStore({
     encrypt: (text) => {
-      if (!safeStorage.isEncryptionAvailable()) throw new Error("Esta computadora no permite guardar contraseñas cifradas.");
+      if (!safeStorage.isEncryptionAvailable()) throw new Error(tr("This computer cannot store encrypted passwords."));
       return safeStorage.encryptString(text).toString("base64");
     },
     decrypt: (secret) => safeStorage.decryptString(Buffer.from(secret, "base64")),
   }),
-  confirm: localConfirm,
+  confirm: confirmInApp,
 });
 
 let localTasks = null;
 let tasksHub = null;
 
 const settingsPath = () => join(app.getPath("userData"), "settings.json");
+
+/** Read synchronously: the preload asks for the language before any window can wait on a promise. */
+function readSavedLanguage() {
+  try {
+    return JSON.parse(readFileSync(settingsPath(), "utf8")).language === "es" ? "es" : "en";
+  } catch {
+    return "en";
+  }
+}
+
+SMCP_I18N.setLanguage(readSavedLanguage());
 
 /** A damaged file is an error, not empty settings: empty would send tasks to a second, local list. */
 async function readSettings() {
@@ -92,12 +112,12 @@ async function readSettings() {
     text = await readFile(settingsPath(), "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return {};
-    throw new Error("No se pudieron leer los ajustes de SMCP.");
+    throw new Error(tr("Could not read the SMCP settings."));
   }
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`Los ajustes de SMCP están dañados. Revisa ${settingsPath()}.`);
+    throw new Error(tr("The SMCP settings are damaged. Check {path}.", { path: settingsPath() }));
   }
 }
 
@@ -152,7 +172,7 @@ async function readState() {
       enabled: Boolean(remote?.running()),
       url: remoteBaseUrl ? `${remoteBaseUrl}/mcp` : null,
       pairing: remote?.activePairing() ?? null,
-      clients: remote?.listClients() ?? [],
+      clients: (remote?.listClients() ?? []).map((client) => ({ ...client, name: tr(client.name) })),
     },
     openAtLogin: app.getLoginItemSettings().openAtLogin,
     onboarded: settings.onboarded === true,
@@ -166,7 +186,7 @@ async function readState() {
 
 function findMachine(name) {
   const machine = lastState?.tailscale.machines.find((item) => item.name === name);
-  if (!machine) throw new Error("Esa máquina ya no aparece en Tailscale.");
+  if (!machine) throw new Error(tr("That machine no longer appears in Tailscale."));
   return machine;
 }
 
@@ -191,7 +211,7 @@ async function openTerminal(name) {
 }
 
 async function wakeMachine(name) {
-  if (findMachine(name).os !== "windows") throw new Error("Solo la PC se puede encender desde aquí.");
+  if (findMachine(name).os !== "windows") throw new Error(tr("Only the PC can be turned on from here."));
   await sendWake(await readPcConfig());
 }
 
@@ -204,9 +224,9 @@ function mcpEntry() {
 }
 
 async function setClient(client, enabled) {
-  if (!IS_MAC) throw new Error("El servidor local por ahora solo funciona en Mac.");
+  if (!IS_MAC) throw new Error(tr("The local server only works on Mac for now."));
   const item = clientCatalog().find(({ id }) => id === client);
-  if (!item) throw new Error("Cliente desconocido.");
+  if (!item) throw new Error(tr("Unknown client."));
   if (item.cli) {
     await (enabled ? addToClaudeCode(mcpEntry()) : removeFromClaudeCode());
   } else if (enabled) {
@@ -225,25 +245,25 @@ function localStore() {
 
 /** One list only: if another computer holds it, an outage is an error, never a second list. */
 async function runTask(op, args) {
-  if (!TASK_OPERATIONS.includes(op)) throw new Error("Operación desconocida.");
+  if (!TASK_OPERATIONS.includes(op)) throw new Error(tr("Unknown operation."));
   const { tasksHost } = await readSettings();
   const store = tasksHost ? createRemoteTasks({ host: tasksHost }) : localStore();
   return store[op](args ?? {});
 }
 
 async function readTasksSummary() {
-  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("La computadora de tus tareas no responde.")), 3_000));
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error(tr("The computer with your tasks is not responding."))), 3_000));
   try {
     return { summary: await Promise.race([runTask("summary"), timeout]), error: null };
   } catch (error) {
-    return { summary: null, error: error.message };
+    return { summary: null, error: tr(error.message) };
   }
 }
 
 async function startTasksHub() {
   if (tasksHub) return;
   const owner = await tailscaleLogin();
-  if (!owner) throw new Error("Inicia sesión en Tailscale para compartir tus tareas.");
+  if (!owner) throw new Error(tr("Sign in to Tailscale to share your tasks."));
   const hub = createTasksHub({ store: localStore(), owner });
   await hub.start();
   try {
@@ -258,7 +278,7 @@ async function startTasksHub() {
 async function setTasksHub(enabled) {
   const settings = await readSettings();
   if (enabled) {
-    if (settings.tasksHost) throw new Error("Esta computadora usa las tareas de otra. Cambia primero dónde se guardan.");
+    if (settings.tasksHost) throw new Error(tr("This computer uses another computer's tasks. Change where they are stored first."));
     await startTasksHub();
   } else {
     await disableServe();
@@ -273,7 +293,7 @@ async function setTasksHost(host) {
   const settings = await readSettings();
   if (host) {
     const machine = lastState?.tailscale.machines.find((item) => item.dns === host && !item.self);
-    if (!machine) throw new Error("Esa computadora ya no aparece en Tailscale.");
+    if (!machine) throw new Error(tr("That computer no longer appears in Tailscale."));
     await createRemoteTasks({ host }).summary();
     if (tasksHub) await disableServe();
     await tasksHub?.stop();
@@ -325,12 +345,12 @@ async function resumeRemote() {
 }
 
 function newRemoteCode() {
-  if (!remote?.running()) throw new Error("Activa primero el acceso remoto.");
+  if (!remote?.running()) throw new Error(tr("Turn on remote access first."));
   return remote.newPairingCode();
 }
 
 function copyRemoteUrl() {
-  if (!remoteBaseUrl) throw new Error("Activa primero el acceso remoto.");
+  if (!remoteBaseUrl) throw new Error(tr("Turn on remote access first."));
   clipboard.writeText(`${remoteBaseUrl}/mcp`);
 }
 
@@ -385,7 +405,7 @@ async function fetchAudioModel() {
   } catch (error) {
     const canceled = audioDownload?.signal.aborted;
     audioDownload = null;
-    tellAudioProgress(canceled ? undefined : error.message || "No se pudo descargar el modelo de audio.");
+    tellAudioProgress(canceled ? undefined : tr(error.message || "Could not download the audio model."));
   }
 }
 
@@ -402,9 +422,9 @@ function setWhatsAppAudio(enabled) {
 async function disconnectWhatsApp() {
   const { response } = await dialog.showMessageBox(win, {
     type: "warning",
-    message: "¿Desconectar WhatsApp?",
-    detail: "Esta computadora deja de ser un dispositivo vinculado. Tus mensajes guardados se conservan y puedes volver a vincular con un QR.",
-    buttons: ["Cancelar", "Desconectar"],
+    message: tr("Disconnect WhatsApp?"),
+    detail: tr("This computer stops being a linked device. Your saved messages are kept, and you can link again with a QR code."),
+    buttons: [tr("Cancel"), tr("Disconnect")],
     defaultId: 0,
     cancelId: 0,
   });
@@ -414,9 +434,9 @@ async function disconnectWhatsApp() {
 async function disconnectGmail(email) {
   const { response } = await dialog.showMessageBox(win, {
     type: "warning",
-    message: "¿Desconectar esta cuenta de Gmail?",
-    detail: `${String(email)}\n\nSMCP borrará su contraseña guardada. Para cancelarla por completo, revócala también en tu cuenta de Google.`,
-    buttons: ["Cancelar", "Desconectar"],
+    message: tr("Disconnect this Gmail account?"),
+    detail: `${String(email)}\n\n${tr("SMCP will delete its saved password. To cancel it completely, also revoke it in your Google account.")}`,
+    buttons: [tr("Cancel"), tr("Disconnect")],
     defaultId: 0,
     cancelId: 0,
   });
@@ -425,8 +445,8 @@ async function disconnectGmail(email) {
 
 async function addVault() {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-    title: "Elige la carpeta de tus notas",
-    buttonLabel: "Conectar",
+    title: tr("Choose your notes folder"),
+    buttonLabel: tr("Connect"),
     properties: ["openDirectory"],
   });
   if (!canceled && filePaths[0]) setVault(filePaths[0], true);
@@ -434,7 +454,7 @@ async function addVault() {
 
 function toggleVault(path, enabled) {
   const known = lastState?.notes.vaults.some((vault) => vault.path === path);
-  if (!known) throw new Error("Esa bóveda ya no está disponible.");
+  if (!known) throw new Error(tr("That vault is no longer available."));
   setVault(path, Boolean(enabled));
 }
 
@@ -454,13 +474,13 @@ const LINKS = {
 
 function openLink(name) {
   const url = LINKS[name];
-  if (!url) throw new Error("Enlace desconocido.");
+  if (!url) throw new Error(tr("Unknown link."));
   return shell.openExternal(url);
 }
 
 async function openTailscale() {
   const error = await shell.openPath(IS_MAC ? "/Applications/Tailscale.app" : "C:\\Program Files\\Tailscale\\tailscale-ipn.exe");
-  if (error) throw new Error("No se pudo abrir Tailscale.");
+  if (error) throw new Error(tr("Could not open Tailscale."));
 }
 
 const PRIVACY_PANES = {
@@ -480,7 +500,7 @@ function readPermissions() {
 /** Asking is what adds SMCP, with its name and icon, to the macOS list. */
 async function openPrivacy(pane) {
   const url = PRIVACY_PANES[pane];
-  if (!url) throw new Error("Ajuste desconocido.");
+  if (!url) throw new Error(tr("Unknown setting."));
   if (pane === "accessibility") systemPreferences.isTrustedAccessibilityClient(true);
   else if (pane === "screen") await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }).catch(() => {});
   await shell.openExternal(url);
@@ -516,16 +536,16 @@ function allowed(tool, annotations, fn) {
 /** The only actions the MCP server can ask this app to perform. */
 function startActionHelper() {
   const whenRunning = (fn) => (params) => {
-    if (readPolicy().paused) throw new Error("SMCP está en pausa. Puedes reanudarlo desde la app.");
+    if (readPolicy().paused) throw new Error("SMCP is paused. You can resume it from the app.");
     return fn(params);
   };
   return startHelper({
     jxa: whenRunning(({ name, params, timeoutMs }) => localJxa(name, params, Math.min(Number(timeoutMs) || 30_000, 60_000))),
     screenshot: whenRunning(localScreenshot),
-    confirm: whenRunning(({ body }) => localConfirm(String(body))),
+    confirm: whenRunning(({ body }) => confirmInApp(String(body))),
     tasks: ({ op, args }) => {
       const tool = TASK_TOOLS[op];
-      if (!tool) throw new Error("Operación desconocida.");
+      if (!tool) throw new Error("Unknown operation.");
       return allowed(tool.name, tool.write ? SENDS : READS, () => runTask(op, args))();
     },
     gmailAccounts: allowed("gmail_list_accounts", READS, () => gmail.listAccounts()),
@@ -541,11 +561,14 @@ function copyDiagnostics() {
   const isConnected = (id) => state?.clients.items.some((client) => client.id === id && client.connected);
   const lines = [
     `SMCP ${app.getVersion()} · ${process.platform} ${process.arch} · Electron ${process.versions.electron}`,
-    `Tailscale: ${state?.tailscale.installed ? (state.tailscale.running ? "conectado" : "instalado, sin conectar") : "sin instalar"}`,
-    `Máquinas: ${state?.tailscale.machines.filter((machine) => machine.online).length ?? 0} de ${state?.tailscale.machines.length ?? 0} en línea`,
-    `WhatsApp: ${state?.whatsapp.supported ? (state.whatsapp.linked ? "vinculado" : "sin vincular") : "no disponible"}`,
-    `Claude Code: ${isConnected("claudeCode") ? "conectado" : "no"} · Claude Desktop: ${isConnected("claudeDesktop") ? "conectado" : "no"}`,
-    `Pausa: ${state?.policy.paused ? "sí" : "no"} · Solo lectura: ${state?.policy.readOnly ? "sí" : "no"}`,
+    tr(state?.tailscale.installed ? (state.tailscale.running ? "Tailscale: connected" : "Tailscale: installed, not connected") : "Tailscale: not installed"),
+    tr("Machines: {online} of {total} online", {
+      online: state?.tailscale.machines.filter((machine) => machine.online).length ?? 0,
+      total: state?.tailscale.machines.length ?? 0,
+    }),
+    tr(state?.whatsapp.supported ? (state.whatsapp.linked ? "WhatsApp: linked" : "WhatsApp: not linked") : "WhatsApp: unavailable"),
+    `${tr(isConnected("claudeCode") ? "Claude Code: connected" : "Claude Code: no")} · ${tr(isConnected("claudeDesktop") ? "Claude Desktop: connected" : "Claude Desktop: no")}`,
+    `${tr(state?.policy.paused ? "Paused: yes" : "Paused: no")} · ${tr(state?.policy.readOnly ? "Read-only: yes" : "Read-only: no")}`,
   ];
   clipboard.writeText(lines.join("\n"));
 }
@@ -564,7 +587,7 @@ function beginLogin() {
     },
     onDone: (error) => {
       cancelLogin = null;
-      win?.webContents.send("whatsapp-login", { state: error ? "error" : "done", error });
+      win?.webContents.send("whatsapp-login", { state: error ? "error" : "done", error: error ? tr(error) : error });
       collectState();
     },
   });
@@ -591,7 +614,7 @@ function showTasksWindow(taskId) {
     height: 740,
     minWidth: 760,
     minHeight: 480,
-    title: "SMCP Tareas",
+    title: tr("SMCP Tasks"),
     show: false,
     autoHideMenuBar: true,
     icon: join(HERE, "assets", "icon.png"),
@@ -649,7 +672,7 @@ function showWindow() {
     if (IS_MAC) app.dock?.show();
     win.show();
   });
-  // Closing the window leaves the app in the top bar. "Salir" is what ends it.
+  // Closing the window leaves the app in the top bar. "Quit" is what ends it.
   win.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -685,7 +708,7 @@ function updateTray() {
   if (!tray) return;
   setTrayImage(trayLook());
   const online = lastState?.tailscale.machines.filter((machine) => machine.online).length ?? 0;
-  setTrayToolTip(lastState?.policy.paused ? "SMCP: en pausa" : `SMCP: activo · ${online} en línea`);
+  setTrayToolTip(lastState?.policy.paused ? tr("SMCP: paused") : tr("SMCP: active · {online} online", { online }));
   tellPanel(lastState);
 }
 
@@ -763,9 +786,9 @@ function createTray() {
   tray.on("right-click", () =>
     tray.popUpContextMenu(
       Menu.buildFromTemplate([
-        { label: "Abrir SMCP", click: showWindow },
+        { label: tr("Open SMCP"), click: showWindow },
         { type: "separator" },
-        { label: "Salir", click: () => app.quit() },
+        { label: tr("Quit"), click: () => app.quit() },
       ]),
     ),
   );
@@ -795,7 +818,8 @@ const updater = createUpdater({
 
 async function updatesState() {
   const settings = await readSettings().catch(() => ({}));
-  return { ...updater.state(), auto: settings.updates?.auto ?? null };
+  const state = updater.state();
+  return { ...state, message: tr(state.message), auto: settings.updates?.auto ?? null };
 }
 
 async function setAutoUpdates(enabled) {
@@ -815,11 +839,11 @@ async function askAutoUpdates() {
   try {
     const { response } = await dialog.showMessageBox({
       type: "question",
-      message: "¿Quieres que SMCP se actualice automáticamente?",
+      message: tr("Do you want SMCP to update automatically?"),
       detail: IS_MAC
-        ? "Cuando haya una versión nueva, SMCP la instalará y se reiniciará. Después de cada actualización, macOS volverá a pedir los permisos de la app. Puedes cambiarlo en Ajustes."
-        : "Te avisaremos cuando haya una versión nueva. Puedes cambiarlo en Ajustes.",
-      buttons: ["Actualizar automáticamente", "Preguntarme antes"],
+        ? tr("When there is a new version, SMCP will install it and restart. After each update, macOS will ask for the app's permissions again. You can change this in Settings.")
+        : tr("We will let you know when there is a new version. You can change this in Settings."),
+      buttons: [tr("Update automatically"), tr("Ask me first")],
       defaultId: 1,
       cancelId: 1,
     });
@@ -842,7 +866,7 @@ async function checkForUpdatesInBackground() {
   }
   if (notifiedVersion === snapshot.latest) return;
   notifiedVersion = snapshot.latest;
-  new Notification({ title: "Hay una versión nueva de SMCP", body: `Instala la versión ${snapshot.latest} desde Ajustes.` }).show();
+  new Notification({ title: tr("A new version of SMCP is available"), body: tr("Install version {version} from Settings.", { version: snapshot.latest }) }).show();
 }
 
 async function noticeAfterUpdate() {
@@ -853,7 +877,7 @@ async function noticeAfterUpdate() {
   settings.lastVersion = version;
   await writeSettings(settings);
   if (updated && IS_MAC) {
-    new Notification({ title: `SMCP se actualizó a ${version}`, body: "Revisa los permisos de macOS en Ajustes para que todo siga funcionando." }).show();
+    new Notification({ title: tr("SMCP updated to {version}", { version }), body: tr("Check the macOS permissions in Settings so everything keeps working.") }).show();
   }
 }
 
@@ -871,12 +895,33 @@ function handle(channel, fn) {
     try {
       return { ok: true, value: await fn(...args) };
     } catch (error) {
-      return { ok: false, error: error.message };
+      // Core modules throw plain English; this is where a fixed message reaches a person.
+      return { ok: false, error: tr(error.message) };
     }
   });
 }
 
+/** Asking for the language already in use does nothing, so a page can never reload itself in a loop. */
+async function setLanguage(language) {
+  if (language !== "en" && language !== "es") throw new Error(tr("Unknown language."));
+  if (language === SMCP_I18N.language()) return;
+  const settings = await readSettings();
+  settings.language = language;
+  await writeSettings(settings);
+  SMCP_I18N.setLanguage(language);
+  updateTray();
+  // After this reply is delivered, so the page that asked does not lose it mid-reload.
+  setImmediate(() => {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.reload();
+  });
+}
+
 function registerIpc() {
+  // The preload calls this synchronously, so it must answer before any window exists.
+  ipcMain.on("get-language", (event) => {
+    event.returnValue = SMCP_I18N.language();
+  });
+  handle("set-language", setLanguage);
   handle("state", collectState);
   handle("open-terminal", openTerminal);
   handle("wake", wakeMachine);

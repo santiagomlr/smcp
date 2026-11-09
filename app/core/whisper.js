@@ -40,9 +40,9 @@ export async function downloadModel({ url = WHISPER_MODEL.url, bytes = WHISPER_M
   });
   try {
     const response = await fetch(url, { signal });
-    if (!response.ok) throw new Error(`No se pudo descargar el modelo de audio (error ${response.status}).`);
+    if (!response.ok) throw new Error(`Could not download the audio model (error ${response.status}).`);
     await pipeline(Readable.fromWeb(response.body), meter, createWriteStream(temp, { mode: 0o600 }), { signal });
-    if (hash.digest("hex") !== sha256) throw new Error("El modelo de audio llegó dañado. Vuelve a intentarlo.");
+    if (hash.digest("hex") !== sha256) throw new Error("The audio model arrived damaged. Try again.");
     await rename(temp, path);
   } catch (error) {
     await rm(temp, { force: true });

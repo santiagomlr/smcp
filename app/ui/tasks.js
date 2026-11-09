@@ -1,9 +1,9 @@
 const $ = (id) => document.getElementById(id);
 
-const SECTIONS = [
-  ["today", "Hoy"],
-  ["inbox", "Bandeja"],
-  ["upcoming", "Próximo"],
+const SECTIONS = () => [
+  ["today", tr("Today")],
+  ["inbox", tr("Inbox")],
+  ["upcoming", tr("Upcoming")],
 ];
 
 const state = {
@@ -56,10 +56,10 @@ const fromKey = (key) => new Date(`${key}T12:00:00`);
 
 function friendlyDay(key) {
   const today = todayKey();
-  if (key === today) return "Hoy";
-  if (key === dayKey(addDays(new Date(), 1))) return "Mañana";
-  if (key === dayKey(addDays(new Date(), -1))) return "Ayer";
-  return fromKey(key).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+  if (key === today) return tr("Today");
+  if (key === dayKey(addDays(new Date(), 1))) return tr("Tomorrow");
+  if (key === dayKey(addDays(new Date(), -1))) return tr("Yesterday");
+  return fromKey(key).toLocaleDateString(SMCP_I18N.locale(), { day: "numeric", month: "short" });
 }
 
 const dateTimeInput = (iso) => {
@@ -83,14 +83,14 @@ function sideRow(label, count, active, onclick, className = "") {
 function renderSide() {
   const counts = state.catalog.counts;
   const countOf = { today: state.catalog.today, inbox: counts.inbox };
-  $("side-main").replaceChildren(...SECTIONS.map(([id, label]) => sideRow(label, countOf[id], state.section === id && !state.search, () => go(id))));
+  $("side-main").replaceChildren(...SECTIONS().map(([id, label]) => sideRow(label, countOf[id], state.section === id && !state.search, () => go(id))));
   const list = projects();
   $("side-projects").replaceChildren(
     ...(list.length
       ? list.map((project) => sideRow(project.name, project.open, state.section === "project" && state.project === project.name && !state.search, () => go("project", project.name), project.status === "onhold" ? "paused" : ""))
-      : [el("div", { className: "side-hint", textContent: "Crea tu primer proyecto" })]),
+      : [el("div", { className: "side-hint", textContent: tr("Create your first project") })]),
   );
-  $("side-foot").replaceChildren(sideRow("Hechas", null, state.section === "done", () => go("done")), sideRow("Archivo", null, state.section === "archive", () => go("archive")));
+  $("side-foot").replaceChildren(sideRow(tr("Done"), null, state.section === "done", () => go("done")), sideRow(tr("Archive"), null, state.section === "archive", () => go("archive")));
 }
 
 /* List */
@@ -98,12 +98,12 @@ function renderSide() {
 function whenControl(task) {
   const late = task.due && task.due < todayKey();
   const input = el("input", { type: "date", value: task.due ?? "", tabIndex: -1 });
-  input.setAttribute("aria-label", "Fecha límite");
+  input.setAttribute("aria-label", tr("Due date"));
   input.onchange = () => update(task.id, { due: input.value || null });
   const button = el("button", {
     type: "button",
     className: `${task.due ? "" : "none"}${late ? " late" : ""}`,
-    textContent: task.due ? friendlyDay(task.due) : "Fecha",
+    textContent: task.due ? friendlyDay(task.due) : tr("Date"),
     onclick: (event) => {
       event.stopPropagation();
       input.showPicker();
@@ -114,7 +114,7 @@ function whenControl(task) {
 
 function row(task, { where = false } = {}) {
   const check = el("button", { type: "button", className: "check" });
-  check.setAttribute("aria-label", `${task.status === "done" ? "Reabrir" : "Completar"} ${task.n}`);
+  check.setAttribute("aria-label", task.status === "done" ? tr("Reopen {name}", { name: task.n }) : tr("Complete {name}", { name: task.n }));
   const name = el(
     "button",
     { type: "button", className: "row-name", onclick: () => select(task) },
@@ -124,8 +124,8 @@ function row(task, { where = false } = {}) {
   const who = el("button", {
     type: "button",
     className: `who${task.claude ? " claude" : ""}`,
-    textContent: task.claude ? "Claude" : "Yo",
-    title: "Cambiar quién la hace",
+    textContent: task.claude ? "Claude" : tr("Me"),
+    title: tr("Change who does it"),
     onclick: () => update(task.id, { for_claude: !task.claude }),
   });
   const node = el("div", { className: `row${task.id === state.selected ? " selected" : ""}${task.status === "done" ? " done" : ""}` }, check, name, who, whenControl(task));
@@ -136,7 +136,7 @@ function row(task, { where = false } = {}) {
       await call("reopen", { id: task.id });
     } else {
       node.classList.add("leaving");
-      if (await call("complete", { id: task.id })) toast("Completada", task.id);
+      if (await call("complete", { id: task.id })) toast(tr("Completed"), task.id);
       else node.classList.remove("leaving");
       await new Promise((resolve) => setTimeout(resolve, 240));
     }
@@ -150,9 +150,9 @@ function archivedRow(task) {
   const restore = el("button", {
     type: "button",
     className: "restore",
-    textContent: "Restaurar",
+    textContent: tr("Restore"),
     onclick: async () => {
-      if (await call("reopen", { id: task.id })) toast("Restaurada");
+      if (await call("reopen", { id: task.id })) toast(tr("Restored"));
       await load(true);
     },
   });
@@ -167,17 +167,17 @@ function archivedProjectRow(project) {
   const restore = el("button", {
     type: "button",
     className: "restore",
-    textContent: "Restaurar",
+    textContent: tr("Restore"),
     onclick: async () => {
-      if (await call("restoreProject", { name: project.name })) toast("Proyecto restaurado");
+      if (await call("restoreProject", { name: project.name })) toast(tr("Project restored"));
       await load(true);
     },
   });
-  return el("div", { className: "row compact" }, el("span"), el("div", { className: "row-name" }, el("span", { textContent: project.name }), el("span", { className: "where", textContent: "Proyecto" })), restore);
+  return el("div", { className: "row compact" }, el("span"), el("div", { className: "row-name" }, el("span", { textContent: project.name }), el("span", { className: "where", textContent: tr("Project") })), restore);
 }
 
 function eventRow(event) {
-  const label = event.allDay ? "Todo el día" : new Date(event.start).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
+  const label = event.allDay ? tr("All day") : new Date(event.start).toLocaleTimeString(SMCP_I18N.locale(), { hour: "numeric", minute: "2-digit" });
   return el("div", { className: "event" }, el("time", { textContent: label }), el("span", { textContent: event.title }));
 }
 
@@ -200,7 +200,7 @@ function renderList() {
       el("button", {
         type: "button",
         className: "calendar-link quiet",
-        textContent: asking ? "Mostrar mi calendario" : "Permitir el calendario en Ajustes",
+        textContent: asking ? tr("Show my calendar") : tr("Allow calendar access in Settings"),
         onclick: async () => {
           if (!asking) return api.openPrivacy("calendars");
           const result = await api.calendarRequest();
@@ -219,8 +219,8 @@ function renderList() {
   const isEmpty = !nodes.some((node) => !node.classList.contains("calendar-link"));
   empty.hidden = !isEmpty;
   if (isEmpty) {
-    const copy = { today: "Nada para hoy.", inbox: "Tu bandeja está vacía.", upcoming: "Nada programado.", project: "Agrega la primera tarea de este proyecto.", done: "Aún no hay tareas hechas.", archive: "El archivo está vacío." };
-    empty.textContent = state.search ? "Sin resultados." : copy[state.section];
+    const copy = { today: tr("Nothing for today."), inbox: tr("Your inbox is empty."), upcoming: tr("Nothing scheduled."), project: tr("Add the first task to this project."), done: tr("No completed tasks yet."), archive: tr("The archive is empty.") };
+    empty.textContent = state.search ? tr("No results.") : copy[state.section];
   }
 }
 
@@ -229,8 +229,8 @@ function renderHead() {
   const isProject = state.section === "project" && !state.search;
   title.readOnly = !isProject;
   if (document.activeElement !== title) {
-    const names = { today: "Hoy", inbox: "Bandeja", upcoming: "Próximo", done: "Hechas", archive: "Archivo" };
-    title.value = state.search ? `Buscar: ${state.search}` : isProject ? state.project : names[state.section];
+    const names = { today: tr("Today"), inbox: tr("Inbox"), upcoming: tr("Upcoming"), done: tr("Done"), archive: tr("Archive") };
+    title.value = state.search ? tr("Search: {query}", { query: state.search }) : isProject ? state.project : names[state.section];
   }
   $("project-actions").hidden = !isProject;
 }
@@ -262,9 +262,9 @@ async function fetchView() {
     byDay.get(key).push(event);
   }
   const groups = [
-    { title: "Vencidas", tasks: data.past },
+    { title: tr("Overdue"), tasks: data.past },
     ...data.days.map((day) => ({
-      title: fromKey(day.date).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" }),
+      title: fromKey(day.date).toLocaleDateString(SMCP_I18N.locale(), { weekday: "long", day: "numeric", month: "long" }),
       tasks: day.tasks,
       events: byDay.get(day.date),
     })),
@@ -374,25 +374,25 @@ function renderDetail() {
   };
 
   const project = el("select");
-  project.append(el("option", { value: "", textContent: "Bandeja" }));
+  project.append(el("option", { value: "", textContent: tr("Inbox") }));
   for (const item of projects()) project.append(el("option", { value: item.name, textContent: item.name }));
   project.value = task.p === "INBOX" ? "" : task.p;
   if (project.value !== (task.p === "INBOX" ? "" : task.p)) project.append(el("option", { value: task.p, textContent: task.p, selected: true }));
   project.onchange = () => update(id, { project: project.value });
 
-  const note = el("textarea", { value: task.note, placeholder: "Notas", maxLength: 50000 });
+  const note = el("textarea", { value: task.note, placeholder: tr("Notes"), maxLength: 50000 });
   note.onchange = () => update(id, { note: note.value });
 
-  const minutes = el("input", { type: "number", min: 0, max: 10000, value: task.min ?? "", placeholder: "Sin estimar" });
+  const minutes = el("input", { type: "number", min: 0, max: 10000, value: task.min ?? "", placeholder: tr("Not estimated") });
   minutes.onchange = () => update(id, { estimated_minutes: minutes.value === "" ? null : Number(minutes.value) });
 
   const parts = Object.fromEntries(String(task.repeat ?? "").split(";").map((piece) => piece.split("=")));
-  const repeat = el("select", {}, ...[["", "No se repite"], ["DAILY", "Cada día"], ["WEEKLY", "Cada semana"], ["MONTHLY", "Cada mes"], ["YEARLY", "Cada año"]].map(([value, textContent]) => el("option", { value, textContent })));
+  const repeat = el("select", {}, ...[["", tr("Does not repeat")], ["DAILY", tr("Every day")], ["WEEKLY", tr("Every week")], ["MONTHLY", tr("Every month")], ["YEARLY", tr("Every year")]].map(([value, textContent]) => el("option", { value, textContent })));
   repeat.value = parts.FREQ ?? "";
   repeat.onchange = () => update(id, { repeat: repeat.value ? `FREQ=${repeat.value};INTERVAL=${Number(parts.INTERVAL) || 1}` : null });
 
   const visibleTags = task.tags.filter((tag) => !/claude/i.test(tag));
-  const addTag = el("select", {}, el("option", { value: "", textContent: "Agregar etiqueta" }), ...state.catalog.tags.filter((tag) => !task.tags.includes(tag.name) && !/claude/i.test(tag.name)).map((tag) => el("option", { value: tag.name, textContent: tag.name })));
+  const addTag = el("select", {}, el("option", { value: "", textContent: tr("Add tag") }), ...state.catalog.tags.filter((tag) => !task.tags.includes(tag.name) && !/claude/i.test(tag.name)).map((tag) => el("option", { value: tag.name, textContent: tag.name })));
   addTag.onchange = () => addTag.value && update(id, { tags: [...task.tags, addTag.value] });
 
   const flag = el("input", { type: "checkbox", className: "switch", checked: task.flag, onchange: (event) => update(id, { flagged: event.target.checked }) });
@@ -401,21 +401,21 @@ function renderDetail() {
   const more = el(
     "details",
     { className: "more", open: hasExtras },
-    el("summary", { textContent: "Más opciones" }),
-    dateField("Empieza", "defer", task.deferAt),
-    dateField("Planeada", "planned", task.plannedAt),
-    field("Duración (minutos)", minutes),
-    field("Repetir", repeat),
-    el("div", { className: "field" }, "Etiquetas", el("div", { className: "tag-list" }, ...visibleTags.map((tag) => el("button", { type: "button", textContent: tag, onclick: () => update(id, { tags: task.tags.filter((item) => item !== tag) }) }))), addTag),
-    el("label", { className: "field" }, "Importante", flag),
+    el("summary", { textContent: tr("More options") }),
+    dateField(tr("Starts"), "defer", task.deferAt),
+    dateField(tr("Planned"), "planned", task.plannedAt),
+    field(tr("Duration (minutes)"), minutes),
+    field(tr("Repeat"), repeat),
+    el("div", { className: "field" }, tr("Tags"), el("div", { className: "tag-list" }, ...visibleTags.map((tag) => el("button", { type: "button", textContent: tag, onclick: () => update(id, { tags: task.tags.filter((item) => item !== tag) }) }))), addTag),
+    el("label", { className: "field" }, tr("Important"), flag),
   );
 
   const archive = el("button", {
     type: "button",
     className: "quiet",
-    textContent: "Archivar",
+    textContent: tr("Archive task"),
     onclick: async () => {
-      if (await call("drop", { id })) toast("Archivada", id);
+      if (await call("drop", { id })) toast(tr("Archived"), id);
       closeDetail();
       await load(true);
     },
@@ -423,10 +423,10 @@ function renderDetail() {
 
   drawer.replaceChildren(
     name,
-    el("div", { className: "field" }, "Quién la hace", el("div", { className: "seg" }, seg("me", "Yo"), seg("claude", "Claude"))),
-    field("Proyecto", project),
-    dateField("Vence", "due", task.dueAt),
-    field("Notas", note),
+    el("div", { className: "field" }, tr("Who does it"), el("div", { className: "seg" }, seg("me", tr("Me")), seg("claude", "Claude"))),
+    field(tr("Project"), project),
+    dateField(tr("Due"), "due", task.dueAt),
+    field(tr("Notes"), note),
     more,
     el("div", { className: "drawer-foot" }, archive),
   );
@@ -466,8 +466,8 @@ $("add").onsubmit = async (event) => {
 };
 
 $("new-project").onclick = async () => {
-  let name = "Nuevo proyecto";
-  for (let number = 2; projects().some((project) => project.name === name); number += 1) name = `Nuevo proyecto ${number}`;
+  let name = tr("New project");
+  for (let number = 2; projects().some((project) => project.name === name); number += 1) name = tr("New project {number}", { number });
   if (!(await call("createProject", { name, folder: "Proyectos" }))) return;
   go("project", name);
   await load(true);
@@ -498,7 +498,7 @@ $("project-menu").onclick = () => {
   pop.replaceChildren(
     el("button", {
       type: "button",
-      textContent: paused ? "Reanudar" : "Pausar",
+      textContent: paused ? tr("Resume") : tr("Pause"),
       onclick: async () => {
         pop.hidden = true;
         await call("updateProject", { name, status: paused ? "active" : "onhold" });
@@ -507,11 +507,11 @@ $("project-menu").onclick = () => {
     }),
     el("button", {
       type: "button",
-      textContent: "Archivar proyecto",
+      textContent: tr("Archive project"),
       onclick: async () => {
         pop.hidden = true;
         await call("updateProject", { name, status: "dropped" });
-        toast("Proyecto archivado");
+        toast(tr("Project archived"));
         go("today");
       },
     }),
