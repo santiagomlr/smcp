@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps"];
+const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps", "security"];
 const ACTIVITY_SHOWN = 30;
 const openEditors = new Set();
 let state = null;

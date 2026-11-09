@@ -8,6 +8,7 @@ import { registerStatus } from "./tools/status.js";
 import { registerFiles } from "./tools/files.js";
 import { registerGmail } from "./tools/gmail.js";
 import { registerNotes } from "./tools/notes.js";
+import { registerSecurity } from "./tools/security.js";
 import { registerTasks } from "./tools/tasks.js";
 import { registerWhatsApp } from "./tools/whatsapp.js";
 
@@ -53,6 +54,12 @@ export const REMOTE_TOOLS = new Set([
   "file_read",
   "file_search",
   "smcp_status",
+  // The antivirus reads and reports from anywhere; quarantine moves files, so it stays on this computer.
+  "security_scan_file",
+  "security_scan_folder",
+  "security_check_url",
+  "security_check_persistence",
+  "security_quarantine_list",
 ]);
 
 /**
@@ -101,6 +108,7 @@ export function buildRemoteServer() {
   registerAppleNotes(onlyAllowed);
   registerBrief(onlyAllowed);
   registerFiles(onlyAllowed);
+  registerSecurity(onlyAllowed);
   registerStatus(onlyAllowed, { remote: true });
   return server;
 }

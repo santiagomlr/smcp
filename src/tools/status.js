@@ -3,6 +3,7 @@ import { viaHelper } from "../helper.js";
 import { GROUPS, readPolicy } from "../policy.js";
 import { textResult } from "../util.js";
 import { enabledVaults } from "../vaults.js";
+import { securityProbe } from "./security.js";
 import { callApp } from "./tasks.js";
 import { storeDir, wacliBin } from "./whatsapp.js";
 
@@ -44,6 +45,7 @@ export const DEFAULT_PROBES = {
     if (!vaults.length) throw new Error("No vault is turned on.");
     return { vaults: vaults.length };
   },
+  security: securityProbe,
   async whatsapp() {
     if (!existsSync(wacliBin())) throw new Error("wacli is not installed.");
     if (!existsSync(storeDir())) throw new Error("WhatsApp is not linked.");
