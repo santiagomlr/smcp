@@ -149,6 +149,7 @@ async function readState() {
     IS_MAC ? gmail.listAccounts().catch(() => []) : [],
     readTasksSummary(),
   ]);
+  if (IS_MAC) await repairClients(settings);
   const clients = IS_MAC
     ? (
         await Promise.all(
@@ -331,6 +332,27 @@ async function setClient(client, enabled) {
   } else {
     await removeFromDesktop(item.path, item.key);
   }
+  // Remember the choice so a config file another app rewrites can be repaired (see repairClients).
+  const settings = await readSettings();
+  await writeSettings({ ...settings, clients: { ...settings.clients, [client]: enabled } });
+}
+
+/**
+ * Claude Desktop saves its config file from the copy it holds in memory, which drops the SMCP entry
+ * written while it was open. Put back every entry the user switched on that has gone missing.
+ */
+async function repairClients(settings) {
+  const wanted = settings.clients ?? {};
+  await Promise.all(
+    clientCatalog()
+      .filter((item) => !item.cli && wanted[item.id] === true)
+      .map(async (item) => {
+        if (await isRegistered(item.path, item.key)) return;
+        await addToDesktop(item.path, { ...item.extra, ...mcpEntry() }, item.key).catch((error) =>
+          console.error(`repair ${item.id}:`, error.message),
+        );
+      }),
+  );
 }
 
 /* Tasks */
