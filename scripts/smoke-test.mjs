@@ -19,11 +19,14 @@ const args = packaged ? [] : [ROOT];
 if (process.env.SMCP_SMOKE_NO_SANDBOX) args.push("--no-sandbox");
 
 // A fresh home so the check starts like a first launch and never touches the real ~/.smcp.
+// On Windows, Chromium reads the profile folder from USERPROFILE while starting and crashes if it points
+// at an empty folder, so it keeps the real one there (CI runners start empty anyway).
 const home = mkdtempSync(join(tmpdir(), "smcp-smoke-"));
+const homeEnv = process.platform === "win32" ? {} : { HOME: home };
 const child = spawn(command, args, {
   cwd: ROOT,
   stdio: ["ignore", "inherit", "inherit"],
-  env: { ...process.env, SMCP_SMOKE_TEST: "1", HOME: home, USERPROFILE: home, ELECTRON_ENABLE_LOGGING: "1" },
+  env: { ...process.env, ...homeEnv, SMCP_SMOKE_TEST: "1", ELECTRON_ENABLE_LOGGING: "1" },
 });
 
 const timer = setTimeout(() => {
