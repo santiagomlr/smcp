@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { availableAreas, buildContext, buildInstructions, MAX_ABOUT_CHARS, readAbout, rememberNote } from "../src/context.js";
+import { aboutLocation, availableAreas, buildContext, buildInstructions, MAX_ABOUT_CHARS, readAbout, rememberNote } from "../src/context.js";
 import { denialFor, readPolicy, toolGroup } from "../src/policy.js";
 import { REMOTE_TOOLS } from "../src/remote-tools.js";
 import { registerPrompts } from "../src/tools/context.js";
@@ -28,8 +28,8 @@ test("las notas sobre la persona se leen, con tope de tamaño", async () => {
 test("smcp_remember agrega una línea fechada bajo Learned, sin borrar lo demás", async () => {
   const path = join(dir, "remember.md");
   await writeFile(path, "# Sobre mí\nSoy Santiago.");
-  await rememberNote("Prefiere respuestas cortas", { path, now: new Date("2026-11-09T12:00:00Z") });
-  await rememberNote("  Ana es la CFO  ", { path, now: new Date("2026-11-10T12:00:00Z") });
+  await rememberNote("Prefiere respuestas cortas", { path, language: "en", now: new Date("2026-11-09T12:00:00Z") });
+  await rememberNote("  Ana es la CFO  ", { path, language: "en", now: new Date("2026-11-10T12:00:00Z") });
   const text = await readFile(path, "utf8");
   assert.equal(text, "# Sobre mí\nSoy Santiago.\n\n## Learned\n\n- Prefiere respuestas cortas (2026-11-09)\n- Ana es la CFO (2026-11-10)\n");
   await assert.rejects(rememberNote("   ", { path }), /empty/);
@@ -107,3 +107,78 @@ test("los prompts listos piden las herramientas correctas", () => {
   assert.doesNotMatch(remote.inbox({}).messages[0].content.text, /gmail_draft/);
   assert.doesNotMatch(remote.security_checkup().messages[0].content.text, /security_quarantine_list/);
 });
+
+// The note in the person's vault
+
+const saved = process.env.SMCP_ABOUT;
+const withoutOverride = async (fn) => {
+  delete process.env.SMCP_ABOUT;
+  try {
+    return await fn();
+  } finally {
+    if (saved === undefined) delete process.env.SMCP_ABOUT;
+    else process.env.SMCP_ABOUT = saved;
+  }
+};
+
+test("con un vault conectado, la nota nueva vive en el vault y se llama según el idioma", () =>
+  withoutOverride(async () => {
+    const vault = join(dir, "Brain");
+    await mkdir(vault, { recursive: true });
+    const vaults = () => [{ path: vault, name: "Brain" }];
+    const legacy = join(dir, "no-legacy.md");
+    const es = aboutLocation({ policy: fresh(), vaults, language: "es", legacy });
+    assert.equal(es.where, "vault");
+    assert.equal(es.path, join(vault, "SMCP", "Sobre mí.md"));
+    const en = aboutLocation({ policy: fresh(), vaults, language: "en", legacy });
+    assert.equal(en.path, join(vault, "SMCP", "About me.md"));
+  }));
+
+test("smcp_remember crea la nota en español con título, explicación y Aprendido", () =>
+  withoutOverride(async () => {
+    const vault = join(dir, "BrainES");
+    await mkdir(vault, { recursive: true });
+    const path = join(vault, "SMCP", "Sobre mí.md");
+    await rememberNote("Carlos Ruiz es el director de operaciones", { path, language: "es", now: new Date("2026-11-09T12:00:00Z") });
+    const text = await readFile(path, "utf8");
+    assert.match(text, /^# Sobre mí\n\nLo que tu IA debe saber de ti/);
+    assert.match(text, /\n## Aprendido\n\n- Carlos Ruiz es el director de operaciones \(2026-11-09\)\n$/);
+  }));
+
+test("en inglés usa About me y Learned", () =>
+  withoutOverride(async () => {
+    const path = join(dir, "BrainEN", "SMCP", "About me.md");
+    await rememberNote("Prefers short replies", { path, language: "en", now: new Date("2026-11-09T12:00:00Z") });
+    const text = await readFile(path, "utf8");
+    assert.match(text, /^# About me\n/);
+    assert.match(text, /## Learned\n\n- Prefers short replies \(2026-11-09\)/);
+  }));
+
+test("una nota existente se encuentra con cualquiera de los dos nombres y no se duplica la sección", () =>
+  withoutOverride(async () => {
+    const vault = join(dir, "BrainMix");
+    await mkdir(join(vault, "SMCP"), { recursive: true });
+    const path = join(vault, "SMCP", "Sobre mí.md");
+    await writeFile(path, "# Sobre mí\nSoy Santiago.\n\n## Aprendido\n\n- Algo (2026-11-01)\n");
+    const vaults = () => [{ path: vault, name: "BrainMix" }];
+    const found = aboutLocation({ policy: fresh(), vaults, language: "en", legacy: join(dir, "nada.md") });
+    assert.equal(found.path, path, "the Spanish note is found even with the app in English");
+    await rememberNote("Otra cosa", { path, language: "en", now: new Date("2026-11-09T12:00:00Z") });
+    const text = await readFile(path, "utf8");
+    assert.equal((text.match(/^## (Learned|Aprendido)/gm) ?? []).length, 1);
+    assert.match(text, /- Algo \(2026-11-01\)\n- Otra cosa \(2026-11-09\)\n$/);
+  }));
+
+test("un about.md anterior se sigue usando; sin vault o con Notas apagadas va al archivo", () =>
+  withoutOverride(async () => {
+    const vault = join(dir, "BrainLegacy");
+    await mkdir(vault, { recursive: true });
+    const vaults = () => [{ path: vault, name: "BrainLegacy" }];
+    const legacy = join(dir, "legacy-about.md");
+    await writeFile(legacy, "Soy Santiago.");
+    assert.equal(aboutLocation({ policy: fresh(), vaults, language: "es", legacy }).path, legacy);
+    const none = join(dir, "no-existe-legacy.md");
+    assert.equal(aboutLocation({ policy: fresh(), vaults: () => [], language: "es", legacy: none }).path, none);
+    const notesOff = { ...fresh(), disabled: { ...fresh().disabled, notes: true } };
+    assert.equal(aboutLocation({ policy: notesOff, vaults, language: "es", legacy: none }).where, "file");
+  }));

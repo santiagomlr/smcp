@@ -1,7 +1,7 @@
 // What the AI should know before it starts: where and when it is, what it can use right now, and
 // what the person wrote about themselves. Instructions, smcp_context and the prompts all build on it.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir, hostname, platform, userInfo } from "node:os";
 import { dirname, join } from "node:path";
@@ -11,9 +11,50 @@ import { enabledVaults } from "./vaults.js";
 export const MAX_ABOUT_CHARS = 6000;
 const MAX_NOTE_CHARS = 500;
 
-/** The person's own notes for the AI: who they are, people that matter, how they like things done. */
-export function aboutPath() {
-  return process.env.SMCP_ABOUT || join(homedir(), ".smcp", "about.md");
+/** The note's name inside a vault, in the person's language. Either name is found whatever the language. */
+export const ABOUT_NOTES = { es: join("SMCP", "Sobre mí.md"), en: join("SMCP", "About me.md") };
+const TITLES = { es: "# Sobre mí", en: "# About me" };
+const LEARNED = { es: "## Aprendido", en: "## Learned" };
+const INTRO = {
+  es: "Lo que tu IA debe saber de ti: quién eres, tus empresas, tu gente clave y cómo te gusta que te respondan. SMCP se lo entrega al conectarse.",
+  en: "What your AI should know about you: who you are, your companies, key people and how you like replies. SMCP hands it over when it connects.",
+};
+
+export function legacyAboutPath() {
+  return join(homedir(), ".smcp", "about.md");
+}
+
+/**
+ * Where the person's notes for the AI live. With notes on and a vault connected, it is a note in
+ * that vault (SMCP/Sobre mí.md or SMCP/About me.md), so it is edited in Obsidian like any other.
+ * An existing note wins, in any vault and under either name; an older ~/.smcp/about.md is kept
+ * rather than abandoned; otherwise a new note goes in the first vault, named in the app's language.
+ */
+export function aboutLocation({ policy = readPolicy(), vaults = () => enabledVaults(), language = appLanguage(), legacy = legacyAboutPath() } = {}) {
+  if (process.env.SMCP_ABOUT) return { path: process.env.SMCP_ABOUT, where: "file", language };
+  if (!policy.disabled?.notes) {
+    let list = [];
+    try {
+      list = vaults();
+    } catch {
+      // No vault configuration: fall back to the file.
+    }
+    const names = [ABOUT_NOTES[language], ...Object.values(ABOUT_NOTES).filter((name) => name !== ABOUT_NOTES[language])];
+    for (const vault of list) {
+      for (const name of names) {
+        const path = join(vault.path, name);
+        if (existsSync(path)) return { path, where: "vault", vault: vault.name, note: name, language };
+      }
+    }
+    if (list.length && !existsSync(legacy)) {
+      return { path: join(list[0].path, ABOUT_NOTES[language]), where: "vault", vault: list[0].name, note: ABOUT_NOTES[language], language, exists: false };
+    }
+  }
+  return { path: legacy, where: "file", language };
+}
+
+export function aboutPath(options) {
+  return aboutLocation(options).path;
 }
 
 export function readAbout(path = aboutPath()) {
@@ -25,20 +66,29 @@ export function readAbout(path = aboutPath()) {
   }
 }
 
-/** Adds one dated line under "Learned", so the person can review and edit what was remembered. */
-export async function rememberNote(note, { path = aboutPath(), now = new Date() } = {}) {
+/**
+ * Adds one dated line under "Aprendido" or "Learned", so the person can review and edit what was
+ * remembered. A new note starts with a title and one line saying what it is for, in their language.
+ */
+export async function rememberNote(note, { path, language, now = new Date() } = {}) {
+  const location = path ? { path, language: language ?? appLanguage() } : aboutLocation(language ? { language } : undefined);
+  const lang = location.language === "es" ? "es" : "en";
   const clean = String(note ?? "").replace(/\s+/g, " ").trim();
   if (!clean) throw new Error("The note is empty.");
   if (clean.length > MAX_NOTE_CHARS) throw new Error(`A note can have up to ${MAX_NOTE_CHARS} characters.`);
-  const current = await readFile(path, "utf8").catch(() => "");
+  const current = await readFile(location.path, "utf8").catch(() => "");
   if (current.length + clean.length > MAX_ABOUT_CHARS * 2) {
-    throw new Error("The notes file is full. Ask the person to tidy it up in SMCP first.");
+    throw new Error("The notes file is full. Ask the person to tidy it up first.");
   }
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const heading = /^## Learned$/m.test(current) ? "" : `${current && !current.endsWith("\n") ? "\n" : ""}${current ? "\n" : ""}## Learned\n\n`;
+  await mkdir(dirname(location.path), { recursive: true });
+  let prefix = "";
+  if (!current) prefix = `${TITLES[lang]}\n\n${INTRO[lang]}\n\n`;
+  const hasLearned = /^## (Learned|Aprendido)\s*$/m.test(current);
+  if (!hasLearned) prefix += `${current && !current.endsWith("\n") ? "\n" : ""}${current ? "\n" : ""}${LEARNED[lang]}\n\n`;
+  else if (current && !current.endsWith("\n")) prefix += "\n";
   const day = now.toISOString().slice(0, 10);
-  await appendFile(path, `${heading}- ${clean} (${day})\n`, { mode: 0o600 });
-  return { remembered: true, note: clean, path };
+  await appendFile(location.path, `${prefix}- ${clean} (${day})\n`, { mode: 0o600 });
+  return { remembered: true, note: clean, path: location.path, ...(location.vault ? { vault: location.vault, inNote: location.note } : {}) };
 }
 
 /** The app's language, from its settings file; falls back to the system locale. */
@@ -86,7 +136,8 @@ export function availableAreas(policy, { remote = false } = {}) {
 /** Facts that need no account and never fail: time, place, language, switches. */
 export function buildContext({ remote = false, policy = readPolicy(), now = new Date(), about: given } = {}) {
   // Paused means the AI gets nothing personal, only why it cannot work.
-  const about = policy.paused ? "" : (given ?? readAbout());
+  const location = policy.paused ? null : aboutLocation({ policy });
+  const about = policy.paused ? "" : (given ?? readAbout(location.path));
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const language = appLanguage();
   const areas = availableAreas(policy, { remote });
@@ -111,7 +162,15 @@ export function buildContext({ remote = false, policy = readPolicy(), now = new 
     ...(vaults === undefined ? {} : { notesVaults: vaults }),
     whatsapp: policy.whatsapp,
     about: about || null,
-    ...(about ? {} : { aboutHint: `The person has not written anything about themselves yet. They can, in ${aboutPath()}, or you can save what you learn with smcp_remember.` }),
+    ...(location && !remote ? { aboutNote: location.where === "vault" ? `${location.vault}: ${location.note}` : location.path } : {}),
+    ...(about || !location
+      ? {}
+      : {
+          aboutHint:
+            location.where === "vault"
+              ? `The person has not written anything about themselves yet. They can, in the note "${location.note}" of their vault "${location.vault}", or you can save what they tell you with smcp_remember.`
+              : `The person has not written anything about themselves yet. They can, in ${location.path}, or you can save what they tell you with smcp_remember.`,
+        }),
   };
 }
 
