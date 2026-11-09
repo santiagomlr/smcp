@@ -153,6 +153,32 @@ jobs:
           ( umask 077; printf '%s\n' "$SIGNING_KEY" > "$KEY_FILE" )
           echo "SMCP_UPDATE_KEY_FILE=$KEY_FILE" >> "$GITHUB_ENV"
 
+      # The same certificate signs every release, so macOS keeps SMCP's permissions after each update.
+      - name: Load the Mac signing certificate
+        env:
+          CERT_P12: ${{ secrets.SMCP_MAC_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.SMCP_MAC_CERT_PASSWORD }}
+        run: |
+          if [ -z "$CERT_P12" ] || [ -z "$CERT_PASSWORD" ]; then
+            echo "::error::The SMCP_MAC_CERT_P12 or SMCP_MAC_CERT_PASSWORD secret is missing. Create them with scripts/create-mac-signing-cert.sh."
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/smcp-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          P12="$RUNNER_TEMP/mac-signing.p12"
+          ( umask 077; printf '%s' "$CERT_P12" | base64 --decode > "$P12" )
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$P12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          rm -f "$P12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          # A self-signed certificate only counts as a signing identity once it is trusted for code signing.
+          security find-certificate -c "SMCP Code Signing" -p "$KEYCHAIN" > "$RUNNER_TEMP/mac-signing.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/mac-signing.pem"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
       - name: Test, build, sign and publish
         env:
           DRY_RUN: ${{ inputs.dry_run }}
@@ -166,9 +192,11 @@ jobs:
             node scripts/release.mjs
           fi
 
-      - name: Remove the signing key
+      - name: Remove the signing keys
         if: always()
-        run: rm -f "$RUNNER_TEMP/update-signing-key.pem"
+        run: |
+          rm -f "$RUNNER_TEMP/update-signing-key.pem" "$RUNNER_TEMP/mac-signing.p12" "$RUNNER_TEMP/mac-signing.pem"
+          security delete-keychain "$RUNNER_TEMP/smcp-signing.keychain-db" 2> /dev/null || true
 
       - name: Save Electron downloads
         if: always()
