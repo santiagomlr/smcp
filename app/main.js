@@ -782,7 +782,6 @@ function createTray() {
   tray = new Tray(trayImage());
   createPanel();
   tray.on("click", togglePanel);
-  tray.on("double-click", showWindow);
   tray.on("right-click", () =>
     tray.popUpContextMenu(
       Menu.buildFromTemplate([
