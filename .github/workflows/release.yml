@@ -59,7 +59,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.build == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,6 +69,22 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      # Same download folder and cache keys as the Linux CI job, so a release starts from what CI already
+      # downloaded instead of asking GitHub again (it sometimes answers 504 for minutes at a time).
+      - name: Choose the download folder
+        run: |
+          echo "electron_config_cache=$RUNNER_TEMP/electron-cache/electron" >> "$GITHUB_ENV"
+          echo "ELECTRON_BUILDER_CACHE=$RUNNER_TEMP/electron-cache/electron-builder" >> "$GITHUB_ENV"
+
+      - name: Restore Electron downloads
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/electron-cache
+          key: ci-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            ci-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-
+            ci-downloads-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build the Linux packages
         env:
@@ -91,6 +107,13 @@ jobs:
             dist/SMCP-linux-amd64.deb
           if-no-files-found: error
           retention-days: 3
+
+      - name: Save Electron downloads
+        if: always()
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/electron-cache
+          key: ci-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
 
   release:
     needs: [plan, linux]
