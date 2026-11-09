@@ -68,6 +68,7 @@ import { isLanguage } from "../src/languages.js";
 import { EVENTS, REMINDERS } from "../src/eventkit.js";
 import { startHelper } from "../src/helper.js";
 import { denialFor, GROUPS, readPolicy, WHATSAPP_ABILITIES, writePolicy } from "../src/policy.js";
+import { createVpn } from "../src/vpn.js";
 import { modelReady } from "../src/whisper.js";
 import { listVaultChoices, setVault, vaultLocation } from "../src/vaults.js";
 import { localAppleNotes } from "../src/tools/applenotes.js";
@@ -140,6 +141,14 @@ const NIGHTLIGHT_OPS = {
   setNow: { name: "nightlight_now", run: (a) => nightLight.setNow(a) },
   pause: { name: "nightlight_now", run: (a) => nightLight.pause(Number(a.minutes) || 60) },
   clearNow: { name: "nightlight_now", run: () => nightLight.clearNow() },
+};
+
+/** Tailscale and the person's other VPNs. A click in the window is the person's own choice, like the night light's. */
+const vpn = createVpn();
+const VPN_UI_OPS = {
+  status: () => vpn.status(),
+  connect: (a) => vpn.connect(String(a.vpn ?? "")),
+  disconnect: (a) => vpn.disconnect(String(a.vpn ?? "")),
 };
 
 /** What the windows may ask: the same, plus a short preview while a slider moves. */
@@ -1261,6 +1270,11 @@ function registerIpc() {
   handle("set-policy", updatePolicy);
   handle("nightlight", (op, args) => {
     const run = NIGHTLIGHT_UI_OPS[op];
+    if (!run) throw new Error(tr("Unknown operation."));
+    return run(args && typeof args === "object" ? args : {});
+  });
+  handle("vpn", (op, args) => {
+    const run = VPN_UI_OPS[op];
     if (!run) throw new Error(tr("Unknown operation."));
     return run(args && typeof args === "object" ? args : {});
   });

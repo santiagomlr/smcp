@@ -3,6 +3,7 @@ import { viaHelper } from "../helper.js";
 import { GROUPS, readPolicy } from "../policy.js";
 import { textResult } from "../util.js";
 import { enabledVaults } from "../vaults.js";
+import { createVpn } from "../vpn.js";
 import { nightLightCall } from "./nightlight.js";
 import { securityProbe } from "./security.js";
 import { callApp } from "./tasks.js";
@@ -53,6 +54,14 @@ export const DEFAULT_PROBES = {
     if (state.supported === false) throw new Error("Only available on a Mac.");
     if (!state.installed) throw new Error("The night light helper is not installed in this copy of SMCP.");
     return { on: state.enabled, ...(state.now ? { kelvin: state.now.kelvin } : {}) };
+  },
+  async vpn() {
+    const { tailscale, vpns, conflicts } = await createVpn().status();
+    return {
+      tailscale: tailscale.installed ? (tailscale.running ? "on" : "off") : "not installed",
+      on: vpns.filter((vpn) => vpn.connected).map((vpn) => vpn.name),
+      ...(conflicts.length ? { conflicts } : {}),
+    };
   },
   async whatsapp() {
     if (!existsSync(wacliBin())) throw new Error("wacli is not installed.");

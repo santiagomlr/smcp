@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps", "security", "nightlight"];
+const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps", "security", "nightlight", "vpn"];
 const ACTIVITY_SHOWN = 30;
 const openEditors = new Set();
 let state = null;
@@ -13,6 +13,8 @@ let machinesKey = null;
 let gmailKey = null;
 let clientsKey = null;
 let notesKey = null;
+let vpnKey = null;
+let vpnBusy = false;
 let activeTab = "connections";
 let gmailFormOpen = false;
 
@@ -155,6 +157,55 @@ function renderMachines() {
   if (key === machinesKey) return;
   machinesKey = key;
   $("machines").replaceChildren(...(machines.length ? machines.map(machineStop) : [tailscaleStop(state)]));
+}
+
+/* VPN */
+
+function vpnMeta(item) {
+  if (item.id === "tailscale") {
+    if (!item.installed) return tr("Not installed");
+    if (!item.running) return tr("Off");
+    return item.acceptDns === false ? tr("On · its DNS is off so your other VPN's names resolve") : tr("On");
+  }
+  if (item.connected === null) return tr("Open the app to connect");
+  return item.connected ? tr("On") : tr("Off");
+}
+
+function vpnAction(item) {
+  const on = item.id === "tailscale" ? item.running : item.connected === true;
+  if (item.id === "tailscale" && !item.installed) return [];
+  if (on && item.canDisconnect === false) return [];
+  const label = on ? tr("Disconnect") : tr("Connect");
+  return [
+    button(label, async (event) => {
+      if (vpnBusy) return;
+      vpnBusy = true;
+      event.target.classList.add("busy");
+      const result = await window.api.vpn(on ? "disconnect" : "connect", { vpn: item.id });
+      vpnBusy = false;
+      showError(result.ok ? "" : result.error);
+      vpnKey = null;
+      await loadVpn();
+    }),
+  ];
+}
+
+async function loadVpn() {
+  if (vpnBusy) return;
+  const result = await window.api.vpn("status");
+  if (!result.ok) return;
+  const { tailscale, vpns, conflicts } = result.value;
+  const key = JSON.stringify(result.value);
+  if (key === vpnKey) return;
+  vpnKey = key;
+  const items = [tailscale, ...vpns];
+  $("vpn-section").hidden = !tailscale.installed && !vpns.length;
+  $("vpn-line").replaceChildren(
+    ...items.map((item) => statusStop(item.id === "tailscale" ? item.running : item.connected === true, item.name, vpnMeta(item), ...vpnAction(item))),
+  );
+  // The server explains conflicts for the AI; the person gets a fixed sentence in their language.
+  $("vpn-conflicts").textContent = tr("Tailscale and your other VPN are not working together yet. Press Connect on the other VPN to fix it; Tailscale stays on.");
+  $("vpn-conflicts").hidden = !conflicts.length;
 }
 
 /* Connections */
@@ -1083,6 +1134,7 @@ async function refresh() {
   }
   renderSummary();
   renderMachines();
+  loadVpn();
   renderWhatsApp();
   renderGmail();
   renderNotes();
