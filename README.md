@@ -28,6 +28,7 @@ Get the latest version from [Releases](https://github.com/santiagomlr/smcp/relea
 | Clipboard | `clipboard_read`, `clipboard_write` | Not available |
 | Terminal | `run_command` | Not available |
 | Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot`, `screen_read_text` | Not available |
+| Antivirus | `security_scan_file`, `security_scan_folder`, `security_check_url`, `security_check_persistence`, `security_quarantine`, `security_quarantine_list`, `security_restore`, `security_delete_quarantined` | Scanning and checking; quarantine only on the computer |
 | Status | `smcp_status` | Yes |
 
 Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
@@ -47,6 +48,17 @@ Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You
 When you link WhatsApp, you choose what the AI can do: **read your chats** and **write with your approval**. Reading starts on and writing starts off. You can change this in Settings, and the change applies on the next call, including from your phone. Turning writing on never skips the confirmation window. Installations from before this option keep both on.
 
 **Listen to audio** is free and starts off. It turns your voice notes into text with whisper.cpp on your computer, with no accounts or keys. Your AI only receives the text, and the temporary audio is deleted afterwards. The first time, it downloads an open model of about 490 MB and checks that it arrived complete. It needs reading your chats turned on and a version of macOS that can open WhatsApp's audio format. If yours can't, the option doesn't appear.
+
+**Antivirus:** SMCP includes its own antivirus so your AI can protect you, not just read for you. It never opens or runs what it scans, and nothing leaves your computer.
+
+- `security_scan_file` and `security_scan_folder` (by default `~/Downloads`) rate each file clean, suspicious or malicious and say why: known threats by hash, process injection, keyloggers, scripts that download and run code, reverse shells, fake macOS password windows, macros that run when a document opens, PDFs that launch programs, ransom notes, programs disguised as documents, double extensions and hidden text-direction tricks.
+- `security_check_url` checks links for phishing offline, without visiting them: look-alike and misspelled brands (banks, SAT, Apple, PayPal…), international look-alike letters, hidden destinations after an `@`, bare IP addresses and direct program downloads. Pass it the text of an email or message and it checks every link in it.
+- `security_check_persistence` lists what starts on its own with the computer (launch agents and daemons, Windows Run keys, Linux autostart and cron), scans what they run and flags what looks like malware hiding there. It changes nothing.
+- `security_quarantine` moves a dangerous file where it can't be opened or run. `security_restore` puts it back. Quarantine is blocked in Read-only mode and is not available from your phone.
+- **Deep analysis with [REA](https://github.com/morluto/rea) (MIT):** if `rea` is installed (`npm install --global rea-agents`), `security_scan_file` with `deep: true` adds REA's static reverse-engineering reports: binary hardening, Windows imports, signatures and load configuration. SMCP never installs it for you.
+- Add your own known-bad hashes in `~/.smcp/security/signatures.json` as `{"hashes": {"<sha256>": "name"}}`. To check the scanner works, scan the standard [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/).
+
+It's a first line of defense, not a replacement for the protection built into macOS and Windows.
 
 ## Built for scheduled routines
 

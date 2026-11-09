@@ -172,6 +172,8 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "Reminders": "Recordatorios",
   "Apple Notes": "Notas de Apple",
   "Read only. Locked notes stay locked.": "Solo lectura. Las notas bloqueadas siguen bloqueadas.",
+  "Antivirus": "Antivirus",
+  "Scans files, links and start-up items. Quarantine can be undone.": "Revisa archivos, enlaces y lo que arranca solo. La cuarentena se puede deshacer.",
   "Clipboard": "Portapapeles",
   "It can hold passwords and codes.": "Puede contener contraseñas y códigos.",
   "Recent activity": "Actividad reciente",

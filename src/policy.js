@@ -16,6 +16,7 @@ export const GROUPS = [
   "clipboard",
   "terminal",
   "apps",
+  "security",
 ];
 
 const DEFAULTS = {
@@ -35,6 +36,8 @@ const DEFAULTS = {
     clipboard: true,
     terminal: true,
     apps: true,
+    // The antivirus mostly reads, and quarantine is undoable, so it starts on.
+    security: false,
   },
   // Writing is something a person opts into when linking. Even then, every message still needs the confirmation window.
   whatsapp: { read: true, send: false, audio: false },
@@ -131,6 +134,7 @@ export function toolGroup(name) {
   if (name.startsWith("applenotes_")) return "applenotes";
   if (name.startsWith("file_")) return "files";
   if (name.startsWith("clipboard_")) return "clipboard";
+  if (name.startsWith("security_")) return "security";
   if (name === "smcp_status") return "status";
   if (name === "run_command") return "terminal";
   if (name === "daily_brief") return "brief";
