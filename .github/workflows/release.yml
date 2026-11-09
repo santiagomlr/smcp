@@ -94,3 +94,7 @@ jobs:
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/update-signing-key.pem"
+
+      - name: Save Electron downloads
+        if: always() && steps.plan.outputs.build == 'true'
+        uses: ./.github/actions/save-downloads
