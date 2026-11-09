@@ -5,9 +5,11 @@ import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:f
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readSignedManifest } from "../app/core/updater.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const KEY = join(homedir(), ".smcp-release", "update-signing-key.pem");
+const KEY = process.env.SMCP_UPDATE_KEY_FILE ?? join(homedir(), ".smcp-release", "update-signing-key.pem");
+const DRY_RUN = process.argv.includes("--dry-run");
 const BUILD = join(homedir(), "Library", "Caches", "smcp-build");
 const GH = process.env.GH ?? "gh";
 
@@ -43,7 +45,16 @@ const manifest = JSON.stringify(
 );
 const manifestPath = join(out, "latest.json");
 writeFileSync(manifestPath, manifest);
-writeFileSync(`${manifestPath}.sig`, sign(null, Buffer.from(manifest), privateKey).toString("base64"));
+const signature = sign(null, Buffer.from(manifest), privateKey).toString("base64");
+writeFileSync(`${manifestPath}.sig`, signature);
+
+// Installed apps would reject anything this check rejects, so never publish it.
+readSignedManifest(manifest, signature);
+
+if (DRY_RUN) {
+  console.log(`Dry run: SMCP ${version} built and signed. Nothing was published.`);
+  process.exit(0);
+}
 
 run(GH, [
   "release",
@@ -58,6 +69,7 @@ run(GH, [
   "santiagomlr/smcp",
   "--title",
   `SMCP ${version}`,
+  ...(process.env.GITHUB_SHA ? ["--target", process.env.GITHUB_SHA] : []),
   "--notes",
-  "Descarga el .dmg para Mac o el Setup .exe para Windows.",
+  "Download the .dmg for Apple Silicon Macs or the Setup .exe for Windows.",
 ]);
