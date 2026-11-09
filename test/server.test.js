@@ -102,6 +102,7 @@ test("expone las herramientas esperadas por MCP", async () => {
     "whatsapp_chat_digest",
     "whatsapp_list_chats",
     "whatsapp_read_messages",
+    "whatsapp_scan_file",
     "whatsapp_search_contacts",
     "whatsapp_search_messages",
     "whatsapp_search_transcripts",
