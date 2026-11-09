@@ -14,6 +14,12 @@ export const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
 const MANIFEST_URL = `https://github.com/${REPO}/releases/latest/download/latest.json`;
 const MANIFEST_TIMEOUT_MS = 20_000;
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
+const RETRY_DELAYS_MS = [2_000, 5_000];
+
+/** 5xx and 429 come from GitHub being busy, not from a missing or bad release, so they are worth another try. */
+export function isTransientStatus(status) {
+  return status === 429 || status >= 500;
+}
 
 const UPDATE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAEh47zB+6DGcWhZnY4dSmeGXZi+zdLLsC/7F8ZHlBKDA=
@@ -75,6 +81,7 @@ export function createUpdater({
   startSwap = (script, args) => spawn("/bin/sh", [script, ...args], { detached: true, stdio: "ignore" }).unref(),
   publicKey = UPDATE_PUBLIC_KEY,
   pid = process.pid,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
   const macBuild = platform === "darwin" && arch === "arm64";
   let snapshot = { current: currentVersion, status: "idle", latest: null, message: "", canInstall: false, progress: null };
@@ -86,9 +93,21 @@ export function createUpdater({
   }
 
   async function fetchText(url) {
-    const response = await fetchImpl(url, { signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
-    if (!response.ok) throw new Error(`GitHub responded ${response.status}.`);
-    return response.text();
+    for (let attempt = 0; ; attempt++) {
+      let transient;
+      try {
+        const response = await fetchImpl(url, { signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
+        if (response.ok) return await response.text();
+        transient = isTransientStatus(response.status);
+        if (!transient || attempt >= RETRY_DELAYS_MS.length) {
+          throw new Error(transient ? `GitHub is not responding right now (${response.status}). Try again in a few minutes.` : `GitHub responded ${response.status}.`);
+        }
+      } catch (error) {
+        // A network failure or timeout is also transient; an HTTP error built above is final.
+        if (transient !== undefined || attempt >= RETRY_DELAYS_MS.length) throw error;
+      }
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
   }
 
   const check = coalesce(async () => {
