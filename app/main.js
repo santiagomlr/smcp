@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -707,10 +707,24 @@ function readPermissions() {
   };
 }
 
+const TCC_SERVICES = { accessibility: "Accessibility", screen: "ScreenCapture" };
+
+/**
+ * SMCP is signed ad hoc, so macOS ties each permission to the exact build. After an update or a new build
+ * the switch in System Settings still looks on, but it belongs to the old copy and never applies to this one.
+ * When the permission is missing, clearing SMCP's entry lets the request below add this copy in its place.
+ */
+function clearStalePermission(pane) {
+  const service = TCC_SERVICES[pane];
+  if (!service || readPermissions()[pane]) return Promise.resolve();
+  return new Promise((resolve) => execFile("/usr/bin/tccutil", ["reset", service, "com.santiago.smcp"], { timeout: 5_000 }, () => resolve()));
+}
+
 /** Asking is what adds SMCP, with its name and icon, to the macOS list. */
 async function openPrivacy(pane) {
   const url = PRIVACY_PANES[pane];
   if (!url) throw new Error(tr("Unknown setting."));
+  await clearStalePermission(pane);
   if (pane === "accessibility") systemPreferences.isTrustedAccessibilityClient(true);
   else if (pane === "screen") await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }).catch(() => {});
   await shell.openExternal(url);
@@ -1146,7 +1160,7 @@ async function askAutoUpdates() {
       type: "question",
       message: tr("Do you want SMCP to update automatically?"),
       detail: IS_MAC
-        ? tr("When there is a new version, SMCP will install it and restart. After each update, macOS will ask for the app's permissions again. You can change this in Settings.")
+        ? tr("When there is a new version, SMCP will install it and restart. You can change this in Settings.")
         : tr("We will let you know when there is a new version. You can change this in Settings."),
       buttons: [tr("Update automatically"), tr("Ask me first")],
       defaultId: 1,
@@ -1182,7 +1196,7 @@ async function noticeAfterUpdate() {
   settings.lastVersion = version;
   await writeSettings(settings);
   if (updated && IS_MAC) {
-    new Notification({ title: tr("SMCP updated to {version}", { version }), body: tr("Check the macOS permissions in Settings so everything keeps working.") }).show();
+    new Notification({ title: tr("SMCP updated to {version}", { version }) }).show();
   }
 }
 

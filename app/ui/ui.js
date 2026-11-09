@@ -1280,8 +1280,6 @@ function renderUpdates(value) {
   button.textContent = installable ? tr("Update to {version}", { version: value.latest }) : manual ? tr("Download") : tr("Check for updates");
   button.disabled = value.status === "checking" || value.status === "installing";
   $("auto-update").checked = value.auto === true;
-  $("auto-update-note").textContent =
-    window.api && navigator.userAgent.includes("Mac") ? tr("On Mac, each new version asks for system permissions again.") : "";
 }
 
 async function loadUpdates() {

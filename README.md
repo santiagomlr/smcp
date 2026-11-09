@@ -180,6 +180,16 @@ The app is created at `~/Library/Caches/smcp-build/mac-arm64/SMCP.app`. Copy it 
 
 For development, `npm run app` opens the unpackaged app, `npm test` runs the tests and `npm run test:smoke` starts the app, opens every window and quits with an error if anything failed. On Linux, run it under a display (for example `xvfb-run -a npm run test:smoke`).
 
+### Release signing
+
+Releases are signed with SMCP's own certificate, "SMCP Code Signing", always the same one, so macOS keeps Accessibility and Screen Recording on after each update. Create it once on your Mac:
+
+```bash
+bash scripts/create-mac-signing-cert.sh
+```
+
+It adds the certificate to your keychain, so `npm run release` can sign on that Mac, and prints the two commands that give it to the Release workflow as the `SMCP_MAC_CERT_P12` and `SMCP_MAC_CERT_PASSWORD` secrets. A release stops if the certificate is missing or the app comes out signed with anything else. Keep the files it writes in `~/.smcp-release` safe, and never replace the certificate: with a new one, every Mac asks for its permissions again.
+
 ## Where your data is stored
 
 Everything is in `~/.smcp/`, with permissions for your user only.
@@ -215,5 +225,5 @@ Whatever the AI reads is sent to that AI's provider.
 - WhatsApp works through `wacli`, which isn't an official client, so your account could face restrictions. Avoid bulk sending.
 - Gmail uses app passwords, which give broad access to the account and which some companies block.
 - Remote access requires the computer to be on, awake and running SMCP.
-- The app is not signed by Apple. macOS shows a warning when you open a downloaded copy, and every new version asks again for Accessibility, Screen Recording and Calendar.
+- The app is not signed by Apple. macOS shows a warning when you open a downloaded copy. Releases are signed with SMCP's own certificate, so permissions stay on after an update; the first version signed this way asks for them once more. If SMCP already looks on in those lists, press **Turn on** in SMCP: it clears the old entry so you can switch it on for the current copy.
 - Windows shows a SmartScreen warning.
