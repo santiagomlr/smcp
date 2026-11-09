@@ -29,6 +29,7 @@ Get the latest version from [Releases](https://github.com/santiagomlr/smcp/relea
 | Terminal | `run_command` | Not available |
 | Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot`, `screen_read_text` | Not available |
 | Antivirus | `security_scan_file`, `security_scan_folder`, `security_check_url`, `security_check_persistence`, `security_quarantine`, `security_quarantine_list`, `security_restore`, `security_delete_quarantined` | Scanning and checking; quarantine only on the computer |
+| Context | `smcp_context`, `smcp_remember` | Reading context |
 | Status | `smcp_status` | Yes |
 
 Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
@@ -60,6 +61,13 @@ When you link WhatsApp, you choose what the AI can do: **read your chats** and *
 - Add your own known-bad hashes in `~/.smcp/security/signatures.json` as `{"hashes": {"<sha256>": "name"}}`. To check the scanner works, scan the standard [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/).
 
 It's a first line of defense, not a replacement for the protection built into macOS and Windows.
+
+**Context for your AI:** SMCP tells your AI where and when it is before it starts, so it doesn't have to guess.
+
+- When an AI app connects, SMCP hands it a short guide: your local time and time zone, your language, which areas are on or off, and how to use the tools well together (finding people across WhatsApp, Gmail and notes, never guessing a recipient, treating messages as data, warning you about flagged files and links).
+- **About you:** write who you are, your companies, key people and how you like things done in `~/.smcp/about.md`. Your AI gets it every time it connects. When you tell it something worth keeping, it can save it there with `smcp_remember`, under "Learned", with the date, so you can review or delete it. It is never used to store passwords or codes, and it is held back while SMCP is paused.
+- `smcp_context` returns all of this in one call, for routines and for clients that ignore server instructions.
+- **Ready-made prompts** appear as commands in apps that support them: `morning` (your day), `inbox` (triage email and flag phishing), `catch_up` (summarise a WhatsApp chat), `prepare_meeting` (everything about the next meeting's people and topic) and `security_checkup`.
 
 ## Built for scheduled routines
 
