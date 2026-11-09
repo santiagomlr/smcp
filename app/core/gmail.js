@@ -7,6 +7,7 @@ import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { bufferText } from "../../src/documents.js";
+import { riskyLinks, scanAttachment, securityOn } from "../../src/security/inline.js";
 
 const EMAIL = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/;
 const APP_PASSWORD = /^[a-zA-Z]{16}$/;
@@ -145,7 +146,7 @@ function plainText(parsed) {
 }
 
 /** Dependencies are injectable so tests never reach Google or open a dialog. */
-export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }) {
+export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp, protect = securityOn }) {
   const resolve = async (reference) => {
     const accounts = await store.list();
     const wanted = String(reference ?? "").trim().toLowerCase();
@@ -265,6 +266,15 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
           if (!message?.source) throw new Error("NOT_FOUND");
           const parsed = await simpleParser(message.source);
           const text = plainText(parsed);
+          // The antivirus runs on every email it reads: attachments by their bytes, links by their address.
+          const guard = protect();
+          const attachments = (parsed.attachments ?? []).map(({ filename, size, content }) => ({
+            filename: filename ?? "unnamed",
+            size,
+            ...(guard ? { security: scanAttachment(content, filename ?? "") } : {}),
+          }));
+          const links = guard ? riskyLinks(`${text}\n${parsed.html || ""}`) : [];
+          const dangerous = attachments.filter((item) => item.security && item.security.verdict !== "clean").length;
           return {
             account: target.email,
             uid,
@@ -275,7 +285,17 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
             date: parsed.date ?? null,
             text: text.slice(0, MAX_READ_CHARS),
             truncated: text.length > MAX_READ_CHARS,
-            attachments: (parsed.attachments ?? []).map(({ filename, size }) => ({ filename: filename ?? "unnamed", size })),
+            attachments,
+            ...(guard
+              ? {
+                  security: {
+                    checked: true,
+                    flaggedAttachments: dangerous,
+                    riskyLinks: links,
+                    ...(dangerous || links.length ? { warning: "This email has flagged attachments or links. Warn the person before they open anything." } : {}),
+                  },
+                }
+              : {}),
           };
         });
       } catch (error) {
@@ -411,6 +431,11 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
         throw new Error(friendlyMailError(error));
       }
       if (file.size > MAX_ATTACHMENT_BYTES) throw new Error("That attachment is too large to read.");
+      const security = protect() ? scanAttachment(file.content, file.filename) : null;
+      // A malicious file is not even converted to text: document readers are a way in for exploits.
+      if (security?.verdict === "malicious") {
+        return { account: target.email, uid, index, filename: file.filename, blocked: true, security };
+      }
       const { text, pages } = await bufferText(file.filename, file.content);
       return {
         account: target.email,
@@ -420,6 +445,7 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
         ...(pages === undefined ? {} : { pages }),
         text: text.slice(0, MAX_READ_CHARS),
         truncated: text.length > MAX_READ_CHARS,
+        ...(security ? { security } : {}),
       };
     },
   };

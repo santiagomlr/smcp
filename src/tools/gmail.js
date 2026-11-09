@@ -60,7 +60,9 @@ export function registerGmail(server) {
   server.registerTool(
     "gmail_read",
     {
-      description: "Reads a full email using the `uid` and account returned by gmail_search.",
+      description:
+        "Reads a full email using the `uid` and account returned by gmail_search. Attachments come back already scanned by SMCP's antivirus, " +
+        "and links that look like phishing are listed under security. Tell the person about anything flagged.",
       inputSchema: { account, uid: z.number().int().min(1) },
       annotations: readOnly,
     },
@@ -123,7 +125,8 @@ export function registerGmail(server) {
     "gmail_read_attachment",
     {
       description:
-        "Reads an email attachment as text: PDFs, Word, RTF, HTML and plain text. `index` counts from 0 in the order gmail_read lists the attachments.",
+        "Reads an email attachment as text: PDFs, Word, RTF, HTML and plain text. `index` counts from 0 in the order gmail_read lists the attachments. " +
+        "SMCP's antivirus scans it first: a malicious attachment comes back blocked, with the reasons, instead of its text.",
       inputSchema: { account, uid: z.number().int().min(1), index: z.number().int().min(0).max(100) },
       annotations: readOnly,
     },

@@ -25,6 +25,7 @@ export const REMOTE_TOOLS = new Set([
   "whatsapp_sync",
   "whatsapp_chat_digest",
   "whatsapp_search_transcripts",
+  "whatsapp_scan_file",
   "gmail_list_accounts",
   "gmail_search",
   "gmail_read",
