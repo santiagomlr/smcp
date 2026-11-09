@@ -2,22 +2,35 @@
 // what the person wrote about themselves. Instructions, smcp_context and the prompts all build on it.
 
 import { existsSync, readFileSync } from "node:fs";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, hostname, platform, userInfo } from "node:os";
 import { dirname, join } from "node:path";
+import { isLanguage, LANGUAGES, systemLanguage } from "./languages.js";
 import { GROUPS, readPolicy } from "./policy.js";
 import { enabledVaults } from "./vaults.js";
 
 export const MAX_ABOUT_CHARS = 6000;
 const MAX_NOTE_CHARS = 500;
 
-/** The note's name inside a vault, in the person's language. Either name is found whatever the language. */
-export const ABOUT_NOTES = { es: join("SMCP", "Sobre mí.md"), en: join("SMCP", "About me.md") };
-const TITLES = { es: "# Sobre mí", en: "# About me" };
-const LEARNED = { es: "## Aprendido", en: "## Learned" };
+/** The note's name inside a vault, in the person's language. Any of these names is found whatever the language. */
+export const ABOUT_NOTES = {
+  es: join("SMCP", "Sobre mí.md"),
+  en: join("SMCP", "About me.md"),
+  pt: join("SMCP", "Sobre mim.md"),
+  fr: join("SMCP", "À propos de moi.md"),
+  de: join("SMCP", "Über mich.md"),
+  it: join("SMCP", "Su di me.md"),
+};
+const TITLES = { es: "# Sobre mí", en: "# About me", pt: "# Sobre mim", fr: "# À propos de moi", de: "# Über mich", it: "# Su di me" };
+const LEARNED = { es: "## Aprendido", en: "## Learned", pt: "## Aprendido", fr: "## Appris", de: "## Gelernt", it: "## Imparato" };
+const LEARNED_HEADING = new RegExp(`^(${[...new Set(Object.values(LEARNED))].join("|")})\\s*$`, "m");
 const INTRO = {
   es: "Lo que tu IA debe saber de ti: quién eres, tus empresas, tu gente clave y cómo te gusta que te respondan. SMCP se lo entrega al conectarse.",
   en: "What your AI should know about you: who you are, your companies, key people and how you like replies. SMCP hands it over when it connects.",
+  pt: "O que sua IA deve saber sobre você: quem você é, suas empresas, as pessoas-chave e como você gosta das respostas. O SMCP entrega isso ao se conectar.",
+  fr: "Ce que votre IA doit savoir de vous : qui vous êtes, vos entreprises, vos personnes clés et comment vous aimez qu'on vous réponde. SMCP le lui transmet à la connexion.",
+  de: "Was deine KI über dich wissen soll: wer du bist, deine Firmen, wichtige Personen und wie du Antworten magst. SMCP gibt es ihr beim Verbinden.",
+  it: "Cosa deve sapere di te la tua IA: chi sei, le tue aziende, le persone chiave e come preferisci le risposte. SMCP glielo passa quando si collega.",
 };
 
 export function legacyAboutPath() {
@@ -66,13 +79,42 @@ export function readAbout(path = aboutPath()) {
   }
 }
 
+/** Where the note is and whether the person already wrote in it, for the app's screens. */
+export function aboutStatus(options) {
+  const location = aboutLocation(options);
+  const written = Boolean(readAbout(location.path));
+  return {
+    where: location.where,
+    vault: location.vault ?? null,
+    note: location.note ?? null,
+    display: location.where === "vault" ? `${location.vault} › ${location.note.replace(/\.md$/, "")}` : location.path.replace(homedir(), "~"),
+    written,
+  };
+}
+
+/**
+ * Starts the note with what the person typed during setup. It never replaces a note that already
+ * has text: that one is theirs to edit in Obsidian or any editor.
+ */
+export async function startAbout(text, options) {
+  const location = aboutLocation(options);
+  const clean = String(text ?? "").replace(/\r\n/g, "\n").trim();
+  if (!clean) throw new Error("Write something about yourself first.");
+  if (clean.length > MAX_ABOUT_CHARS) throw new Error(`The note can have up to ${MAX_ABOUT_CHARS} characters.`);
+  if (readAbout(location.path)) throw new Error("You already wrote this note. Open it to edit it.");
+  const lang = Object.hasOwn(TITLES, location.language) ? location.language : "en";
+  await mkdir(dirname(location.path), { recursive: true });
+  await writeFile(location.path, `${TITLES[lang]}\n\n${INTRO[lang]}\n\n${clean}\n`, { mode: 0o600 });
+  return { saved: true, path: location.path };
+}
+
 /**
  * Adds one dated line under "Aprendido" or "Learned", so the person can review and edit what was
  * remembered. A new note starts with a title and one line saying what it is for, in their language.
  */
 export async function rememberNote(note, { path, language, now = new Date() } = {}) {
   const location = path ? { path, language: language ?? appLanguage() } : aboutLocation(language ? { language } : undefined);
-  const lang = location.language === "es" ? "es" : "en";
+  const lang = Object.hasOwn(TITLES, location.language) ? location.language : "en";
   const clean = String(note ?? "").replace(/\s+/g, " ").trim();
   if (!clean) throw new Error("The note is empty.");
   if (clean.length > MAX_NOTE_CHARS) throw new Error(`A note can have up to ${MAX_NOTE_CHARS} characters.`);
@@ -83,7 +125,7 @@ export async function rememberNote(note, { path, language, now = new Date() } = 
   await mkdir(dirname(location.path), { recursive: true });
   let prefix = "";
   if (!current) prefix = `${TITLES[lang]}\n\n${INTRO[lang]}\n\n`;
-  const hasLearned = /^## (Learned|Aprendido)\s*$/m.test(current);
+  const hasLearned = LEARNED_HEADING.test(current);
   if (!hasLearned) prefix += `${current && !current.endsWith("\n") ? "\n" : ""}${current ? "\n" : ""}${LEARNED[lang]}\n\n`;
   else if (current && !current.endsWith("\n")) prefix += "\n";
   const day = now.toISOString().slice(0, 10);
@@ -102,12 +144,12 @@ export function appLanguage(home = homedir(), os = platform()) {
   for (const file of candidates) {
     try {
       const language = JSON.parse(readFileSync(file, "utf8")).language;
-      if (language === "es" || language === "en") return language;
+      if (isLanguage(language)) return language;
     } catch {
       // Not installed here or not readable.
     }
   }
-  return Intl.DateTimeFormat().resolvedOptions().locale.toLowerCase().startsWith("es") ? "es" : "en";
+  return systemLanguage();
 }
 
 const AREA_NAMES = {
@@ -150,7 +192,7 @@ export function buildContext({ remote = false, policy = readPolicy(), now = new 
   const vaults = !remote && areas.includes("notes") ? enabledVaults().length : undefined;
   return {
     now: now.toISOString(),
-    localTime: new Intl.DateTimeFormat(language === "es" ? "es-MX" : "en-US", { dateStyle: "full", timeStyle: "short", timeZone: zone }).format(now),
+    localTime: new Intl.DateTimeFormat(LANGUAGES[language].locale, { dateStyle: "full", timeStyle: "short", timeZone: zone }).format(now),
     timeZone: zone,
     language,
     computer: { platform: platform(), name: remote ? undefined : hostname(), user: remote ? undefined : user },
@@ -197,7 +239,7 @@ export function buildInstructions({ remote = false, context = buildContext({ rem
     "",
     "Right now:",
     `- Local time: ${context.localTime} (${context.timeZone}).`,
-    `- Reply in ${context.language === "es" ? "Spanish" : "English"} unless the person writes in another language.`,
+    `- Reply in ${LANGUAGES[context.language]?.english ?? "English"} unless the person writes in another language.`,
     context.paused ? "- SMCP is paused: no tool will work until the person resumes it." : `- Available: ${context.areas.join(", ") || "nothing"}.`,
     ...(context.off.length ? [`- Turned off: ${context.off.join(", ")}. Don't offer these; if asked, say they can be turned on in SMCP Settings.`] : []),
     ...(context.readOnly ? ["- Read-only mode: nothing can be sent, written or changed."] : []),

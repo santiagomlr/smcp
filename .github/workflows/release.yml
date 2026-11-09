@@ -31,6 +31,8 @@ jobs:
       version: ${{ steps.plan.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Decide whether to publish
         id: plan
@@ -60,6 +62,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -70,17 +74,9 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          retry() {
-            for delay in 15 45 90 0; do
-              "$@" && return 0
-              [ "$delay" = 0 ] && return 1
-              echo "::warning::'$*' failed; retrying in ${delay}s."
-              sleep "$delay"
-            done
-          }
-          retry npm ci
+          bash scripts/retry.sh npm ci
           npm version "$VERSION" --no-git-tag-version --allow-same-version
-          retry npx electron-builder --linux AppImage deb --x64 --publish never -c.directories.output=dist
+          bash scripts/retry.sh npx electron-builder --linux AppImage deb --x64 --publish never -c.directories.output=dist
 
       - name: Check the installed package starts
         run: |
@@ -110,23 +106,12 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        uses: ./.github/actions/build-deps
+
+      - name: Set the version
         env:
           VERSION: ${{ needs.plan.outputs.version }}
-        run: |
-          # Electron and other packages download binaries from GitHub, which sometimes answers 5xx; retry instead of failing the release.
-          retry() {
-            for delay in 15 45 90 0; do
-              "$@" && return 0
-              [ "$delay" = 0 ] && return 1
-              echo "::warning::'$*' failed; retrying in ${delay}s."
-              sleep "$delay"
-            done
-          }
-          retry npm ci
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
-          retry npm run whatsapp:install
-          retry npm run whatsapp:audio-install
-          npm run nightlight:install
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -161,3 +146,7 @@ jobs:
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/update-signing-key.pem"
+
+      - name: Save Electron downloads
+        if: always()
+        uses: ./.github/actions/save-downloads

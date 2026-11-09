@@ -90,8 +90,7 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "app/assets/icon.png"
     },
@@ -100,9 +99,6 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "artifactName": "SMCP-windows-x64-setup.${ext}"
-    },
-    "portable": {
-      "artifactName": "SMCP-windows-x64-portable.${ext}"
     },
     "linux": {
       "target": [

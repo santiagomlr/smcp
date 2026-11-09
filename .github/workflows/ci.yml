@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -45,6 +45,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -56,14 +58,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb libnotify4 libsecret-1-0 libappindicator3-1 libfuse2t64
 
       - name: Install dependencies
-        run: |
-          # Electron downloads its binary from GitHub, which sometimes answers 5xx; retry instead of failing.
-          for delay in 15 45 0; do
-            npm ci && exit 0
-            [ "$delay" = 0 ] && exit 1
-            echo "::warning::npm ci failed; retrying in ${delay}s."
-            sleep "$delay"
-          done
+        run: bash scripts/retry.sh npm ci
 
       - name: Tests
         run: npm test
@@ -78,13 +73,7 @@ jobs:
           fi
 
       - name: Build the package
-        run: |
-          for delay in 20 60 0; do
-            npx electron-builder ${{ matrix.package }} --publish never -c.directories.output=dist && exit 0
-            [ "$delay" = 0 ] && exit 1
-            echo "::warning::electron-builder failed; retrying in ${delay}s."
-            sleep "$delay"
-          done
+        run: bash scripts/retry.sh npx electron-builder ${{ matrix.package }} --publish never -c.directories.output=dist
 
       - name: Install the Linux package
         if: runner.os == 'Linux'

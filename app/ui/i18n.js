@@ -1,8 +1,18 @@
 // English is the source language; other languages are dictionaries keyed by the English text.
 // Loaded as a plain script in the windows and imported for its side effects in the main process.
 (function (root) {
-  const DICTIONARIES = () => ({ es: root.SMCP_ES ?? {} });
-  const LOCALES = { en: "en-US", es: "es-MX" };
+  // Each language: its locale for dates and numbers, and its own name for the language menus.
+  // Keep in step with src/languages.js (a test checks it).
+  const LANGUAGES = {
+    en: { locale: "en-US", name: "English" },
+    es: { locale: "es-MX", name: "Español" },
+    pt: { locale: "pt-BR", name: "Português" },
+    fr: { locale: "fr-FR", name: "Français" },
+    de: { locale: "de-DE", name: "Deutsch" },
+    it: { locale: "it-IT", name: "Italiano" },
+  };
+  // A dictionary is globalThis.SMCP_<CODE>, filled by the files in i18n/.
+  const dictionary = (code) => root[`SMCP_${code.toUpperCase()}`];
   let language = "en";
 
   function fill(text, params) {
@@ -12,7 +22,7 @@
 
   /** Translates English text; text with no translation is shown in English. */
   function tr(text, params) {
-    const translated = language === "en" ? text : (DICTIONARIES()[language]?.[text] ?? text);
+    const translated = language === "en" ? text : (dictionary(language)?.[text] ?? text);
     return fill(translated, params);
   }
 
@@ -43,10 +53,12 @@
 
   root.SMCP_I18N = {
     setLanguage(value) {
-      language = value in LOCALES ? value : "en";
+      language = Object.hasOwn(LANGUAGES, value) ? value : "en";
     },
     language: () => language,
-    locale: () => LOCALES[language],
+    locale: () => LANGUAGES[language].locale,
+    /** [code, name] pairs for a language menu, each name written in its own language. */
+    languages: () => Object.entries(LANGUAGES).map(([code, { name }]) => [code, name]),
     translatePage,
     tr,
   };

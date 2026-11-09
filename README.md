@@ -4,7 +4,9 @@ SMCP connects your AI to your computer: WhatsApp, Gmail, Obsidian notes, tasks, 
 
 It lives in the menu bar and connects to Claude Code, Claude Desktop, Cursor, VS Code and Antigravity. Claude mobile, Claude web and ChatGPT connect through a private URL.
 
-SMCP is available in English and Spanish. You can change the language in Settings.
+SMCP is available in English, Spanish, Portuguese, French, German and Italian. You can pick the language on the first screen or change it anytime in Settings.
+
+The first time you open it, a short guided setup walks you through everything, one optional step at a time: your AI apps, WhatsApp, Gmail, notes, a note about yourself for your AI, the built-in antivirus, what else your AI may use, the night light and your other devices. It ends with prompts to try based on what you connected. You can run it again from Settings > App > Initial setup.
 
 It uses [wacli](https://github.com/openclaw/wacli) (MIT), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT) and public APIs. You can download and use SMCP for free under the [license](LICENSE). This repository does not accept contributions.
 
