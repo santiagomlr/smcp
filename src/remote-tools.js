@@ -10,6 +10,7 @@ import { registerStatus } from "./tools/status.js";
 import { registerFiles } from "./tools/files.js";
 import { registerGmail } from "./tools/gmail.js";
 import { registerNotes } from "./tools/notes.js";
+import { registerPeople } from "./tools/people.js";
 import { registerSecurity } from "./tools/security.js";
 import { registerTasks } from "./tools/tasks.js";
 import { registerVpn } from "./tools/vpn.js";
@@ -54,6 +55,8 @@ export const REMOTE_TOOLS = new Set([
   "applenotes_recent",
   "applenotes_read",
   "daily_brief",
+  "people_lookup",
+  "followups_list",
   "file_list",
   "file_read",
   "file_search",
@@ -75,7 +78,7 @@ export const REMOTE_TOOLS = new Set([
  * new tasks. They only touch SMCP's own list and every one can be undone in the app, so unlike
  * sending they do not need the confirmation window. Off by default.
  */
-export const REMOTE_TASK_WRITES = new Set(["tasks_create", "tasks_update", "tasks_append_note", "tasks_complete", "tasks_mark_reviewed"]);
+export const REMOTE_TASK_WRITES = new Set(["tasks_create", "tasks_update", "tasks_append_note", "tasks_complete", "tasks_mark_reviewed", "followups_to_tasks"]);
 
 export const REMOTE_TASK_WRITES_OFF =
   "Editing tasks from outside this computer is off, so nothing changed. You can turn it on in SMCP, under Settings.";
@@ -111,6 +114,7 @@ export function buildRemoteServer() {
   registerCalendar(onlyAllowed);
   registerAppleNotes(onlyAllowed);
   registerBrief(onlyAllowed);
+  registerPeople(onlyAllowed);
   registerFiles(onlyAllowed);
   registerSecurity(onlyAllowed);
   registerVpn(onlyAllowed);

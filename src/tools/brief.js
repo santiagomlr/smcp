@@ -18,7 +18,7 @@ export function unwrap(result) {
   return parsed?._untrusted_external ? parsed.data : parsed;
 }
 
-function withTimeout(promise, ms) {
+export function withTimeout(promise, ms) {
   let timer;
   return Promise.race([
     promise.finally(() => clearTimeout(timer)),

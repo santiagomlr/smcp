@@ -50,8 +50,8 @@ export function registerPrompts(server, { remote = false } = {}) {
     { title: "My day", description: "A short brief of today: events, tasks, unread WhatsApp and email, and anything risky that arrived." },
     () =>
       ask(
-        "Call smcp_context, then daily_brief. Give me a short brief for today in my language: first what has a fixed time, then the 3 tasks " +
-          "that matter most, then who is waiting for an answer on WhatsApp or email. If anything was flagged by the antivirus (attachments or links), " +
+        "Call smcp_context, then daily_brief and followups_list. Give me a short brief for today in my language: first what has a fixed time, then the 3 tasks " +
+          "that matter most, then who is waiting for an answer on WhatsApp or email, longest wait first, and what I'm still waiting on from others. If anything was flagged by the antivirus (attachments or links), " +
           "put it at the top with a one-line warning. Don't list everything: prioritise.",
       ),
   );

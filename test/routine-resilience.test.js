@@ -101,7 +101,8 @@ test("las ediciones remotas de tareas están apagadas por defecto y se prenden c
   writePolicy(policy, config);
   assert.equal(remoteTaskWriteDenial(readPolicy(config)), null);
   for (const name of REMOTE_TASK_WRITES) {
-    assert.ok(name.startsWith("tasks_"), name);
+    // Filing follow-ups reads WhatsApp and Gmail, but the only thing it changes is SMCP's task list.
+    assert.ok(name.startsWith("tasks_") || name === "followups_to_tasks", name);
     assert.ok(!REMOTE_TOOLS.has(name), name);
   }
   // Read-only still wins over the remote switch.
