@@ -596,20 +596,19 @@ function renderSummary() {
 
 /* Onboarding */
 
-function heading(title, text) {
-  return [element("h2", { className: "ob-title", textContent: title }), element("p", { className: "ob-text", textContent: text })];
+function heading(title, text, eyebrow = "") {
+  const nodes = [];
+  if (eyebrow) nodes.push(element("p", { className: "ob-eyebrow", textContent: eyebrow }));
+  nodes.push(element("h2", { className: "ob-title", textContent: title }), element("p", { className: "ob-text", textContent: text }));
+  return nodes;
 }
 
-function switchStop(label, id, checked, onChange) {
+function switchStop(label, id, checked, onChange, meta = "") {
   const input = element("input", { id, type: "checkbox", className: "switch", checked, onchange: onChange });
   input.setAttribute("role", "switch");
-  return element(
-    "li",
-    { className: `stop${checked ? " on" : ""}` },
-    element("span", { className: "node" }),
-    element("label", { className: "stop-main", htmlFor: id, textContent: label }),
-    input,
-  );
+  const main = element("label", { className: "stop-main", htmlFor: id }, element("div", { className: "stop-title", textContent: label }));
+  if (meta) main.append(element("div", { className: "stop-meta", textContent: meta }));
+  return element("li", { className: `stop${checked ? " on" : ""}` }, element("span", { className: "node" }), main, input);
 }
 
 function statusStop(on, title, meta, ...actions) {
@@ -639,6 +638,26 @@ function logo() {
   return element("div", { className: "ob-mark" }, mark());
 }
 
+/** A short list of promises or facts, each with a bold lead and one plain sentence. */
+function perks(...items) {
+  return element(
+    "ul",
+    { className: "ob-perks" },
+    ...items.map(([title, text]) => element("li", {}, element("strong", { textContent: title }), element("span", { textContent: text }))),
+  );
+}
+
+/** "Try asking…": one example of what this step makes possible. */
+function example(text) {
+  return element("p", { className: "ob-example" }, element("span", { textContent: tr("Try asking") }), element("q", { textContent: text }));
+}
+
+const isMac = () => state?.platform === "darwin";
+
+function languageOptions() {
+  return SMCP_I18N.languages().map(([value, textContent]) => element("option", { value, textContent }));
+}
+
 function setClientFrom(client) {
   return (event) => {
     event.target.classList.add("busy");
@@ -647,26 +666,202 @@ function setClientFrom(client) {
   };
 }
 
+/** A switch for one of the areas in Settings > What Claude can use. */
+function areaStop(group, title, meta) {
+  const on = !state.policy.disabled[group];
+  return switchStop(title, `ob-group-${group}`, on, (event) => {
+    onboardingKey = null;
+    return act(window.api.setPolicy({ disabled: { [group]: !event.target.checked } }));
+  }, meta);
+}
+
+function nightLightReady() {
+  return Boolean(nightLight && nightLight.supported !== false && nightLight.installed !== false);
+}
+
+function aboutStep() {
+  const { about } = state;
+  if (about?.written) {
+    return [
+      ...heading(tr("Your AI already knows you"), tr("You wrote a note about yourself, so every conversation starts with that context instead of from zero."), tr("About you")),
+      line(statusStop(true, tr("About me"), about.display, button(tr("Open note"), () => act(window.api.aboutOpen())))),
+      hint(tr("When you tell your AI something worth keeping, it adds it to this note with the date, so you can review or delete it.")),
+    ];
+  }
+  const text = element("textarea", {
+    className: "ob-about",
+    rows: 6,
+    maxLength: 6000,
+    placeholder: tr("I'm Ana, I run a small design studio in Monterrey. My partner is Luis. I prefer short answers in Spanish, and I never take calls before 10am."),
+  });
+  const error = element("p", { className: "form-error", hidden: true, role: "alert" });
+  const submit = element("button", { type: "submit", textContent: tr("Save note"), className: "primary" });
+  const form = element(
+    "form",
+    {
+      className: "ob-about-form",
+      onsubmit: async (event) => {
+        event.preventDefault();
+        error.hidden = true;
+        submit.disabled = true;
+        const result = await window.api.aboutSave(text.value);
+        submit.disabled = false;
+        if (!result.ok) {
+          error.textContent = tr(result.error);
+          error.hidden = false;
+          return;
+        }
+        text.blur();
+        onboardingKey = null;
+        await refresh();
+      },
+    },
+    text,
+    error,
+    element("div", { className: "form-actions" }, submit),
+  );
+  const where = about?.where === "vault" ? tr("It's saved as a note in your notes folder ({place}), so you can edit it anytime.", { place: about.display }) : tr("It stays in a private file on this computer. You can edit it anytime.");
+  return [
+    ...heading(tr("Tell your AI about you"), tr("A few lines about who you are, the people you work with and how you like answers. Your AI reads it every time, so you never have to explain yourself twice."), tr("About you")),
+    form,
+    hint(where),
+  ];
+}
+
+function nightLightStep() {
+  const { settings, presets } = nightLight;
+  const enabled = element("input", { id: "ob-nl-enabled", type: "checkbox", className: "switch", checked: settings.enabled });
+  enabled.setAttribute("role", "switch");
+  enabled.onchange = () => nightLightCall("configure", { enabled: enabled.checked });
+  const preset = element(
+    "select",
+    { id: "ob-nl-preset" },
+    ...[
+      ["recommended", tr("Recommended colors")],
+      ["classic", tr("Classic")],
+      ["candle", tr("Candle at night")],
+      ["lowest", tr("Least blue light")],
+      ["custom", tr("Custom colors")],
+    ].map(([value, textContent]) => element("option", { value, textContent })),
+  );
+  preset.value = NL.presetOf(settings, presets);
+  preset.onchange = () => {
+    if (preset.value !== "custom") nightLightCall("configure", { preset: preset.value });
+  };
+  const wake = element("input", { id: "ob-nl-wake", type: "time", className: "nl-input", value: settings.wake });
+  wake.onchange = () => {
+    if (wake.value) nightLightCall("configure", { wake: wake.value });
+  };
+  return [
+    ...heading(tr("Easier on your eyes at night"), tr("SMCP can warm your screen after sunset so it gives off less blue light, and help you wind down before bed. It's a little gift: nothing to connect."), tr("Night light")),
+    element(
+      "ul",
+      { className: "rows ob-rows" },
+      element("li", {}, element("label", { htmlFor: enabled.id }, tr("Night light"), element("small", { textContent: NL.nowText(nightLight) })), enabled),
+      element("li", {}, element("label", { htmlFor: preset.id, textContent: tr("Colors") }), preset),
+      element("li", {}, element("label", { htmlFor: wake.id }, tr("I wake up at"), element("small", { textContent: tr("Bedtime colors start 9 hours before.") })), wake),
+    ),
+    example(tr("Warm my screen to 1200K for the next hour.")),
+  ];
+}
+
+/** What to try first, based on what the person actually connected. */
+function firstPrompts() {
+  const { policy } = state;
+  const prompts = [tr("What does my day look like?")];
+  if (state.whatsapp.linked && !policy.disabled.whatsapp) prompts.push(tr("Summarize my unread WhatsApp chats."));
+  if (state.gmail.accounts.length && !policy.disabled.gmail) prompts.push(tr("Anything important in my email? Warn me about anything that looks like phishing."));
+  if (state.notes.vaults.some((vault) => vault.enabled) && !policy.disabled.notes) prompts.push(tr("What do my notes say about my current projects?"));
+  if (!policy.disabled.security) prompts.push(tr("Scan my Downloads folder for anything dangerous."));
+  return prompts.slice(0, 4);
+}
+
+function promptCard(text) {
+  const card = element("button", { type: "button", className: "ob-prompt" }, element("span", { textContent: text }), element("small", { textContent: tr("Copy") }));
+  card.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      card.lastChild.textContent = tr("Copied");
+      setTimeout(() => (card.lastChild.textContent = tr("Copy")), 1500);
+    } catch {
+      // Copying is a convenience: the text is right there to type.
+    }
+  };
+  return card;
+}
+
+/** Everything the person set up, lit when it's ready, so the last screen shows what they built. */
+function setupSummary() {
+  const { policy } = state;
+  const later = tr("Not yet. You can set it up anytime.");
+  const stops = [];
+  if (state.clients.supported) {
+    const apps = state.clients.items.filter((client) => client.connected).map((client) => client.name);
+    stops.push(statusStop(apps.length > 0, tr("AI apps"), apps.length ? apps.join(", ") : later));
+  }
+  if (state.whatsapp.supported) stops.push(statusStop(state.whatsapp.linked, "WhatsApp", state.whatsapp.linked ? tr("Linked") : later));
+  if (state.gmail.supported) {
+    const count = state.gmail.accounts.length;
+    stops.push(statusStop(count > 0, tr("Email"), count === 1 ? tr("1 account") : count ? tr("{count} accounts", { count }) : later));
+  }
+  if (state.notes.supported) {
+    const count = state.notes.vaults.filter((vault) => vault.enabled).length;
+    stops.push(statusStop(count > 0, tr("Notes"), count === 1 ? tr("1 folder") : count ? tr("{count} folders", { count }) : later));
+  }
+  if (state.about) stops.push(statusStop(state.about.written, tr("About you"), state.about.written ? tr("Your AI knows who you are") : later));
+  stops.push(statusStop(!policy.disabled.security, tr("Antivirus"), policy.disabled.security ? tr("Off") : tr("Watching attachments, files and links")));
+  if (nightLightReady()) stops.push(statusStop(nightLight.settings.enabled, tr("Night light"), nightLight.settings.enabled ? tr("On after sunset") : tr("Off")));
+  return line(...stops);
+}
+
 const STEPS = {
   welcome: () => [
     logo(),
-    ...heading(tr("Connect your AI to your computer"), tr("So it can help with your chats, files and apps. It takes a few minutes, and you can skip any step.")),
+    ...(isMac()
+      ? [
+          ...heading(tr("Meet SMCP"), tr("Your AI is smart, but it doesn't know your world. SMCP gives it your chats, email, notes and calendar, safely, so it can actually help with your day.")),
+          perks(
+            [tr("It knows your world"), tr("WhatsApp, Gmail, notes, tasks and calendar, all in one conversation.")],
+            [tr("It keeps you safe"), tr("A built-in antivirus checks attachments, files and links before you open them.")],
+            [tr("You're always in charge"), tr("Nothing is sent without your OK, there's no account, and your data stays on this computer.")],
+          ),
+        ]
+      : heading(tr("Meet SMCP"), tr("On this PC, SMCP keeps your devices one click away: see which are online, open a terminal on them and wake this PC from your Mac."))),
+    element(
+      "div",
+      { className: "ob-language" },
+      element("label", { htmlFor: "ob-language", textContent: tr("Language") }),
+      (() => {
+        const select = element("select", { id: "ob-language" }, ...languageOptions());
+        select.value = SMCP_I18N.language();
+        select.onchange = () => window.api.setLanguage(select.value);
+        return select;
+      })(),
+    ),
+    hint(isMac() ? tr("It takes about 5 minutes. Every step is optional, and you can come back to it from Settings.") : tr("It takes a minute. You can come back to it from Settings.")),
   ],
-  claude: () => [
-    ...heading(tr("Which AI apps do you use?"), tr("Choose the ones that get access. Then restart them.")),
-    line(...state.clients.items.map((client) => switchStop(client.name, `ob-${client.id}`, client.connected, setClientFrom(client.id)))),
-  ],
+  claude: () => {
+    const { items } = state.clients;
+    return [
+      ...heading(tr("Which AI apps should get access?"), tr("SMCP plugs into the AI apps you already use. Turn on the ones you want, then restart them so they notice."), tr("Your AI")),
+      ...(items.length
+        ? [line(...items.map((client) => switchStop(client.name, `ob-${client.id}`, client.connected, setClientFrom(client.id))))]
+        : [hint(tr("We didn't find Claude Desktop, Claude Code, Cursor or VS Code on this Mac. Install one and it shows up here, or use SMCP from your phone later in Connections."))]),
+      hint(tr("Using Claude on your phone, on the web or ChatGPT? You can connect them later from Connections > Phone, web and ChatGPT.")),
+    ];
+  },
   whatsapp: () => {
     const warning = hint(tr("WhatsApp doesn't officially offer this access, so it could restrict your account. Avoid mass messaging."));
     if (state.whatsapp.linked) {
       return [
-        ...heading(tr("What can Claude do with WhatsApp?"), tr("WhatsApp is already linked. Choose what you allow; you can change it anytime in Settings.")),
+        ...heading(tr("What can Claude do with WhatsApp?"), tr("WhatsApp is linked. Choose what you allow; you can change it anytime in Settings."), tr("Messages")),
         ...whatsappChoices("ob-wa"),
+        example(tr("What did my sister say about the weekend?")),
         warning,
       ];
     }
     return [
-      ...heading(tr("Link WhatsApp"), tr("Scan a code with your phone. Then choose what Claude can do with your chats.")),
+      ...heading(tr("Link WhatsApp"), tr("Your AI can read and search your chats, catch you up on busy groups and even listen to voice notes. Scan a code with your phone to start."), tr("Messages")),
       line(statusStop(false, "WhatsApp", tr("Not linked"), button(tr("Show QR code"), () => window.api.whatsappLogin(), "primary"))),
       warning,
       $("wa-qr"),
@@ -676,7 +871,7 @@ const STEPS = {
     const { accounts } = state.gmail;
     const stops = accounts.map(({ label, email }) => statusStop(true, label, label === email ? "Gmail" : email));
     return [
-      ...heading(tr("Connect your email"), tr("You can add every Gmail account you use. Nothing is sent without your approval.")),
+      ...heading(tr("Connect your email"), tr("Add every Gmail account you use. Your AI can find that one email, sum up your inbox and draft replies. Nothing is sent without your approval."), tr("Email")),
       ...(stops.length ? [line(...stops)] : []),
       accountForm({
         onDone: () => {
@@ -684,13 +879,13 @@ const STEPS = {
           refresh();
         },
       }),
-      hint(tr("The password is stored encrypted on your computer. If it's a work account, this option may be blocked.")),
+      hint(tr("An app password is a special password just for SMCP. It's stored encrypted on your computer, and you can cancel it anytime in your Google account. Work accounts may block it.")),
     ];
   },
   notes: () => {
     const { vaults } = state.notes;
     return [
-      ...heading(tr("Connect your notes"), tr("Choose the Obsidian vaults or Markdown folders your AI can read. It only sees the ones you turn on.")),
+      ...heading(tr("Connect your notes"), tr("Choose the Obsidian vaults or Markdown folders your AI can read. It can even find notes by meaning, not just by words. It only sees the ones you turn on."), tr("Notes")),
       ...(vaults.length ? [line(...vaults.map(vaultStop))] : []),
       button(vaults.length ? tr("Add another folder") : tr("Choose folder"), () => {
         onboardingKey = null;
@@ -699,6 +894,47 @@ const STEPS = {
       hint(tr("From your phone they can only be read. Writing notes only works on this computer.")),
     ];
   },
+  about: aboutStep,
+  protection: () => {
+    const on = !state.policy.disabled.security;
+    return [
+      ...heading(tr("Meet your built-in antivirus"), tr("Your AI doesn't just read for you, it watches out for you. SMCP checks things on its own, before you open them."), tr("Protection")),
+      line(areaStop("security", tr("Antivirus"), on ? tr("On. Recommended.") : tr("Off. Your AI won't check anything."))),
+      perks(
+        [tr("Email attachments"), tr("Every attachment is scanned when your AI opens an email, and dangerous ones are blocked.")],
+        [tr("Links"), tr("Fake bank, SAT, Apple or PayPal pages are spotted without visiting them.")],
+        [tr("Files and downloads"), tr("Ask it to scan your Downloads or a file someone sent you on WhatsApp.")],
+      ),
+      hint(tr("Nothing leaves your computer. A file in quarantine can always be put back. It works alongside the protection built into your computer, not instead of it.")),
+    ];
+  },
+  more: () => [
+    ...heading(tr("What else can your AI use?"), tr("The safe ones start on. The powerful ones stay off until you turn them on. You can change any of them later in Settings."), tr("Your choice")),
+    line(
+      areaStop("calendar", tr("Calendar"), tr("Reads your events. Adding one asks you first.")),
+      areaStop("reminders", tr("Reminders"), tr("Reads and adds reminders.")),
+      areaStop("tasks", tr("Tasks"), tr("SMCP's own task list, also in the menu bar.")),
+      areaStop("files", tr("Files"), tr("Reads and searches documents and PDFs.")),
+      areaStop("applenotes", tr("Apple Notes"), tr("Read only. Locked notes stay locked.")),
+      areaStop("clipboard", tr("Clipboard"), tr("It can hold passwords and codes.")),
+      areaStop("apps", tr("Control apps"), tr("Clicks, types and takes screenshots for you.")),
+      areaStop("terminal", tr("Terminal"), tr("Runs any command. Only for people who use it.")),
+    ),
+    hint(tr("The first time your AI opens your calendar or reminders, macOS asks you to allow it.")),
+  ],
+  permissions: () => {
+    const { accessibility, screen } = state.permissions;
+    const activate = (on, pane) => (on ? [] : [button(tr("Turn on"), () => act(window.api.openPrivacy(pane)))]);
+    return [
+      ...heading(tr("Let Claude use your apps"), tr("You turned on app control, so macOS needs your OK. Press Turn on, then switch on SMCP in the list. This screen updates by itself."), tr("Your Mac")),
+      line(
+        statusStop(accessibility, tr("Accessibility"), tr("To control apps"), ...activate(accessibility, "accessibility")),
+        statusStop(screen, tr("Screen Recording"), tr("To take screenshots"), ...activate(screen, "screen")),
+      ),
+      hint(tr("After you turn on Screen Recording, macOS asks you to restart SMCP.")),
+    ];
+  },
+  nightlight: nightLightStep,
   tailscale: () => {
     const { tailscale } = state;
     const actions = tailscale.running
@@ -710,33 +946,42 @@ const STEPS = {
     const networkMeta = count === 1 ? tr("1 device on your network") : tr("{count} devices on your network", { count });
     const meta = tailscale.running ? networkMeta : tailscale.installed ? tr("Not signed in yet") : tr("Not installed");
     return [
-      ...heading(tr("Have more computers?"), tr("Tailscale joins them in a private network so you can reach them from anywhere. If you only use this one, skip this step.")),
+      ...heading(
+        tr("Take it with you"),
+        `${tr("With Tailscale, your computers join a private network, so you can reach them from anywhere.")} ${isMac() ? tr("It also lets you use SMCP from the Claude app on your phone.") : ""} ${tr("If you only use this computer, skip this step.")}`.replace(/\s+/g, " "),
+        tr("Anywhere"),
+      ),
       line(statusStop(tailscale.running, "Tailscale", meta, ...actions)),
       hint(tr("It's a separate app, free for personal use. Install it, sign in and come back: this screen updates by itself.")),
+      ...(state.remote.supported ? [hint(tr("Then turn on Remote access in Connections to get a private link for your phone, the web or ChatGPT."))] : []),
     ];
   },
-  permissions: () => {
-    const { accessibility, screen } = state.permissions;
-    const activate = (on, pane) => (on ? [] : [button(tr("Turn on"), () => act(window.api.openPrivacy(pane)))]);
+  done: () => {
+    if (!isMac()) {
+      return [logo(), ...heading(tr("You're all set"), tr("SMCP stays in the system tray. Your devices show up in Connections as soon as Tailscale sees them."))];
+    }
     return [
-      ...heading(tr("Your Mac's permissions"), tr("Only if you want Claude to control apps or take screenshots. Press Turn on, then switch on SMCP in the list.")),
-      line(
-        statusStop(accessibility, tr("Accessibility"), tr("To control apps"), ...activate(accessibility, "accessibility")),
-        statusStop(screen, tr("Screen Recording"), tr("To take screenshots"), ...activate(screen, "screen")),
-      ),
-      hint(tr("After you turn on Screen Recording, macOS asks you to restart SMCP.")),
+      logo(),
+      ...heading(tr("You're all set"), tr("SMCP lives in the menu bar and works quietly in the background. Restart your AI app so it sees SMCP, then try one of these:")),
+      element("div", { className: "ob-prompts" }, ...firstPrompts().map(promptCard)),
+      setupSummary(),
+      hint(tr("Anything you skipped is waiting in Connections and Settings. Pause SMCP from there anytime.")),
     ];
   },
-  done: () => [
-    logo(),
-    ...heading(tr("All connected"), tr("SMCP stays in the menu bar. Restart your AI app and try: “Summarize my unread WhatsApp chats.”")),
-  ],
 };
 
 function stepNames() {
   if (!state) return ["welcome"];
-  if (state.platform !== "darwin") return ["welcome", "tailscale", "done"];
-  return ["welcome", "claude", "whatsapp", "gmail", "notes", "tailscale", "permissions", "done"];
+  if (!isMac()) return ["welcome", "tailscale", "done"];
+  const names = ["welcome", "claude"];
+  if (state.whatsapp.supported) names.push("whatsapp");
+  names.push("gmail", "notes");
+  if (state.about) names.push("about");
+  names.push("protection", "more");
+  if (!state.policy.disabled.apps) names.push("permissions");
+  if (nightLightReady()) names.push("nightlight");
+  names.push("tailscale", "done");
+  return names;
 }
 
 function renderRail(names) {
@@ -753,7 +998,21 @@ function renderOnboarding() {
   const names = stepNames();
   step = Math.min(step, names.length - 1);
   const name = names[step];
-  const key = JSON.stringify([name, state.clients, state.gmail.accounts, state.notes.vaults, state.whatsapp.linked, state.tailscale.running, state.tailscale.installed, state.tailscale.machines.length, state.permissions]);
+  const key = JSON.stringify([
+    name,
+    state.clients,
+    state.gmail.accounts,
+    state.notes.vaults,
+    state.whatsapp.linked,
+    state.tailscale.running,
+    state.tailscale.installed,
+    state.tailscale.machines.length,
+    state.permissions,
+    state.policy,
+    state.about,
+    nightLight?.settings,
+    name === "nightlight" ? NL.nowText(nightLight) : null,
+  ]);
   renderRail(names);
   if (key === onboardingKey) return;
   onboardingKey = key;
@@ -767,7 +1026,8 @@ function renderOnboarding() {
   $("ob-progress").textContent = name === "welcome" || name === "done" ? "" : tr("Step {step} of {total}", { step, total: middle });
   $("ob-back").hidden = step === 0;
   $("ob-skip").hidden = name === "welcome" || name === "done";
-  $("ob-next").textContent = name === "welcome" ? tr("Get started") : name === "done" ? tr("Open SMCP") : tr("Continue");
+  $("ob-skip").textContent = tr("Skip for now");
+  $("ob-next").textContent = name === "welcome" ? tr("Let's get started") : name === "done" ? tr("Start using SMCP") : tr("Continue");
 }
 
 async function finishOnboarding() {
@@ -928,6 +1188,7 @@ $("copy-diagnostics").onclick = async () => {
   if (result.ok) $("diag-status").textContent = tr("Copied to clipboard.");
   else showError(result.error);
 };
+$("language").replaceChildren(...languageOptions());
 $("language").value = SMCP_I18N.language();
 $("language").onchange = (event) => window.api.setLanguage(event.target.value);
 $("wa-qr-image").alt = tr("QR code to link WhatsApp");
@@ -1024,6 +1285,7 @@ function renderNightLight(status) {
   $("nl-pause").hidden = !settings.enabled || (manual && status.now.kelvin >= 6500);
   $("nl-override-note").textContent = manual ? NL.nowText(status) : tr("Following the schedule.");
   $("nl-missing").hidden = status.installed !== false || status.supported === false;
+  if (onboardingOpen && state) renderOnboarding();
 }
 
 async function nightLightCall(op, args) {

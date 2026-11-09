@@ -44,6 +44,8 @@ contextBridge.exposeInMainWorld("api", {
   nightlight: (op, args) => call("nightlight", op, args),
   onNightLightChanged: (listener) => ipcRenderer.on("nightlight-changed", () => listener()),
   setOnboarded: (value) => call("set-onboarded", value),
+  aboutSave: (text) => call("about-save", text),
+  aboutOpen: () => call("about-open"),
   openLink: (name) => call("open-link", name),
   openTailscale: () => call("open-tailscale"),
   openPrivacy: (pane) => call("open-privacy", pane),
