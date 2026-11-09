@@ -1,0 +1,25 @@
+# Checks that every text the app shows exists in every language, so no screen falls back to English.
+# It reads files only: no dependencies, no secrets.
+name: Languages
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  translations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+
+      - name: Every text is translated
+        run: node --test test/i18n.test.js

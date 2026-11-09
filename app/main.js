@@ -26,6 +26,18 @@ import "./ui/i18n.js";
 import "./ui/i18n/es-settings.js";
 import "./ui/i18n/es-tasks.js";
 import "./ui/i18n/es-main.js";
+import "./ui/i18n/pt-settings.js";
+import "./ui/i18n/pt-tasks.js";
+import "./ui/i18n/pt-main.js";
+import "./ui/i18n/fr-settings.js";
+import "./ui/i18n/fr-tasks.js";
+import "./ui/i18n/fr-main.js";
+import "./ui/i18n/de-settings.js";
+import "./ui/i18n/de-tasks.js";
+import "./ui/i18n/de-main.js";
+import "./ui/i18n/it-settings.js";
+import "./ui/i18n/it-tasks.js";
+import "./ui/i18n/it-main.js";
 import {
   addToClaudeCode,
   addToDesktop,
@@ -50,6 +62,8 @@ import { logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/w
 import { audioSupported, downloadModel } from "./core/whisper.js";
 import { buildRemoteServer } from "../src/remote-tools.js";
 import { clearAudit, readAudit } from "../src/audit.js";
+import { aboutLocation, aboutStatus, startAbout } from "../src/context.js";
+import { isLanguage } from "../src/languages.js";
 import { EVENTS, REMINDERS } from "../src/eventkit.js";
 import { startHelper } from "../src/helper.js";
 import { denialFor, GROUPS, readPolicy, WHATSAPP_ABILITIES, writePolicy } from "../src/policy.js";
@@ -133,7 +147,8 @@ const settingsPath = () => join(app.getPath("userData"), "settings.json");
 /** Read synchronously: the preload asks for the language before any window can wait on a promise. */
 function readSavedLanguage() {
   try {
-    return JSON.parse(readFileSync(settingsPath(), "utf8")).language === "es" ? "es" : "en";
+    const { language } = JSON.parse(readFileSync(settingsPath(), "utf8"));
+    return isLanguage(language) ? language : "en";
   } catch {
     return "en";
   }
@@ -225,6 +240,7 @@ async function readState() {
     onboarded: settings.onboarded === true,
     permissions: readPermissions(),
     policy: readPolicy(),
+    about: readAboutStatus(),
     version: app.getVersion(),
     update,
   };
@@ -604,6 +620,22 @@ function toggleVault(path, enabled) {
   const known = lastState?.notes.vaults.some((vault) => vault.path === path);
   if (!known) throw new Error(tr("That vault is no longer available."));
   setVault(path, Boolean(enabled));
+}
+
+/** Where the person's notes for the AI live; a broken vault setting must not break the whole screen. */
+function readAboutStatus() {
+  try {
+    return aboutStatus();
+  } catch {
+    return null;
+  }
+}
+
+async function openAbout() {
+  const { path } = aboutLocation();
+  if (!existsSync(path)) throw new Error(tr("Write something about yourself first."));
+  const error = await shell.openPath(path);
+  if (error) throw new Error(error);
 }
 
 async function setOnboarded(value) {
@@ -1140,7 +1172,7 @@ function handle(channel, fn) {
 
 /** Asking for the language already in use does nothing, so a page can never reload itself in a loop. */
 async function setLanguage(language) {
-  if (language !== "en" && language !== "es") throw new Error(tr("Unknown language."));
+  if (!isLanguage(language)) throw new Error(tr("Unknown language."));
   if (language === SMCP_I18N.language()) return;
   const settings = await readSettings();
   settings.language = language;
@@ -1206,6 +1238,8 @@ function registerIpc() {
     return run(args && typeof args === "object" ? args : {});
   });
   handle("set-onboarded", setOnboarded);
+  handle("about-save", (text) => startAbout(text));
+  handle("about-open", openAbout);
   handle("open-link", openLink);
   handle("open-tailscale", openTailscale);
   handle("open-privacy", openPrivacy);

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { aboutLocation, availableAreas, buildContext, buildInstructions, MAX_ABOUT_CHARS, readAbout, rememberNote } from "../src/context.js";
+import { aboutLocation, aboutStatus, availableAreas, buildContext, buildInstructions, MAX_ABOUT_CHARS, readAbout, rememberNote, startAbout } from "../src/context.js";
 import { denialFor, readPolicy, toolGroup } from "../src/policy.js";
 import { REMOTE_TOOLS } from "../src/remote-tools.js";
 import { registerPrompts } from "../src/tools/context.js";
@@ -181,4 +181,28 @@ test("un about.md anterior se sigue usando; sin vault o con Notas apagadas va al
     assert.equal(aboutLocation({ policy: fresh(), vaults: () => [], language: "es", legacy: none }).path, none);
     const notesOff = { ...fresh(), disabled: { ...fresh().disabled, notes: true } };
     assert.equal(aboutLocation({ policy: notesOff, vaults, language: "es", legacy: none }).where, "file");
+  }));
+
+test("la configuración inicial crea la nota Sobre mí, pero nunca reemplaza una que ya tiene texto", () =>
+  withoutOverride(async () => {
+    const vault = join(dir, "BrainSetup");
+    await mkdir(vault, { recursive: true });
+    const options = { policy: fresh(), vaults: () => [{ path: vault, name: "BrainSetup" }], language: "es", legacy: join(dir, "nada-setup.md") };
+    assert.deepEqual(aboutStatus(options), { where: "vault", vault: "BrainSetup", note: join("SMCP", "Sobre mí.md"), display: `BrainSetup › ${join("SMCP", "Sobre mí")}`, written: false });
+    await assert.rejects(startAbout("   ", options), /Write something/);
+    await startAbout("Soy Ana.\r\nMi socio es Luis.", options);
+    const path = join(vault, "SMCP", "Sobre mí.md");
+    assert.equal(await readFile(path, "utf8"), "# Sobre mí\n\nLo que tu IA debe saber de ti: quién eres, tus empresas, tu gente clave y cómo te gusta que te respondan. SMCP se lo entrega al conectarse.\n\nSoy Ana.\nMi socio es Luis.\n");
+    assert.equal(aboutStatus(options).written, true);
+    await assert.rejects(startAbout("Otra cosa", options), /already wrote/);
+    assert.match(await readFile(path, "utf8"), /Mi socio es Luis/);
+  }));
+
+test("en francés la nota se llama À propos de moi y lo aprendido va bajo Appris", () =>
+  withoutOverride(async () => {
+    const path = join(dir, "BrainFR", "SMCP", "À propos de moi.md");
+    await rememberNote("Préfère des réponses courtes", { path, language: "fr", now: new Date("2026-11-09T12:00:00Z") });
+    const text = await readFile(path, "utf8");
+    assert.match(text, /^# À propos de moi\n/);
+    assert.match(text, /## Appris\n\n- Préfère des réponses courtes \(2026-11-09\)/);
   }));
