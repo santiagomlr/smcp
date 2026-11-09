@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { funnelTargets, publicBaseUrl } from "../app/core/funnel.js";
 import { createRemote } from "../app/core/remote.js";
-import { buildRemoteServer, REMOTE_TOOLS } from "../src/remote-tools.js";
+import { buildRemoteServer, REMOTE_TASK_WRITES, REMOTE_TOOLS } from "../src/remote-tools.js";
 
 const PORT = 47899;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -134,7 +134,8 @@ test("flujo completo: conectar, listar solo herramientas permitidas y llamar una
 
   const list = await (await mcp(session.access_token, { method: "tools/list" })).json();
   const names = list.result.tools.map((tool) => tool.name);
-  assert.deepEqual(new Set(names), REMOTE_TOOLS);
+  // Task edits are listed, but each call checks the remote task-writes setting first.
+  assert.deepEqual(new Set(names), new Set([...REMOTE_TOOLS, ...REMOTE_TASK_WRITES]));
   for (const forbidden of ["run_command", "whatsapp_send", "gmail_send", "file_write", "ui_click", "screenshot"]) {
     assert.ok(!names.includes(forbidden), forbidden);
   }

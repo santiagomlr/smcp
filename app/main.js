@@ -377,6 +377,7 @@ function updatePolicy(patch) {
   for (const ability of WHATSAPP_ABILITIES) {
     if (typeof patch.whatsapp?.[ability] === "boolean") policy.whatsapp[ability] = patch.whatsapp[ability];
   }
+  if (typeof patch.remote?.taskWrites === "boolean") policy.remote.taskWrites = patch.remote.taskWrites;
   writePolicy(policy);
 }
 
@@ -512,6 +513,7 @@ async function openPrivacy(pane) {
 
 const TASK_TOOLS = {
   available: { name: "tasks_available" },
+  summary: { name: "tasks_available" },
   search: { name: "tasks_search" },
   listProjects: { name: "tasks_list_projects" },
   claudeQueue: { name: "tasks_claude_queue" },
