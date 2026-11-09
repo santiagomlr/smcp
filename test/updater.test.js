@@ -143,3 +143,49 @@ test("el cambio de app reemplaza el paquete y la vuelve a abrir", { skip: proces
   assert.match(readFileSync(opened, "utf8"), /--background/);
   assert.equal(existsSync(join(root, "work")), false);
 });
+
+test("reintenta cuando GitHub responde 504 y luego encuentra la versión", async () => {
+  const text = manifestFor("0.2.0");
+  const ok = fakeFetch(text);
+  let failures = 2;
+  const waits = [];
+  const { instance } = updater({
+    fetchImpl: async (url) => (url.endsWith("latest.json") && failures-- > 0 ? response("", 504) : ok(url)),
+    sleep: async (ms) => waits.push(ms),
+  });
+  const result = await instance.check();
+  assert.equal(result.status, "available");
+  assert.equal(waits.length, 2);
+});
+
+test("reintenta un fallo de red y se rinde con un mensaje claro si GitHub sigue caído", async () => {
+  let calls = 0;
+  const { instance } = updater({
+    fetchImpl: async (url) => {
+      calls += 1;
+      if (url.endsWith(".sig")) throw new TypeError("fetch failed");
+      return response("", 504);
+    },
+    sleep: async () => {},
+  });
+  const result = await instance.check();
+  assert.equal(result.status, "error");
+  assert.equal(calls, 6);
+});
+
+test("no reintenta un 404", async () => {
+  let calls = 0;
+  const waits = [];
+  const { instance } = updater({
+    fetchImpl: async () => (calls++, response("", 404)),
+    sleep: async (ms) => waits.push(ms),
+  });
+  const result = await instance.check();
+  assert.match(result.message, /GitHub responded 404/);
+  assert.equal(waits.length, 0);
+});
+
+test("el mensaje de 504 persistente dice que GitHub no responde", async () => {
+  const { instance } = updater({ fetchImpl: async () => response("", 504), sleep: async () => {} });
+  assert.match((await instance.check()).message, /GitHub is not responding right now \(504\)/);
+});

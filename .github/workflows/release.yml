@@ -60,10 +60,19 @@ jobs:
         env:
           VERSION: ${{ steps.plan.outputs.version }}
         run: |
-          npm ci
+          # Electron and other packages download binaries from GitHub, which sometimes answers 5xx; retry instead of failing the release.
+          retry() {
+            for delay in 15 45 90 0; do
+              "$@" && return 0
+              [ "$delay" = 0 ] && return 1
+              echo "::warning::'$*' failed; retrying in ${delay}s."
+              sleep "$delay"
+            done
+          }
+          retry npm ci
           npm version "$VERSION" --no-git-tag-version --allow-same-version
-          npm run whatsapp:install
-          npm run whatsapp:audio-install
+          retry npm run whatsapp:install
+          retry npm run whatsapp:audio-install
           npm run nightlight:install
 
       - name: Load the signing key

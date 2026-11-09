@@ -67,6 +67,7 @@ export const WHATSAPP_TOOL_ABILITIES = {
   whatsapp_sync: ["read"],
   whatsapp_chat_digest: ["read"],
   whatsapp_search_transcripts: ["read"],
+  whatsapp_scan_file: ["read"],
   whatsapp_send: ["send"],
   whatsapp_send_file: ["send"],
   whatsapp_transcribe_audio: ["audio"],

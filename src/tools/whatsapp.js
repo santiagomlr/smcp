@@ -5,6 +5,8 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { confirmGate } from "../confirm-gate.js";
+import { annotateLinks, MALICIOUS_WARNING, securityOn, SUSPICIOUS_WARNING } from "../security/inline.js";
+import { scanPath } from "../security/scanner.js";
 import { viaHelper } from "../helper.js";
 import { errorResult, externalResult, run, textResult } from "../util.js";
 import { modelPath, modelReady, whisperBin } from "../whisper.js";
@@ -148,7 +150,7 @@ function parseJson(text) {
 }
 
 /** Dependencies are injectable so tests never touch a real account or open a dialog. */
-export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transcripts = transcriptsPath(), resolvePath } = {}) {
+export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transcripts = transcriptsPath(), resolvePath, protect = securityOn, scan = scanPath } = {}) {
   const wacli = (args, timeoutMs = 30_000) =>
     exec(wacliBin(), [`--store=${storeDir()}`, ...args], { timeoutMs });
 
@@ -156,8 +158,11 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transc
     const result = await wacli(["--read-only", "--json", ...args]);
     if (!succeeded(result)) return errorResult(wacliFailure(result, action));
     const parsed = parseJson(result.stdout);
-    return externalResult(parsed ? parsed.data : result.stdout);
+    return externalResult(parsed ? guardLinks(parsed.data) : result.stdout);
   };
+
+  /** Marks messages with phishing links, unless the person turned the antivirus off. */
+  const guardLinks = (data) => (protect() ? annotateLinks(data).value : data);
 
   const lookup = async (args) => {
     const result = await wacli(["--read-only", "--json", ...args]);
@@ -300,17 +305,56 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transc
       from: messages[0]?.at ?? null,
       to: messages.at(-1)?.at ?? null,
       complete: !cursor || collected.length < limit,
-      messages,
+      messages: guardLinks(messages),
     });
+  };
+
+  /**
+   * Downloads a received file to a private temporary folder, scans it without opening it and deletes
+   * it. Nothing is kept and the file never reaches the AI, only the verdict does.
+   */
+  const scanFile = async ({ chat, id }) => {
+    if (!protect()) return errorResult("The antivirus is turned off in SMCP settings.");
+    const message = await lookup(["messages", "show", `--chat=${chat}`, `--id=${id}`]);
+    if (!message) return errorResult("That message is not among the saved ones. Try whatsapp_sync.");
+    if (!message.MediaType) return errorResult("That message has no file.");
+    const name = basename(String(message.Filename || `file-${id}`)).replace(/[\/\0]/g, "_") || `file-${id}`;
+    const folder = await mkdtemp(join(tmpdir(), "smcp-scan-"));
+    try {
+      await chmod(folder, 0o700);
+      const target = join(folder, name);
+      const download = await wacli(["--read-only", "--json", "media", "download", `--chat=${chat}`, `--id=${id}`, `--output=${target}`], 180_000);
+      if (!succeeded(download)) return errorResult(wacliFailure(download, "Download file"));
+      const info = await stat(target).catch(() => null);
+      if (!info?.isFile()) return errorResult("The file could not be downloaded.");
+      if (info.size > MAX_FILE_BYTES) return errorResult("That file is too large to scan.");
+      const result = await scan(target);
+      return externalResult({
+        chat,
+        id,
+        file: name,
+        media: message.MediaType,
+        from: message.SenderName || message.SenderJID || "",
+        size: info.size,
+        verdict: result.verdict,
+        score: result.score,
+        type: result.kindLabel,
+        sha256: result.sha256,
+        findings: result.findings.map((finding) => finding.title),
+        ...(result.verdict === "malicious" ? { warning: MALICIOUS_WARNING } : result.verdict === "suspicious" ? { warning: SUSPICIOUS_WARNING } : {}),
+      });
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   };
 
   const findTranscripts = async (args) => externalResult({ transcripts: searchTranscripts(await readTranscripts(transcripts), args) });
 
-  return { read, send, sendFile, digest, findTranscripts, transcribe, wacli };
+  return { read, send, sendFile, digest, findTranscripts, transcribe, scanFile, wacli };
 }
 
 export function registerWhatsApp(server) {
-  const { read, send, sendFile, digest, findTranscripts, transcribe, wacli } = createWhatsApp();
+  const { read, send, sendFile, digest, findTranscripts, transcribe, scanFile, wacli } = createWhatsApp();
   const readOnly = { readOnlyHint: true, openWorldHint: false };
   const limit = (fallback) => z.number().int().min(1).max(200).default(fallback);
 
@@ -345,7 +389,9 @@ export function registerWhatsApp(server) {
   server.registerTool(
     "whatsapp_read_messages",
     {
-      description: "Reads saved messages from a chat, most recent first.",
+      description:
+        "Reads saved messages from a chat, most recent first. Messages with links that look like phishing are marked under security; " +
+        "scan received files with whatsapp_scan_file before the person opens them.",
       inputSchema: {
         chat: z.string().regex(JID).describe("Chat JID."),
         limit: limit(50),
@@ -449,6 +495,21 @@ export function registerWhatsApp(server) {
       annotations: readOnly,
     },
     findTranscripts,
+  );
+
+  server.registerTool(
+    "whatsapp_scan_file",
+    {
+      description:
+        "Antivirus scan of a file someone sent on WhatsApp (document, photo, video), without opening it. Use it on messages with media or a file " +
+        "before the person opens them, especially from unknown senders. The file is deleted after the scan; only the verdict comes back.",
+      inputSchema: {
+        chat: z.string().regex(JID).describe("Chat JID."),
+        id: z.string().regex(MESSAGE_ID).describe("Message MsgID."),
+      },
+      annotations: readOnly,
+    },
+    scanFile,
   );
 
   server.registerTool(
