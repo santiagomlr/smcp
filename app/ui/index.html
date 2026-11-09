@@ -151,9 +151,22 @@
             <li><label for="group-gmail">Gmail</label><input id="group-gmail" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-notes">Notes</label><input id="group-notes" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-tasks">Tasks</label><input id="group-tasks" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-calendar">Calendar<small>Reads events. Adding one asks you first.</small></label><input id="group-calendar" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-reminders">Reminders</label><input id="group-reminders" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-applenotes">Apple Notes<small>Read only. Locked notes stay locked.</small></label><input id="group-applenotes" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-files">Files</label><input id="group-files" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-clipboard">Clipboard<small>It can hold passwords and codes.</small></label><input id="group-clipboard" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-terminal">Terminal<small>Can run any command.</small></label><input id="group-terminal" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-apps">Control apps</label><input id="group-apps" class="switch" type="checkbox" role="switch" /></li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="h-activity">
+          <h2 id="h-activity">Recent activity</h2>
+          <p class="hint">Which tools your AI used, when and from where. It never saves what they read or sent.</p>
+          <ol id="activity" class="activity"></ol>
+          <ul class="rows">
+            <li><span>Activity log<small id="activity-status"></small></span><button id="activity-clear" type="button">Clear</button></li>
           </ul>
         </section>
 

@@ -430,6 +430,48 @@ h2 {
   color: var(--muted);
 }
 
+/* Activity log */
+
+.activity {
+  max-height: 260px;
+  margin: 0 0 8px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.activity > li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.activity > li:first-child {
+  border-top: 0;
+}
+
+.activity-tool {
+  overflow: hidden;
+  font: 500 var(--text-sm) / 1.4 ui-monospace, "SF Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity small {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.activity-denied small,
+.activity-error small,
+.activity-failed small {
+  color: var(--halt);
+}
+
 /* Controls */
 
 button {

@@ -83,4 +83,50 @@ export function registerGmail(server) {
     },
     tool("gmailSend", textResult, { timeoutMs: SEND_TIMEOUT_MS }),
   );
+
+  server.registerTool(
+    "gmail_reply",
+    {
+      description:
+        "Replies to an email. The recipients and the 'Re:' subject come from the original, so only the body is needed. Opens a macOS window and sends only if the person presses Send.",
+      inputSchema: {
+        account,
+        uid: z.number().int().min(1).describe("uid of the email being answered, from gmail_search."),
+        body: z.string().min(1).max(2000),
+        reply_all: z.boolean().default(false).describe("Also answers everyone else on To and Cc."),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    tool("gmailReply", textResult, { timeoutMs: SEND_TIMEOUT_MS }),
+  );
+
+  server.registerTool(
+    "gmail_draft",
+    {
+      description:
+        "Saves a draft in the account's Drafts folder without sending it, so the person can review and send it from Gmail. With `reply_to_uid`, it stays in that conversation and the recipients and subject can be left out.",
+      inputSchema: {
+        account,
+        to: z.array(z.string().max(254)).max(10).optional(),
+        subject: z.string().max(200).optional(),
+        body: z.string().min(1).max(50_000),
+        reply_to_uid: z.number().int().min(1).optional(),
+        reply_all: z.boolean().default(false),
+      },
+      // A draft is still writing, so read-only mode stops it.
+      annotations: { readOnlyHint: false, openWorldHint: true },
+    },
+    tool("gmailDraft", textResult),
+  );
+
+  server.registerTool(
+    "gmail_read_attachment",
+    {
+      description:
+        "Reads an email attachment as text: PDFs, Word, RTF, HTML and plain text. `index` counts from 0 in the order gmail_read lists the attachments.",
+      inputSchema: { account, uid: z.number().int().min(1), index: z.number().int().min(0).max(100) },
+      annotations: readOnly,
+    },
+    tool("gmailAttachment", externalResult, { timeoutMs: 180_000 }),
+  );
 }

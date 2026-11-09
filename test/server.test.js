@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -7,17 +9,30 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 const entry = join(fileURLToPath(new URL(".", import.meta.url)), "..", "src", "index.js");
 const client = new Client({ name: "test", version: "1" });
+let dir;
 
-before(() =>
-  client.connect(
+// Its own settings and log, so the person's real ones neither decide nor record these calls.
+before(async () => {
+  dir = await mkdtemp(join(tmpdir(), "smcp-server-"));
+  await writeFile(join(dir, "config.json"), JSON.stringify({ disabled: { terminal: false } }));
+  await client.connect(
     new StdioClientTransport({
       command: process.execPath,
       args: [entry],
-      env: { ...process.env, WACLI_BIN: "/no/existe/wacli" },
+      env: {
+        ...process.env,
+        WACLI_BIN: "/no/existe/wacli",
+        SMCP_CONFIG: join(dir, "config.json"),
+        SMCP_AUDIT: join(dir, "audit.jsonl"),
+        SMCP_SOCKET: join(dir, "none.sock"),
+      },
     }),
-  ),
-);
-after(() => client.close());
+  );
+});
+after(async () => {
+  await client.close();
+  await rm(dir, { recursive: true, force: true });
+});
 
 test("expone las herramientas esperadas por MCP", async () => {
   const { tools } = await client.listTools();
@@ -25,20 +40,39 @@ test("expone las herramientas esperadas por MCP", async () => {
   assert.deepEqual(names, [
     "app_focus",
     "app_list",
+    "applenotes_read",
+    "applenotes_recent",
+    "applenotes_search",
+    "calendar_create_event",
+    "calendar_free_slots",
+    "calendar_list_calendars",
+    "calendar_list_events",
+    "clipboard_read",
+    "clipboard_write",
+    "daily_brief",
     "file_list",
     "file_read",
     "file_search",
     "file_write",
+    "gmail_draft",
     "gmail_list_accounts",
     "gmail_read",
+    "gmail_read_attachment",
+    "gmail_reply",
     "gmail_search",
     "gmail_send",
     "notes_list_vaults",
     "notes_read",
     "notes_recent",
     "notes_search",
+    "notes_semantic_search",
     "notes_write",
+    "reminders_complete",
+    "reminders_create",
+    "reminders_list",
+    "reminders_list_lists",
     "run_command",
+    "screen_read_text",
     "screenshot",
     "tasks_append_note",
     "tasks_available",
@@ -56,11 +90,14 @@ test("expone las herramientas esperadas por MCP", async () => {
     "ui_key",
     "ui_read_tree",
     "ui_type",
+    "whatsapp_chat_digest",
     "whatsapp_list_chats",
     "whatsapp_read_messages",
     "whatsapp_search_contacts",
     "whatsapp_search_messages",
+    "whatsapp_search_transcripts",
     "whatsapp_send",
+    "whatsapp_send_file",
     "whatsapp_status",
     "whatsapp_sync",
     "whatsapp_transcribe_audio",
@@ -82,6 +119,17 @@ test("una llamada real de punta a punta funciona", async () => {
     arguments: { command: "echo punta-a-punta" },
   });
   assert.match(result.content[0].text, /punta-a-punta/);
+});
+
+test("cada llamada queda en el registro de actividad, sin sus argumentos", async () => {
+  await client.callTool({ name: "run_command", arguments: { command: "echo secreto-del-registro" } });
+  const log = await readFile(join(dir, "audit.jsonl"), "utf8");
+  assert.ok(!log.includes("secreto-del-registro"));
+  const last = JSON.parse(log.trim().split("\n").at(-1));
+  assert.equal(last.tool, "run_command");
+  assert.equal(last.outcome, "ok");
+  assert.equal(last.source, "local");
+  assert.equal(last.client, "test");
 });
 
 test("rechaza un JID inválido antes de llamar a wacli", async () => {

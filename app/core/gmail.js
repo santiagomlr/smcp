@@ -5,6 +5,8 @@ import { dirname, join } from "node:path";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
+import MailComposer from "nodemailer/lib/mail-composer";
+import { bufferText } from "../../src/documents.js";
 
 const EMAIL = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/;
 const APP_PASSWORD = /^[a-zA-Z]{16}$/;
@@ -13,6 +15,34 @@ const MAX_LABEL = 40;
 const MAX_BODY_CHARS = 2000;
 const MAX_READ_CHARS = 50_000;
 const MAX_RECIPIENTS = 10;
+const MAX_DRAFT_CHARS = 50_000;
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+/** Draft bytes for IMAP APPEND. Replaceable in tests. */
+export function composeMessage(mail) {
+  return new MailComposer(mail).compile().build();
+}
+
+/** "Re: " once, never "Re: Re: ". */
+export function replySubject(subject) {
+  const clean = String(subject ?? "").replace(/[\r\n]+/g, " ").trim();
+  return /^(re|aw|rv|sv)\s*:/i.test(clean) ? clean.slice(0, 200) : `Re: ${clean}`.slice(0, 200);
+}
+
+/** Who a reply goes to: the Reply-To or sender, and with reply all, everyone else except this account. */
+export function replyRecipients(envelope, self, replyAll = false) {
+  const addresses = (list) => (list ?? []).map((item) => String(item.address ?? "").trim().toLowerCase()).filter(Boolean);
+  const primary = addresses(envelope?.replyTo).length ? addresses(envelope.replyTo) : addresses(envelope?.from);
+  const others = replyAll ? [...addresses(envelope?.to), ...addresses(envelope?.cc)] : [];
+  const seen = new Set([String(self).toLowerCase()]);
+  const out = [];
+  for (const address of [...primary, ...others]) {
+    if (seen.has(address) || !EMAIL.test(address)) continue;
+    seen.add(address);
+    out.push(address);
+  }
+  return out;
+}
 
 export function defaultStorePath() {
   return join(homedir(), ".smcp", "gmail.json");
@@ -164,7 +194,30 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
       return { total: found.length, messages };
     });
 
-  return {
+  /** The original's headers, so a reply or a draft stays in its conversation. */
+  const replyContext = (target, uid, replyAll) =>
+    withMailbox(target.email, async (client) => {
+      if (!Number.isInteger(uid) || uid < 1) throw new Error("Invalid message identifier.");
+      const original = await client.fetchOne(String(uid), { envelope: true }, { uid: true });
+      const envelope = original?.envelope;
+      if (!envelope?.messageId) throw new Error("The message to reply to was not found.");
+      return {
+        to: replyRecipients(envelope, target.email, replyAll),
+        subject: replySubject(envelope.subject),
+        inReplyTo: envelope.messageId,
+        references: envelope.messageId,
+      };
+    });
+
+  const cleanRecipients = (to, { allowEmpty = false } = {}) => {
+    const recipients = (Array.isArray(to) ? to : to === undefined ? [] : [to]).map((item) => String(item ?? "").trim());
+    if ((!allowEmpty && !recipients.length) || recipients.length > MAX_RECIPIENTS || !recipients.every((item) => EMAIL.test(item))) {
+      throw new Error(`Give from ${allowEmpty ? 0 : 1} to ${MAX_RECIPIENTS} valid email addresses.`);
+    }
+    return recipients;
+  };
+
+  const api = {
     async verifyAndAdd(values) {
       const credentials = normalizeCredentials(values);
       const client = imap(credentials);
@@ -279,5 +332,96 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp }
         transport.close?.();
       }
     },
+
+    /** Fills in the recipients and subject from the original, then asks like any other send. */
+    async reply({ account, uid, body, reply_all: replyAll = false }) {
+      const target = await resolve(account);
+      let context;
+      try {
+        context = await replyContext(target, uid, replyAll);
+      } catch (error) {
+        throw new Error(/not found|identifier/.test(error.message) ? error.message : friendlyMailError(error));
+      }
+      if (!context.to.length) throw new Error("That message has no one to reply to.");
+      return api.send({ account, to: context.to.slice(0, MAX_RECIPIENTS), subject: context.subject, body, reply_to_uid: uid });
+    },
+
+    /**
+     * Saves a draft in the account's Drafts folder. Nothing is sent, so no window opens: the person
+     * reviews and sends it from Gmail.
+     */
+    async draft({ account, to, subject, body, reply_to_uid: replyToUid, reply_all: replyAll = false }) {
+      const target = await resolve(account);
+      const text = String(body ?? "");
+      if (!text.trim()) throw new Error("The message is empty.");
+      if (text.length > MAX_DRAFT_CHARS) throw new Error(`A draft can have up to ${MAX_DRAFT_CHARS} characters.`);
+      let recipients = cleanRecipients(to, { allowEmpty: true });
+      let cleanSubject = String(subject ?? "");
+      if (/[\r\n]/.test(cleanSubject) || cleanSubject.length > 200) throw new Error("The subject is not valid.");
+      let thread = {};
+      if (replyToUid !== undefined) {
+        const context = await replyContext(target, replyToUid, replyAll).catch((error) => {
+          throw new Error(/not found|identifier/.test(error.message) ? error.message : friendlyMailError(error));
+        });
+        if (!recipients.length) recipients = context.to.slice(0, MAX_RECIPIENTS);
+        if (!cleanSubject) cleanSubject = context.subject;
+        thread = { inReplyTo: context.inReplyTo, references: context.references };
+      }
+      const raw = await composeMessage({
+        from: { name: target.label === target.email ? "" : target.label, address: target.email },
+        to: recipients,
+        subject: cleanSubject,
+        text,
+        ...thread,
+      });
+      const client = imap(await store.credentials(target.email));
+      try {
+        await client.connect();
+        const folders = await client.list();
+        const drafts = folders.find((folder) => folder.specialUse === "\\Drafts")?.path;
+        if (!drafts) throw new Error("NO_DRAFTS");
+        const saved = await client.append(drafts, raw, ["\\Draft", "\\Seen"]);
+        return { drafted: true, account: target.email, to: recipients, subject: cleanSubject, folder: drafts, uid: saved?.uid ?? null };
+      } catch (error) {
+        if (error.message === "NO_DRAFTS") throw new Error("This account has no Drafts folder that SMCP can find.");
+        throw new Error(friendlyMailError(error));
+      } finally {
+        await client.logout().catch(() => {});
+      }
+    },
+
+    /** An attachment as text: PDFs, Word, RTF, HTML and plain text. Never the raw bytes. */
+    async attachment({ account, uid, index }) {
+      if (!Number.isInteger(uid) || uid < 1) throw new Error("Invalid message identifier.");
+      if (!Number.isInteger(index) || index < 0) throw new Error("Invalid attachment number.");
+      const target = await resolve(account);
+      let file;
+      try {
+        file = await withMailbox(target.email, async (client) => {
+          const message = await client.fetchOne(String(uid), { source: true }, { uid: true });
+          if (!message?.source) throw new Error("NOT_FOUND");
+          const parsed = await simpleParser(message.source);
+          const attachment = (parsed.attachments ?? [])[index];
+          if (!attachment) throw new Error("NO_ATTACHMENT");
+          return { filename: attachment.filename ?? "unnamed", size: attachment.size, content: attachment.content };
+        });
+      } catch (error) {
+        if (error.message === "NOT_FOUND") throw new Error("That message was not found.");
+        if (error.message === "NO_ATTACHMENT") throw new Error("That message has no attachment with that number. Count from 0, in the order gmail_read lists them.");
+        throw new Error(friendlyMailError(error));
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) throw new Error("That attachment is too large to read.");
+      const { text, pages } = await bufferText(file.filename, file.content);
+      return {
+        account: target.email,
+        uid,
+        index,
+        filename: file.filename,
+        ...(pages === undefined ? {} : { pages }),
+        text: text.slice(0, MAX_READ_CHARS),
+        truncated: text.length > MAX_READ_CHARS,
+      };
+    },
   };
+  return api;
 }

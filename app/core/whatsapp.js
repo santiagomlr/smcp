@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { storeDir, wacliBin } from "../../src/tools/whatsapp.js";
+import { existsSync, rmSync } from "node:fs";
+import { storeDir, transcriptsPath, wacliBin } from "../../src/tools/whatsapp.js";
 import { run } from "../../src/util.js";
 
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
@@ -63,6 +63,8 @@ export async function logoutWhatsApp() {
   if (failureDetail(result) !== null) {
     throw new Error("Could not disconnect WhatsApp. Check your connection and try again.");
   }
+  // Voice note transcripts are message content, so they leave with the session.
+  rmSync(transcriptsPath(), { force: true });
 }
 
 /** Extracts the QR payload from one NDJSON line of `wacli auth --events`. */

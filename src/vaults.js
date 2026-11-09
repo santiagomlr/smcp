@@ -99,7 +99,7 @@ export function enabledVaults(options) {
   return listVaultChoices(options).filter((vault) => vault.enabled);
 }
 
-function findVault(vaults, reference) {
+export function findVault(vaults, reference) {
   const wanted = String(reference ?? "").trim().toLowerCase();
   const vault = vaults.find((item) => item.name.toLowerCase() === wanted);
   if (!vault) throw new Error("No connected vault has that name. Use notes_list_vaults.");
@@ -130,7 +130,7 @@ export async function resolveNote(vault, notePath, { mustExist = true } = {}) {
   }
 }
 
-async function* walkNotes(root) {
+export async function* walkNotes(root) {
   const pending = [root];
   let seen = 0;
   while (pending.length && seen < MAX_FILES) {
@@ -148,7 +148,7 @@ async function* walkNotes(root) {
   }
 }
 
-async function readHead(file, bytes) {
+export async function readHead(file, bytes) {
   const handle = await open(file, "r");
   try {
     const buffer = Buffer.alloc(bytes);
