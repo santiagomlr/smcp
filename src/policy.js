@@ -147,7 +147,8 @@ export function toolGroup(name) {
   if (name === "smcp_status" || name === "smcp_context") return "status";
   if (name === "smcp_remember") return "context";
   if (name === "run_command") return "terminal";
-  if (name === "daily_brief") return "brief";
+  // People and follow-ups gather from several areas, like the brief, and each part asks for its own permission.
+  if (name === "daily_brief" || name.startsWith("people_") || name.startsWith("followups_")) return "brief";
   return "apps";
 }
 

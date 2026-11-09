@@ -35,6 +35,7 @@ Every version is also on the [Releases](https://github.com/santiagomlr/smcp/rele
 | Area | Tools | From your phone |
 |---|---|---|
 | Your day | `daily_brief` | Yes |
+| People and follow-ups | `people_lookup`, `followups_list`, `followups_to_tasks` | Yes; filing tasks only if you allow editing tasks from other devices |
 | WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_chat_digest`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_send_file`, `whatsapp_transcribe_audio`, `whatsapp_search_transcripts`, `whatsapp_scan_file` | Everything except sending and listening to audio |
 | Gmail, multiple accounts | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_read_attachment`, `gmail_send`, `gmail_reply`, `gmail_draft` | Everything except sending and drafts |
 | Notes, Obsidian or Markdown | `notes_list_vaults`, `notes_search`, `notes_semantic_search`, `notes_recent`, `notes_read`, `notes_write` | Everything except writing |
@@ -55,6 +56,17 @@ Every version is also on the [Releases](https://github.com/santiagomlr/smcp/rele
 Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
 
 **Your day:** `daily_brief` gathers today's events, reminders due, available tasks, unread WhatsApp chats and recent unread email in one call. Each part follows its own permission, so an area you turned off is left out.
+
+**People:** `people_lookup` finds someone across WhatsApp, Gmail, notes and tasks in one call: their WhatsApp contact and chats with the exact JID, the email addresses they write from with how many emails and the latest date, the notes that mention them and their tasks. Your AI uses it before writing to someone or preparing a meeting, so it never has to guess a recipient.
+
+**Follow-ups:** `followups_list` looks through your WhatsApp chats and your email from the last two weeks and returns two lists, longest wait first:
+
+- **To answer:** people who wrote last and are still waiting for your reply, with their last messages. A message counts after 3 hours.
+- **Waiting on:** questions you asked that nobody has answered after 2 days, on WhatsApp, and emails you sent that got no reply.
+
+It leaves out groups, muted and archived chats, automated senders (no-reply, notifications, newsletters, promotions) and conversations that ended with a "thanks" or a 👍. You can change the days and hours on each call.
+
+`followups_to_tasks` files them in your SMCP tasks: **Reply to Ana**, planned for today, and **Follow up with Beto**, under Waiting for. The names follow the app's language. Each task's note has the last messages and where they came from. Every message becomes a task only once, even if a routine runs it every morning; if Ana writes again while her task is still open, the new message is added to that task's note. Pass `keys` from `followups_list` to file only some of them, and `project` to put them in a project. It follows the Tasks permission and read-only mode, and from your phone or a routine it needs **Edit tasks from other devices** turned on. The `morning` prompt now includes who is waiting for you.
 
 **Calendar and Reminders** read every account on your Mac (iCloud, Google, Exchange) through the system calendar. `calendar_free_slots` finds free time within working hours. Adding an event opens a confirmation window like sending does. The first time, macOS asks whether SMCP may use your calendar or reminders.
 
