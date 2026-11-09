@@ -12,6 +12,7 @@ import { registerGmail } from "./tools/gmail.js";
 import { registerNotes } from "./tools/notes.js";
 import { registerSecurity } from "./tools/security.js";
 import { registerTasks } from "./tools/tasks.js";
+import { registerVpn } from "./tools/vpn.js";
 import { registerWhatsApp } from "./tools/whatsapp.js";
 
 /**
@@ -64,6 +65,9 @@ export const REMOTE_TOOLS = new Set([
   "security_check_url",
   "security_check_persistence",
   "security_quarantine_list",
+  // Seeing which VPNs are on is harmless. Turning them on or off stays on this computer: switching
+  // Tailscale off from the phone would cut the very connection the phone uses.
+  "vpn_status",
 ]);
 
 /**
@@ -109,6 +113,7 @@ export function buildRemoteServer() {
   registerBrief(onlyAllowed);
   registerFiles(onlyAllowed);
   registerSecurity(onlyAllowed);
+  registerVpn(onlyAllowed);
   registerStatus(onlyAllowed, { remote: true });
   registerContext(onlyAllowed, { remote: true });
   registerPrompts(server, { remote: true });

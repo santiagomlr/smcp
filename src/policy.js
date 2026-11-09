@@ -18,6 +18,7 @@ export const GROUPS = [
   "apps",
   "security",
   "nightlight",
+  "vpn",
 ];
 
 const DEFAULTS = {
@@ -41,6 +42,8 @@ const DEFAULTS = {
     security: false,
     // Warming the screen changes no data and undoes itself when SMCP quits.
     nightlight: false,
+    // Turning a VPN on or off changes no data and can be undone with one call.
+    vpn: false,
   },
   // Writing is something a person opts into when linking. Even then, every message still needs the confirmation window.
   whatsapp: { read: true, send: false, audio: false },
@@ -140,6 +143,7 @@ export function toolGroup(name) {
   if (name.startsWith("clipboard_")) return "clipboard";
   if (name.startsWith("security_")) return "security";
   if (name.startsWith("nightlight_")) return "nightlight";
+  if (name.startsWith("vpn_")) return "vpn";
   if (name === "smcp_status" || name === "smcp_context") return "status";
   if (name === "smcp_remember") return "context";
   if (name === "run_command") return "terminal";

@@ -17,6 +17,7 @@ import { registerSecurity } from "./tools/security.js";
 import { registerStatus } from "./tools/status.js";
 import { registerTasks } from "./tools/tasks.js";
 import { registerTerminal } from "./tools/terminal.js";
+import { registerVpn } from "./tools/vpn.js";
 import { registerWhatsApp } from "./tools/whatsapp.js";
 
 const server = new McpServer(
@@ -41,6 +42,7 @@ registerTerminal(tools);
 registerApps(tools);
 registerSecurity(tools);
 registerNightLight(tools);
+registerVpn(tools);
 registerStatus(tools);
 registerContext(tools);
 registerPrompts(server);

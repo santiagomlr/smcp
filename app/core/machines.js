@@ -4,16 +4,13 @@ import { homedir, networkInterfaces, userInfo } from "node:os";
 import { join, posix } from "node:path";
 import { createSocket } from "node:dgram";
 import { run } from "../../src/util.js";
+import { tailscaleCandidates } from "../../src/vpn.js";
 
 const SAFE_NAME = /^[A-Za-z0-9._-]{1,64}$/;
 const SAFE_IP = /^[0-9a-fA-F.:]{3,45}$/;
 const MAC_ADDRESS = /^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$/;
 
-export function tailscaleCandidates(platform = process.platform) {
-  if (platform === "win32") return ["C:\\Program Files\\Tailscale\\tailscale.exe"];
-  if (platform === "linux") return ["/usr/bin/tailscale", "/usr/sbin/tailscale", "/usr/local/bin/tailscale", "/snap/bin/tailscale"];
-  return ["/usr/local/bin/tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale"];
-}
+export { tailscaleCandidates };
 
 function shortName(node) {
   const dns = (node.DNSName || "").split(".")[0];

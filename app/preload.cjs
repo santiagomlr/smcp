@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld("api", {
   gmailRemove: (email) => call("gmail-remove", email),
   setPolicy: (patch) => call("set-policy", patch),
   nightlight: (op, args) => call("nightlight", op, args),
+  vpn: (op, args) => call("vpn", op, args),
   onNightLightChanged: (listener) => ipcRenderer.on("nightlight-changed", () => listener()),
   setOnboarded: (value) => call("set-onboarded", value),
   aboutSave: (text) => call("about-save", text),

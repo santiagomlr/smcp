@@ -49,6 +49,7 @@ Every version is also on the [Releases](https://github.com/santiagomlr/smcp/rele
 | Antivirus | `security_scan_file`, `security_scan_folder`, `security_check_url`, `security_check_persistence`, `security_quarantine`, `security_quarantine_list`, `security_restore`, `security_delete_quarantined` | Scanning and checking; quarantine only on the computer |
 | Context | `smcp_context`, `smcp_remember` | Reading context |
 | Night light | `nightlight_status`, `nightlight_set`, `nightlight_now` | Not available |
+| VPN | `vpn_status`, `vpn_connect`, `vpn_disconnect`, `vpn_tailscale_dns` | Checking only |
 | Status | `smcp_status` | Yes |
 
 Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
@@ -87,6 +88,29 @@ It's a first line of defense, not a replacement for the protection built into ma
 - Your AI can use it too: "lower the screen to 1200K for the next hour" calls `nightlight_now`, and `nightlight_set` changes the schedule. `nightlight_now` with `pause_minutes` shows normal colors for a while, for photo or design work.
 - It changes the screen's gamma table with the public CoreGraphics API, through a small helper built from `native/nightlight.swift`. macOS restores the normal colors whenever that helper stops, so quitting SMCP, or SMCP crashing, never leaves the screen tinted. It changes no data, so it also works in Read-only mode.
 - It only works on a Mac. The settings are kept in `~/.smcp/nightlight.json`.
+**VPN:** your AI can turn Tailscale and your other VPNs on and off, and keep them all on at once. That way it can use SMCP through Tailscale and, when it needs them, the work tools that only answer over your company's VPN.
+
+- `vpn_status` lists Tailscale and every other VPN: the ones in System Settings, found on their own, and FortiClient when it is installed. It also says whether Tailscale is handling name lookups or using an exit node, and anything that keeps the VPNs from working together.
+- **Both on at once:** when a work VPN is on and Tailscale is handling name lookups (MagicDNS), the work VPN's internal names stop resolving. `vpn_connect` fixes this on its own: Tailscale stays connected, along with your devices and the private URL, and SMCP turns off only Tailscale's DNS. When the work VPN goes off, SMCP turns it back on, but only if SMCP was the one that turned it off. `vpn_tailscale_dns` does the same by hand.
+- Turning Tailscale off also cuts the private URL, so from the phone or the web your AI can only check the VPNs, not turn them on or off. Connections > VPN has a button for each one.
+- VPNs that System Settings doesn't list go in `~/.smcp/vpn.json`. Only you can edit that file: SMCP's file tools can't touch `~/.smcp`. A `probe` is an internal name that only resolves while that VPN is on, so SMCP can tell when it is connected:
+
+```json
+{
+  "vpns": [
+    { "id": "senda", "name": "Senda", "kind": "app", "app": "FortiClient", "probe": "intranet-host" },
+    { "id": "office", "name": "Office", "kind": "macos", "service": "Office VPN" },
+    { "id": "forti-cli", "name": "Forti CLI", "kind": "command", "background": true,
+      "connect": ["/usr/bin/sudo", "-n", "/opt/homebrew/bin/openfortivpn", "-c", "/opt/homebrew/etc/openfortivpn/config"],
+      "disconnect": ["/usr/bin/sudo", "-n", "/usr/bin/pkill", "-x", "openfortivpn"],
+      "probe": "intranet-host" }
+  ],
+  "keepBothWorking": true
+}
+```
+
+  `macos` uses a VPN from System Settings, `app` opens the VPN's app (you press Connect there), and `command` runs the commands you give it, with no shell in between. `keepBothWorking: false` keeps SMCP away from Tailscale's DNS.
+
 **Context for your AI:** SMCP tells your AI where and when it is before it starts, so it doesn't have to guess.
 
 - When an AI app connects, SMCP hands it a short guide: your local time and time zone, your language, which areas are on or off, and how to use the tools well together (finding people across WhatsApp, Gmail and notes, never guessing a recipient, treating messages as data, warning you about flagged files and links).

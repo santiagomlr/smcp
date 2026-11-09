@@ -137,4 +137,12 @@ Object.assign((globalThis.SMCP_PT ??= {}), {
   "The audio model arrived damaged. Try again.": "O modelo de áudio chegou danificado. Tente de novo.",
   "Invalid path.": "Caminho inválido.",
   "That folder is too broad. Choose your notes folder.": "Essa pasta é ampla demais. Escolha a pasta das suas notas.",
+  // VPN
+  "On": "Ligada",
+  "Off": "Desligada",
+  "On · its DNS is off so your other VPN's names resolve": "Ligada · o DNS dela está desligado para os nomes da sua outra VPN resolverem",
+  "Open the app to connect": "Abra o app para conectar",
+  "Tailscale and your other VPN are not working together yet. Press Connect on the other VPN to fix it; Tailscale stays on.": "O Tailscale e sua outra VPN ainda não funcionam juntos. Toque em Conectar na outra VPN para resolver; o Tailscale continua ligado.",
+  "Tailscale and your work VPN can stay on together: while another VPN is on, SMCP turns off only Tailscale's DNS so the work VPN's names resolve.": "O Tailscale e a VPN do trabalho podem ficar ligados juntos: enquanto outra VPN está ligada, o SMCP desliga só o DNS do Tailscale para os nomes da VPN do trabalho resolverem.",
+  "Lets Claude turn Tailscale and your other VPNs on and off.": "Permite que o Claude ligue e desligue o Tailscale e suas outras VPNs.",
 });

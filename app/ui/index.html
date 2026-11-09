@@ -133,6 +133,13 @@
           <h2 id="h-machines">Your devices</h2>
           <ol id="machines" class="line"></ol>
         </section>
+
+        <section id="vpn-section" aria-labelledby="h-vpn" hidden>
+          <h2 id="h-vpn">VPN</h2>
+          <p class="hint">Tailscale and your work VPN can stay on together: while another VPN is on, SMCP turns off only Tailscale's DNS so the work VPN's names resolve.</p>
+          <ol id="vpn-line" class="line"></ol>
+          <p id="vpn-conflicts" class="hint" role="status" hidden></p>
+        </section>
       </main>
 
       <main id="view-settings" class="view" hidden>
@@ -178,6 +185,7 @@
             <li><label for="group-terminal">Terminal<small>Can run any command.</small></label><input id="group-terminal" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-apps">Control apps</label><input id="group-apps" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-nightlight">Night light<small>Lets Claude warm the screen and change its schedule.</small></label><input id="group-nightlight" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-vpn">VPN<small>Lets Claude turn Tailscale and your other VPNs on and off.</small></label><input id="group-vpn" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-security">Antivirus<small>Scans files, links and start-up items. Quarantine can be undone.</small></label><input id="group-security" class="switch" type="checkbox" role="switch" /></li>
           </ul>
         </section>
