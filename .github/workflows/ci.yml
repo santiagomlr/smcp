@@ -1,8 +1,13 @@
-# Runs the test suite on every pull request, so a broken change is caught before it reaches main and the release.
+# Checks that SMCP works on macOS, Windows and Linux for every pull request and every change to main:
+# runs the tests (macOS and Linux), starts the app from source, builds the package for that system
+# and starts the packaged app.
+# It never touches the signing key and publishes nothing.
 name: CI
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -13,9 +18,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-15
+            package: --mac dir --arm64
+            app: dist/mac-arm64/SMCP.app/Contents/MacOS/SMCP
+          - name: Windows
+            os: windows-latest
+            package: --win nsis --x64
+            app: dist/win-unpacked/SMCP.exe
+          - name: Linux
+            os: ubuntu-24.04
+            package: --linux AppImage deb --x64
+            app: /opt/SMCP/smcp
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -26,15 +53,78 @@ jobs:
           node-version: 20
           cache: npm
 
-      # run_command uses /bin/zsh, the default shell on the Macs SMCP runs on.
-      - name: Install zsh
-        run: command -v zsh || { sudo apt-get update -qq && sudo apt-get install -y -qq zsh; }
+      # Electron and electron-builder keep their downloads in one folder on every system, so it can be cached.
+      # It sits outside the repository: under SMCP's package.json ("type": "module") electron-builder's own
+      # .js tools would load as ES modules and fail.
+      - name: Choose the download folder
+        run: |
+          echo "electron_config_cache=$RUNNER_TEMP/electron-cache/electron" >> "$GITHUB_ENV"
+          echo "ELECTRON_BUILDER_CACHE=$RUNNER_TEMP/electron-cache/electron-builder" >> "$GITHUB_ENV"
 
-      - name: Install npm packages
-        env:
-          # The tests never start Electron, so skip downloading it.
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      # GitHub sometimes answers 504 for Electron's downloads for minutes at a time. Every run saves what it
+      # downloaded under its own key, even when it fails, and the next run starts from the newest one.
+      - name: Restore Electron downloads
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/electron-cache
+          key: ci-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            ci-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-
+            ci-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install Linux display and desktop libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libnotify4 libsecret-1-0 libappindicator3-1 libfuse2t64
+
+      - name: Install dependencies
         run: bash scripts/retry.sh npm ci
 
-      - name: Test
+      # The unit tests cover the local MCP server, which runs on macOS and Linux: zsh, Unix sockets and
+      # private (0600) file permissions, which Windows does not have. On Windows SMCP is a panel with no
+      # local server, and the steps below check that panel starts, packages and starts again once packaged.
+      - name: Tests
+        if: runner.os != 'Windows'
         run: npm test
+
+      - name: Start the app from source
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            # Electron's sandbox helper in node_modules is not set up like an installed package; the packaged check below keeps it.
+            SMCP_SMOKE_NO_SANDBOX=1 xvfb-run -a npm run test:smoke
+          else
+            npm run test:smoke
+          fi
+
+      - name: Build the package
+        run: bash scripts/retry.sh npx electron-builder ${{ matrix.package }} --publish never -c.directories.output=dist
+
+      - name: Install the Linux package
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y ./dist/SMCP-linux-amd64.deb
+
+      - name: Start the packaged app
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            # The .deb as people install it, with Chromium's sandbox on.
+            xvfb-run -a node scripts/smoke-test.mjs "${{ matrix.app }}"
+            # The AppImage too. Ubuntu 24.04 blocks the sandbox for AppImages, so this one runs without it.
+            chmod +x dist/SMCP-linux-x86_64.AppImage
+            SMCP_SMOKE_NO_SANDBOX=1 xvfb-run -a node scripts/smoke-test.mjs dist/SMCP-linux-x86_64.AppImage
+          else
+            node scripts/smoke-test.mjs "${{ matrix.app }}"
+          fi
+
+      - name: Check the installers exist
+        run: |
+          case "$RUNNER_OS" in
+            Linux) ls -l dist/SMCP-linux-x86_64.AppImage dist/SMCP-linux-amd64.deb ;;
+            Windows) ls -l dist/SMCP-windows-x64-setup.exe ;;
+            macOS) ls -ld dist/mac-arm64/SMCP.app ;;
+          esac
+
+      - name: Save Electron downloads
+        if: always()
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/electron-cache
+          key: ci-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}

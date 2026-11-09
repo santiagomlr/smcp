@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const I18N = join(ROOT, "app", "ui", "i18n");
 
 /** Each language is the set of es-*.js (or xx-*.js) files that fill globalThis.SMCP_XX. */

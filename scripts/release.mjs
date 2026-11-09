@@ -1,7 +1,7 @@
 // Publishes the current package.json version: builds, signs the update manifest and creates the GitHub release.
 import { execFileSync } from "node:child_process";
 import { createHash, createPrivateKey, sign } from "node:crypto";
-import { accessSync, constants, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,6 +72,16 @@ writeFileSync(`${manifestPath}.sig`, signature);
 // Installed apps would reject anything this check rejects, so never publish it.
 readSignedManifest(manifest, signature);
 
+// Each download keeps the same name in every release, so the README can link straight to the latest one.
+const downloads = ["SMCP-mac-arm64.dmg", "SMCP-windows-x64-setup.exe"].map((name) => join(BUILD, name));
+// The release workflow builds the Linux packages on Linux and passes their folder here.
+const LINUX_DIR = process.env.SMCP_LINUX_PACKAGES ?? BUILD;
+const linux = ["SMCP-linux-x86_64.AppImage", "SMCP-linux-amd64.deb"].map((name) => join(LINUX_DIR, name));
+const missingLinux = linux.filter((path) => !existsSync(path));
+if (missingLinux.length && process.env.CI) throw new Error(`Missing Linux packages: ${missingLinux.join(", ")}`);
+if (missingLinux.length) console.warn("::warning::No Linux packages found; publishing without them.");
+for (const path of downloads) if (!existsSync(path)) throw new Error(`Missing ${path}`);
+
 if (DRY_RUN) {
   console.log(`Dry run: SMCP ${version} built and signed. Nothing was published.`);
   process.exit(0);
@@ -84,13 +94,13 @@ run(GH, [
   zip,
   manifestPath,
   `${manifestPath}.sig`,
-  join(BUILD, `SMCP-${version}-arm64.dmg`),
-  join(BUILD, `SMCP Setup ${version}.exe`),
+  ...downloads,
+  ...linux.filter((path) => existsSync(path)),
   "--repo",
   "santiagomlr/smcp",
   "--title",
   `SMCP ${version}`,
   ...(process.env.GITHUB_SHA ? ["--target", process.env.GITHUB_SHA] : []),
   "--notes",
-  "Download the .dmg for Apple Silicon Macs or the Setup .exe for Windows.",
+  "Download the .dmg for Apple Silicon Macs, the setup .exe for Windows, or the .deb (Ubuntu, Debian) or .AppImage for Linux.",
 ]);

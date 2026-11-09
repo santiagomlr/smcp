@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir, networkInterfaces, userInfo } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { createSocket } from "node:dgram";
 import { run } from "../../src/util.js";
 
@@ -11,6 +11,7 @@ const MAC_ADDRESS = /^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$/;
 
 export function tailscaleCandidates(platform = process.platform) {
   if (platform === "win32") return ["C:\\Program Files\\Tailscale\\tailscale.exe"];
+  if (platform === "linux") return ["/usr/bin/tailscale", "/usr/sbin/tailscale", "/usr/local/bin/tailscale", "/snap/bin/tailscale"];
   return ["/usr/local/bin/tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale"];
 }
 
@@ -81,6 +82,32 @@ export function sshCommandFile({ user, ip, identity }, home = homedir()) {
   const key = identity ? identity.replace(/^~(?=\/)/, home) : null;
   const keyArgs = key ? `-i ${shellQuote(key)} ` : "";
   return `#!/bin/zsh\nexec ssh ${keyArgs}${shellQuote(`${user}@${ip}`)}\n`;
+}
+
+/** Linux terminals in the order to try them, each with how it takes the command to run. */
+const LINUX_TERMINALS = [
+  ["x-terminal-emulator", ["-e"]],
+  ["gnome-terminal", ["--"]],
+  ["konsole", ["-e"]],
+  ["xfce4-terminal", ["-x"]],
+  ["kitty", []],
+  ["alacritty", ["-e"]],
+  ["xterm", ["-e"]],
+];
+
+/**
+ * The terminal and arguments that open an SSH session on Linux, or null when no known terminal is installed.
+ * Every value stays a separate argument, so nothing passes through a shell.
+ */
+export function linuxSshCommand({ user, ip, identity }, { home = homedir(), path = process.env.PATH ?? "", exists = existsSync } = {}) {
+  const key = identity ? identity.replace(/^~(?=\/)/, home) : null;
+  const ssh = ["ssh", ...(key ? ["-i", key] : []), `${user}@${ip}`];
+  const dirs = path.split(":").filter((dir) => dir.startsWith("/"));
+  for (const [name, flags] of LINUX_TERMINALS) {
+    const bin = dirs.map((dir) => posix.join(dir, name)).find((candidate) => exists(candidate));
+    if (bin) return { command: bin, args: [...flags, ...ssh] };
+  }
+  return null;
 }
 
 export function magicPacket(mac) {

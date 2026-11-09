@@ -81,3 +81,12 @@ test("run_command detiene también a los procesos hijos al agotar el tiempo", as
   await new Promise((resolve) => setTimeout(resolve, 3_000));
   await assert.rejects(readFile(marker));
 });
+
+test("run_command usa zsh si existe y si no el shell de la persona, bash o sh", async () => {
+  const { userShell } = await import("../src/util.js");
+  const has = (...paths) => (path) => paths.includes(path);
+  assert.equal(userShell({ env: { SHELL: "/usr/bin/fish" }, exists: has("/bin/zsh", "/usr/bin/fish") }), "/bin/zsh");
+  assert.equal(userShell({ env: { SHELL: "/usr/bin/fish" }, exists: has("/usr/bin/fish", "/bin/bash") }), "/usr/bin/fish");
+  assert.equal(userShell({ env: {}, exists: has("/bin/bash", "/bin/sh") }), "/bin/bash");
+  assert.equal(userShell({ env: { SHELL: "fish" }, exists: has("/bin/sh") }), "/bin/sh");
+});

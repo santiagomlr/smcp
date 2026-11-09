@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { z } from "zod";
-import { errorResult, run, textResult } from "../util.js";
+import { errorResult, run, textResult, userShell } from "../util.js";
 
 const MAX_RETURNED_CHARS = 100_000;
 
@@ -9,7 +9,7 @@ function clip(text) {
 }
 
 export async function runCommand({ command, cwd, timeout_seconds }) {
-  const result = await run("/bin/zsh", ["-lc", command], {
+  const result = await run(userShell(), ["-lc", command], {
     cwd: cwd ?? homedir(),
     timeoutMs: timeout_seconds * 1000,
   });
@@ -26,7 +26,7 @@ export function registerTerminal(server) {
   server.registerTool(
     "run_command",
     {
-      description: "Runs a zsh command on this Mac, with no path restrictions. Returns output and exit code.",
+      description: "Runs a shell command on this computer (zsh on a Mac), with no path restrictions. Returns output and exit code.",
       inputSchema: {
         command: z.string().min(1),
         cwd: z.string().optional().describe("Working folder; by default, your home folder."),

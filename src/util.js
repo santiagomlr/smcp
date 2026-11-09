@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 
@@ -62,6 +63,15 @@ export function run(file, args, { timeoutMs = 30_000, cwd, env } = {}) {
     child.on("error", (error) => finish({ code: null, spawnError: error }));
     child.on("close", (code) => finish({ code }));
   });
+}
+
+/**
+ * The shell for commands: zsh, as on every Mac, or else the person's own shell, bash or sh,
+ * so the same tools work on Linux machines that do not have zsh.
+ */
+export function userShell({ env = process.env, exists = existsSync } = {}) {
+  const candidates = ["/bin/zsh", env.SHELL, "/bin/bash", "/usr/bin/bash", "/bin/sh"];
+  return candidates.find((path) => path?.startsWith("/") && exists(path)) ?? "/bin/sh";
 }
 
 export function textResult(value) {

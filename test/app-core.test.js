@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { addToDesktop, isRegistered, removeFromDesktop, serverEntry } from "../app/core/clients.js";
-import { magicPacket, parseStatus, sshCommandFile, sshTarget } from "../app/core/machines.js";
+import { linuxSshCommand, magicPacket, parseStatus, sshCommandFile, sshTarget, tailscaleCandidates } from "../app/core/machines.js";
 import { parseDoctor, qrFromEventLine } from "../app/core/whatsapp.js";
 
 let dir;
@@ -108,4 +108,22 @@ test("lee el diagnóstico de wacli y el QR de sus eventos", () => {
   assert.equal(qrFromEventLine('{"event":"qr_code","data":{"code":"abc"}}'), "abc");
   assert.equal(qrFromEventLine('{"event":"sync_progress","data":{}}'), null);
   assert.equal(qrFromEventLine("basura"), null);
+});
+
+test("busca Tailscale donde lo instala cada sistema", () => {
+  assert.ok(tailscaleCandidates("darwin").includes("/Applications/Tailscale.app/Contents/MacOS/Tailscale"));
+  assert.ok(tailscaleCandidates("linux").includes("/usr/bin/tailscale"));
+  assert.deepEqual(tailscaleCandidates("win32"), ["C:\\Program Files\\Tailscale\\tailscale.exe"]);
+});
+
+test("en Linux abre SSH con la primera terminal instalada, sin pasar por un shell", () => {
+  const exists = (path) => path === "/usr/bin/gnome-terminal" || path === "/usr/bin/xterm";
+  assert.deepEqual(linuxSshCommand({ user: "ana", ip: "100.1.2.3" }, { path: "/usr/local/bin:/usr/bin", exists }), {
+    command: "/usr/bin/gnome-terminal",
+    args: ["--", "ssh", "ana@100.1.2.3"],
+  });
+  assert.deepEqual(linuxSshCommand({ user: "ana", ip: "100.1.2.3", identity: "~/.ssh/pc" }, { home: "/home/ana", path: "/usr/bin", exists: (p) => p === "/usr/bin/xterm" }).args, [
+    "-e", "ssh", "-i", "/home/ana/.ssh/pc", "ana@100.1.2.3",
+  ]);
+  assert.equal(linuxSshCommand({ user: "ana", ip: "100.1.2.3" }, { path: "/usr/bin", exists: () => false }), null);
 });

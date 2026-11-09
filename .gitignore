@@ -1,6 +1,7 @@
 node_modules/
 vendor/
 dist/
+.cache/
 .DS_Store
 .env*
 *.pem
