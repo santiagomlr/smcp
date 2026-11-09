@@ -1,7 +1,7 @@
 // Publishes the current package.json version: builds, signs the update manifest and creates the GitHub release.
 import { execFileSync } from "node:child_process";
 import { createHash, createPrivateKey, sign } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +31,15 @@ const privateKey = createPrivateKey(readFileSync(KEY));
 
 run("npm", ["test"]);
 runWithRetry("npm", ["run", "dist:mac"], { env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" } });
+// electron-builder only warns when an extraResources file is missing, so a release could ship without them.
+const helpers = join(BUILD, "mac-arm64", "SMCP.app", "Contents", "Resources", "bin");
+for (const name of ["wacli", "whisper-cli", "smcp-nightlight"]) {
+  try {
+    accessSync(join(helpers, name), constants.X_OK);
+  } catch {
+    throw new Error(`The Mac app was built without ${name}. Run its install script before releasing.`);
+  }
+}
 runWithRetry("npm", ["run", "dist:win"], { env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" } });
 
 const out = join(BUILD, "release");

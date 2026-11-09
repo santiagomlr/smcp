@@ -1,0 +1,51 @@
+# Packages the Mac app on pull requests that touch the build, so a packaging break shows up here
+# instead of in the release after merging. It never signs or publishes anything.
+name: Build check
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - scripts/**
+      - native/**
+      - app/assets/**
+      - .github/workflows/release.yml
+      - .github/workflows/build-check.yml
+      - .github/actions/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        uses: ./.github/actions/build-deps
+
+      - name: Package the Mac app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: bash scripts/retry.sh npx electron-builder --mac dir --arm64 --publish never -c.directories.output="$RUNNER_TEMP/build"
+
+      - name: Check the native helpers are inside the app
+        run: |
+          for name in wacli whisper-cli smcp-nightlight; do
+            test -x "$RUNNER_TEMP/build/mac-arm64/SMCP.app/Contents/Resources/bin/$name" || { echo "::error::The app was packaged without $name."; exit 1; }
+          done
