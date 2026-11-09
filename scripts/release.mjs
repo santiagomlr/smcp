@@ -14,12 +14,24 @@ const BUILD = join(homedir(), "Library", "Caches", "smcp-build");
 const GH = process.env.GH ?? "gh";
 
 const run = (command, args, options = {}) => execFileSync(command, args, { cwd: ROOT, stdio: "inherit", ...options });
+/** electron-builder downloads Electron and its tools from GitHub, which sometimes answers 5xx; try again before failing the release. */
+function runWithRetry(command, args, options = {}, delaysSeconds = [20, 60, 120]) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return run(command, args, options);
+    } catch (error) {
+      if (attempt >= delaysSeconds.length) throw error;
+      console.warn(`::warning::'${command} ${args.join(" ")}' failed; retrying in ${delaysSeconds[attempt]}s.`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delaysSeconds[attempt] * 1000);
+    }
+  }
+}
 const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 const privateKey = createPrivateKey(readFileSync(KEY));
 
 run("npm", ["test"]);
-run("npm", ["run", "dist:mac"], { env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" } });
-run("npm", ["run", "dist:win"], { env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" } });
+runWithRetry("npm", ["run", "dist:mac"], { env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" } });
+runWithRetry("npm", ["run", "dist:win"], { env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" } });
 
 const out = join(BUILD, "release");
 rmSync(out, { recursive: true, force: true });
