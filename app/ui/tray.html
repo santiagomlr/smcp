@@ -48,6 +48,18 @@
         </div>
       </section>
 
+      <section id="p-nightlight" aria-labelledby="p-nightlight-title" hidden>
+        <div class="panel-section-head">
+          <h2 id="p-nightlight-title">Night light</h2>
+          <input id="p-nl-enabled" class="switch" type="checkbox" role="switch" aria-label="Night light" />
+        </div>
+        <div class="panel-nl">
+          <input id="p-nl-kelvin" class="nl-range" type="range" min="1000" max="6500" step="100" aria-label="Color temperature right now" />
+          <span id="p-nl-value" class="panel-nl-value"></span>
+        </div>
+        <p class="panel-nl-meta"><span id="p-nl-note"></span><button id="p-nl-resume" type="button" class="quiet" hidden>Back to schedule</button></p>
+      </section>
+
       <section aria-labelledby="p-devices">
         <h2 id="p-devices">Devices</h2>
         <ul id="p-machines" class="panel-list"></ul>
@@ -68,6 +80,7 @@
     <script src="i18n/es-settings.js"></script>
     <script src="i18n/es-tasks.js"></script>
     <script src="i18n/es-main.js"></script>
+    <script src="nightlight-ui.js"></script>
     <script src="tray.js"></script>
   </body>
 </html>

@@ -145,6 +145,24 @@
           </ul>
         </section>
 
+        <section id="nightlight-section" aria-labelledby="h-nightlight">
+          <h2 id="h-nightlight">Night light</h2>
+          <p class="hint">Warms the screen after sunset so it gives off less blue light, like f.lux. It goes lower than f.lux: down to 1000K, almost only red.</p>
+          <p id="nl-now" class="nl-now" role="status"></p>
+          <ul class="rows">
+            <li><label for="nl-enabled">Night light</label><input id="nl-enabled" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="nl-preset">Colors</label><select id="nl-preset"><option value="custom">Custom colors</option><option value="recommended">Recommended colors</option><option value="classic">Classic</option><option value="candle">Candle at night</option><option value="lowest">Least blue light</option></select></li>
+            <li class="nl-slider"><label for="nl-day">Daytime<small>From sunrise to sunset.</small></label><output id="nl-day-value" for="nl-day"></output><input id="nl-day" class="nl-range" type="range" min="1000" max="6500" step="100" /></li>
+            <li class="nl-slider"><label for="nl-sunset">Sunset<small>From sunset until bedtime.</small></label><output id="nl-sunset-value" for="nl-sunset"></output><input id="nl-sunset" class="nl-range" type="range" min="1000" max="6500" step="100" /></li>
+            <li class="nl-slider"><label for="nl-bedtime">Bedtime<small>From 9 hours before you wake up.</small></label><output id="nl-bedtime-value" for="nl-bedtime"></output><input id="nl-bedtime" class="nl-range" type="range" min="1000" max="6500" step="100" /></li>
+            <li class="nl-slider"><label for="nl-dim">Brightness at bedtime<small>Dimming cuts every color, blue included.</small></label><output id="nl-dim-value" for="nl-dim"></output><input id="nl-dim" class="nl-range" type="range" min="20" max="100" step="5" /></li>
+            <li><label for="nl-wake">I wake up at</label><input id="nl-wake" class="nl-input" type="time" /></li>
+            <li><label for="nl-location">Location<small>Latitude,longitude for the real sunrise and sunset. Without it, 7:00 and 19:00.</small></label><input id="nl-location" class="nl-input" type="text" placeholder="25.7,-100.3" maxlength="40" autocomplete="off" spellcheck="false" /></li>
+            <li><span>Right now<small id="nl-override-note">Following the schedule.</small></span><span class="nl-actions"><button id="nl-resume" type="button" hidden>Back to schedule</button><button id="nl-pause" type="button">Disable for an hour</button></span></li>
+          </ul>
+          <p id="nl-missing" class="hint" hidden>This copy of SMCP does not include the night light helper. Install the latest version, or run npm run nightlight:install in development.</p>
+        </section>
+
         <section aria-labelledby="h-perms">
           <h2 id="h-perms">What Claude can use</h2>
           <ul class="rows">
@@ -159,6 +177,7 @@
             <li><label for="group-clipboard">Clipboard<small>It can hold passwords and codes.</small></label><input id="group-clipboard" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-terminal">Terminal<small>Can run any command.</small></label><input id="group-terminal" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-apps">Control apps</label><input id="group-apps" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-nightlight">Night light<small>Lets Claude warm the screen and change its schedule.</small></label><input id="group-nightlight" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-security">Antivirus<small>Scans files, links and start-up items. Quarantine can be undone.</small></label><input id="group-security" class="switch" type="checkbox" role="switch" /></li>
           </ul>
         </section>
@@ -232,6 +251,7 @@
     <script src="i18n/es-settings.js"></script>
     <script src="i18n/es-tasks.js"></script>
     <script src="i18n/es-main.js"></script>
+    <script src="nightlight-ui.js"></script>
     <script src="ui.js"></script>
   </body>
 </html>

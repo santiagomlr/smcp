@@ -64,6 +64,7 @@ jobs:
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           npm run whatsapp:install
           npm run whatsapp:audio-install
+          npm run nightlight:install
 
       - name: Load the signing key
         if: steps.plan.outputs.build == 'true'
