@@ -12,7 +12,8 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "SMCP_AUDIT=\"${TMPDIR:-/tmp}/smcp-test-audit.jsonl\" node --test test/*.test.js",
+    "test": "node scripts/run-tests.mjs",
+    "test:smoke": "node scripts/smoke-test.mjs",
     "whatsapp:install": "bash scripts/install-wacli.sh",
     "whatsapp:login": "node src/whatsapp-login.js",
     "whatsapp:audio-install": "bash scripts/install-whisper.sh",
@@ -21,6 +22,7 @@
     "icons": "node scripts/make-icons.mjs",
     "dist:mac": "electron-builder --mac --arm64 --publish never -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
     "dist:win": "electron-builder --win --x64 --publish never -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
+    "dist:linux": "electron-builder --linux --x64 --publish never -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
     "release": "node scripts/release.mjs"
   },
   "dependencies": {
@@ -40,6 +42,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "repository": "github:santiagomlr/smcp",
   "main": "app/main.js",
+  "desktopName": "smcp.desktop",
   "build": {
     "appId": "com.santiago.smcp",
     "productName": "SMCP",
@@ -82,6 +85,9 @@
       ],
       "hardenedRuntime": false
     },
+    "dmg": {
+      "artifactName": "SMCP-mac-arm64.${ext}"
+    },
     "win": {
       "target": [
         "nsis",
@@ -92,7 +98,29 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "SMCP-windows-x64-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "SMCP-windows-x64-portable.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "app/assets/icon.png",
+      "executableName": "smcp",
+      "maintainer": "Santiago MLR",
+      "synopsis": "Connects your AI to your computer.",
+      "syncDesktopName": true
+    },
+    "appImage": {
+      "artifactName": "SMCP-linux-x86_64.${ext}"
+    },
+    "deb": {
+      "artifactName": "SMCP-linux-amd64.${ext}"
     },
     "afterPack": "scripts/after-pack.cjs"
   }

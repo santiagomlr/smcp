@@ -1,0 +1,111 @@
+# Checks that SMCP works on macOS, Windows and Linux for every pull request and every change to main:
+# runs the tests, starts the app from source, builds the package for that system and starts the packaged app.
+# It never touches the signing key and publishes nothing.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-15
+            package: --mac dir --arm64
+            app: dist/mac-arm64/SMCP.app/Contents/MacOS/SMCP
+          - name: Windows
+            os: windows-latest
+            package: --win nsis --x64
+            app: dist/win-unpacked/SMCP.exe
+          - name: Linux
+            os: ubuntu-24.04
+            package: --linux AppImage deb --x64
+            app: /opt/SMCP/smcp
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Linux display and desktop libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libnotify4 libsecret-1-0 libappindicator3-1 libfuse2t64
+
+      - name: Install dependencies
+        run: |
+          # Electron downloads its binary from GitHub, which sometimes answers 5xx; retry instead of failing.
+          for delay in 15 45 0; do
+            npm ci && exit 0
+            [ "$delay" = 0 ] && exit 1
+            echo "::warning::npm ci failed; retrying in ${delay}s."
+            sleep "$delay"
+          done
+
+      - name: Tests
+        run: npm test
+
+      - name: Start the app from source
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            # Electron's sandbox helper in node_modules is not set up like an installed package; the packaged check below keeps it.
+            SMCP_SMOKE_NO_SANDBOX=1 xvfb-run -a npm run test:smoke
+          else
+            npm run test:smoke
+          fi
+
+      - name: Build the package
+        run: |
+          for delay in 20 60 0; do
+            npx electron-builder ${{ matrix.package }} --publish never -c.directories.output=dist && exit 0
+            [ "$delay" = 0 ] && exit 1
+            echo "::warning::electron-builder failed; retrying in ${delay}s."
+            sleep "$delay"
+          done
+
+      - name: Install the Linux package
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y ./dist/SMCP-linux-amd64.deb
+
+      - name: Start the packaged app
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            # The .deb as people install it, with Chromium's sandbox on.
+            xvfb-run -a node scripts/smoke-test.mjs "${{ matrix.app }}"
+            # The AppImage too. Ubuntu 24.04 blocks the sandbox for AppImages, so this one runs without it.
+            chmod +x dist/SMCP-linux-x86_64.AppImage
+            SMCP_SMOKE_NO_SANDBOX=1 xvfb-run -a node scripts/smoke-test.mjs dist/SMCP-linux-x86_64.AppImage
+          else
+            node scripts/smoke-test.mjs "${{ matrix.app }}"
+          fi
+
+      - name: Check the installers exist
+        run: |
+          case "$RUNNER_OS" in
+            Linux) ls -l dist/SMCP-linux-x86_64.AppImage dist/SMCP-linux-amd64.deb ;;
+            Windows) ls -l dist/SMCP-windows-x64-setup.exe ;;
+            macOS) ls -ld dist/mac-arm64/SMCP.app ;;
+          esac

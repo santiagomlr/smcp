@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { run } from "../../src/util.js";
+import { run, userShell } from "../../src/util.js";
 
 export const SERVER_NAME = "smcp";
 
@@ -81,7 +81,7 @@ export async function removeFromDesktop(path, key = "mcpServers") {
 
 /** Apps opened from Finder get a minimal PATH, so ask a login shell where the CLI lives. */
 async function findClaudeCli() {
-  const result = await run("/bin/zsh", ["-lc", "command -v claude"], { timeoutMs: 10_000 });
+  const result = await run(userShell(), ["-lc", "command -v claude"], { timeoutMs: 10_000 });
   const path = result.stdout.trim().split("\n").at(-1);
   if (result.code !== 0 || !path?.startsWith("/")) {
     throw new Error("Claude Code was not found on this computer.");

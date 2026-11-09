@@ -38,12 +38,13 @@ import {
 import { calendarEvents, calendarStatus, eventKit, requestCalendar } from "./core/calendar.js";
 import { disableFunnel, enableFunnel, isFunnelOn, readBaseUrl } from "./core/funnel.js";
 import { createAccountStore, createGmail } from "./core/gmail.js";
-import { magicPacket, readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
+import { linuxSshCommand, magicPacket, readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
 import { callPeer, createPeerHub, PEER_LOCAL_PORT, PEER_PORT, peerInfo } from "./core/peers.js";
 import { createNightLight } from "./core/nightlight.js";
 import { createRemote, REMOTE_PORT } from "./core/remote.js";
 import { createRemoteTasks, createTasksHub, disableServe, enableServe, tailscaleLogin } from "./core/tasks-hub.js";
 import { createTaskStore, TASK_OPERATIONS } from "./core/tasks.js";
+import { runSmokeTest } from "./core/smoke.js";
 import { coalesce, retry, whenChanged } from "./core/throttle.js";
 import { createUpdater, isNewer, RELEASES_PAGE } from "./core/updater.js";
 import { logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
@@ -63,7 +64,19 @@ import { localConfirm } from "../src/tools/whatsapp.js";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
 const IS_MAC = process.platform === "darwin";
+const IS_LINUX = process.platform === "linux";
 const REFRESH_MS = 30_000;
+// CI starts the real app with this set to check it opens cleanly on every system, then quits.
+const SMOKE_TEST = Boolean(process.env.SMCP_SMOKE_TEST);
+
+if (SMOKE_TEST) {
+  const fail = (error) => {
+    console.error(`SMCP smoke test failed: ${error?.stack ?? error}`);
+    app.exit(1);
+  };
+  process.on("uncaughtException", fail);
+  process.on("unhandledRejection", fail);
+}
 
 if (app.isPackaged && IS_MAC) process.env.WACLI_BIN = join(process.resourcesPath, "bin", "wacli");
 
@@ -249,6 +262,12 @@ async function openTerminal(name) {
     await chmod(file, 0o700);
     const error = await shell.openPath(file);
     if (error) throw new Error(error);
+    return;
+  }
+  if (IS_LINUX) {
+    const terminal = linuxSshCommand(target);
+    if (!terminal) throw new Error(tr("No terminal app was found to open SSH."));
+    spawn(terminal.command, terminal.args, { detached: true, stdio: "ignore" }).unref();
     return;
   }
   // Values were validated by sshTarget. Each one stays a separate argument.
@@ -627,6 +646,8 @@ function openLink(name) {
 }
 
 async function openTailscale() {
+  // On Linux Tailscale has no app window; its machines and settings live in the web console.
+  if (IS_LINUX) return shell.openExternal("https://login.tailscale.com/admin/machines");
   const error = await shell.openPath(IS_MAC ? "/Applications/Tailscale.app" : "C:\\Program Files\\Tailscale\\tailscale-ipn.exe");
   if (error) throw new Error(tr("Could not open Tailscale."));
 }
@@ -1006,19 +1027,25 @@ function resizePanel(height) {
   if (panel.isVisible()) positionPanel();
 }
 
+function trayMenu() {
+  return Menu.buildFromTemplate([
+    { label: tr("Open SMCP"), click: showWindow },
+    { type: "separator" },
+    { label: tr("Quit"), click: () => app.quit() },
+  ]);
+}
+
 function createTray() {
   tray = new Tray(trayImage());
   createPanel();
-  tray.on("click", togglePanel);
-  tray.on("right-click", () =>
-    tray.popUpContextMenu(
-      Menu.buildFromTemplate([
-        { label: tr("Open SMCP"), click: showWindow },
-        { type: "separator" },
-        { label: tr("Quit"), click: () => app.quit() },
-      ]),
-    ),
-  );
+  if (IS_LINUX) {
+    // Most Linux desktops show tray icons as app indicators, which never report clicks: a menu is the only way in.
+    tray.setContextMenu(trayMenu());
+    tray.on("click", showWindow);
+  } else {
+    tray.on("click", togglePanel);
+    tray.on("right-click", () => tray.popUpContextMenu(trayMenu()));
+  }
   nativeTheme.on("updated", updateTray);
 }
 
@@ -1225,6 +1252,29 @@ function registerIpc() {
   handle("updates-set-auto", setAutoUpdates);
 }
 
+/** Opens every window, reads the state the screens show, and quits with 0 if nothing went wrong. */
+async function smokeTest() {
+  showWindow();
+  showTasksWindow();
+  const problems = await runSmokeTest({
+    windows: { main: win, panel, tasks: tasksWin },
+    check: async () => {
+      const state = await readState();
+      if (!state?.policy || !state?.tailscale) throw new Error("the app state is incomplete");
+      for (const window of [win, panel, tasksWin]) {
+        if (window.isDestroyed()) throw new Error("a window closed by itself");
+      }
+    },
+  });
+  if (problems.length) {
+    console.error(`SMCP smoke test failed on ${process.platform}:\n- ${problems.join("\n- ")}`);
+    app.exit(1);
+    return;
+  }
+  console.log(`SMCP smoke test passed on ${process.platform} ${process.arch} (Electron ${process.versions.electron}).`);
+  app.exit(0);
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -1259,6 +1309,7 @@ if (!app.requestSingleInstanceLock()) {
     retry(resumeRemote).catch((error) => console.error("remote:", error.message));
     retry(resumeTasksHub).catch((error) => console.error("tasks hub:", error.message));
     retry(startPeerHub).catch((error) => console.error("peers:", error.message));
+    if (SMOKE_TEST) return smokeTest();
     startUpdates();
     if (startedInBackground) app.dock?.hide();
     else showWindow();

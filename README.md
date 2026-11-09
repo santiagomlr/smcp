@@ -10,7 +10,23 @@ It uses [wacli](https://github.com/openclaw/wacli) (MIT), [whisper.cpp](https://
 
 ## Download
 
-Get the latest version from [Releases](https://github.com/santiagomlr/smcp/releases/latest): the `.dmg` for Apple Silicon Macs or the `Setup .exe` for Windows.
+[![Download for macOS](https://img.shields.io/badge/macOS-Download-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/santiagomlr/smcp/releases/latest/download/SMCP-mac-arm64.dmg)
+[![Download for Windows](https://img.shields.io/badge/Windows-Download-0078D4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDMuNCA5LjggMnY5LjVIMHpNMTEgMS44IDI0IDB2MTEuNUgxMXpNMCAxMi41aDkuOFYyMkwwIDIwLjZ6TTExIDEyLjVoMTNWMjRsLTEzLTEuOHoiLz48L3N2Zz4=)](https://github.com/santiagomlr/smcp/releases/latest/download/SMCP-windows-x64-setup.exe)
+[![Download for Linux (.deb)](https://img.shields.io/badge/Linux-.deb-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)](https://github.com/santiagomlr/smcp/releases/latest/download/SMCP-linux-amd64.deb)
+[![Download for Linux (AppImage)](https://img.shields.io/badge/Linux-AppImage-333333?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/santiagomlr/smcp/releases/latest/download/SMCP-linux-x86_64.AppImage)
+
+[![CI](https://github.com/santiagomlr/smcp/actions/workflows/ci.yml/badge.svg)](https://github.com/santiagomlr/smcp/actions/workflows/ci.yml)
+
+| System | File | How to install |
+|---|---|---|
+| macOS (Apple Silicon) | `SMCP-mac-arm64.dmg` | Open it and drag SMCP to Applications. |
+| Windows 10 and 11 (x64) | `SMCP-windows-x64-setup.exe` | Run it and follow the steps. |
+| Ubuntu, Debian and derivatives (x64) | `SMCP-linux-amd64.deb` | `sudo apt install ./SMCP-linux-amd64.deb` |
+| Other Linux distributions (x64) | `SMCP-linux-x86_64.AppImage` | `chmod +x SMCP-linux-x86_64.AppImage`, then open it. |
+
+Every version is also on the [Releases](https://github.com/santiagomlr/smcp/releases) page. Every pull request and every change to `main` is checked on macOS, Windows and Linux: the tests run, and the app is started, packaged and started again from the package on each system.
+
+**What works where.** The Mac has everything. On Windows and Linux SMCP is a panel for your tasks, your devices and your Tailscale machines, with no local MCP server yet; WhatsApp, Gmail, notes and the night light need a Mac. On Linux the icon's menu opens SMCP, since most Linux desktops don't report clicks on tray icons. On Ubuntu 24.04 and later, use the `.deb`: it sets up Chromium's sandbox, which those versions block for AppImages.
 
 ## What's included
 
@@ -134,9 +150,9 @@ npm run icons
 npm run dist:mac
 ```
 
-The app is created at `~/Library/Caches/smcp-build/mac-arm64/SMCP.app`. Copy it to `/Applications`. `npm run dist:win` builds the `.exe` files. On Windows the app works as a panel, with no local MCP server.
+The app is created at `~/Library/Caches/smcp-build/mac-arm64/SMCP.app`. Copy it to `/Applications`. `npm run dist:win` builds the `.exe` files and `npm run dist:linux` builds the `.AppImage` and the `.deb` (run it on Linux). On Windows and Linux the app works as a panel, with no local MCP server.
 
-For development, `npm run app` opens the unpackaged app and `npm test` runs the tests.
+For development, `npm run app` opens the unpackaged app, `npm test` runs the tests and `npm run test:smoke` starts the app, opens every window and quits with an error if anything failed. On Linux, run it under a display (for example `xvfb-run -a npm run test:smoke`).
 
 ## Where your data is stored
 

@@ -26,7 +26,8 @@ export function parseDoctor(stdout) {
 }
 
 export async function readWhatsApp() {
-  if (process.platform === "win32") return { supported: false };
+  // The app only ships wacli for the Mac; elsewhere WhatsApp works only if someone installed it themselves.
+  if (process.platform === "win32" || (process.platform !== "darwin" && !isInstalled())) return { supported: false };
   if (!isInstalled()) return { supported: true, installed: false };
   const result = await run(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", "doctor"], {
     timeoutMs: 10_000,

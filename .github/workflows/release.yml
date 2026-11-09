@@ -24,16 +24,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: macos-15
-    timeout-minutes: 60
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      version: ${{ steps.plan.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 20
-          cache: npm
 
       - name: Decide whether to publish
         id: plan
@@ -55,10 +52,66 @@ jobs:
           echo "build=$SHOULD_BUILD" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Install dependencies
-        if: steps.plan.outputs.build == 'true'
+  # The Linux packages are built on Linux, where the .deb tooling runs natively, then published with the rest.
+  linux:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Build the Linux packages
         env:
-          VERSION: ${{ steps.plan.outputs.version }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          retry() {
+            for delay in 15 45 90 0; do
+              "$@" && return 0
+              [ "$delay" = 0 ] && return 1
+              echo "::warning::'$*' failed; retrying in ${delay}s."
+              sleep "$delay"
+            done
+          }
+          retry npm ci
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          retry npx electron-builder --linux AppImage deb --x64 --publish never -c.directories.output=dist
+
+      - name: Check the installed package starts
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb ./dist/SMCP-linux-amd64.deb
+          xvfb-run -a node scripts/smoke-test.mjs /opt/SMCP/smcp
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-packages
+          path: |
+            dist/SMCP-linux-x86_64.AppImage
+            dist/SMCP-linux-amd64.deb
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    needs: [plan, linux]
+    if: needs.plan.outputs.build == 'true'
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
           # Electron and other packages download binaries from GitHub, which sometimes answers 5xx; retry instead of failing the release.
           retry() {
@@ -75,8 +128,12 @@ jobs:
           retry npm run whatsapp:audio-install
           npm run nightlight:install
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-packages
+          path: ${{ runner.temp }}/linux-packages
+
       - name: Load the signing key
-        if: steps.plan.outputs.build == 'true'
         env:
           SIGNING_KEY: ${{ secrets.SMCP_UPDATE_SIGNING_KEY }}
         run: |
@@ -89,11 +146,11 @@ jobs:
           echo "SMCP_UPDATE_KEY_FILE=$KEY_FILE" >> "$GITHUB_ENV"
 
       - name: Test, build, sign and publish
-        if: steps.plan.outputs.build == 'true'
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           GH_TOKEN: ${{ github.token }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          SMCP_LINUX_PACKAGES: ${{ runner.temp }}/linux-packages
         run: |
           if [ "$DRY_RUN" = "true" ]; then
             node scripts/release.mjs --dry-run

@@ -18,6 +18,7 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "SMCP: paused": "SMCP: en pausa",
   "SMCP: active · {online} online": "SMCP: activo · {online} en línea",
   "Open SMCP": "Abrir SMCP",
+  "No terminal app was found to open SSH.": "No se encontró una app de terminal para abrir SSH.",
   "Quit": "Salir",
   "Do you want SMCP to update automatically?": "¿Quieres que SMCP se actualice automáticamente?",
   "When there is a new version, SMCP will install it and restart. After each update, macOS will ask for the app's permissions again. You can change this in Settings.":
