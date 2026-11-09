@@ -1,11 +1,14 @@
-# Publishes a signed release when a change on main raises the version in package.json.
+# Publishes a signed release for every change merged to main, raising the version automatically.
 # It never runs for pull requests, so code that has not been merged cannot reach the signing key.
 name: Release
 
 on:
   push:
     branches: [main]
-    paths: [package.json]
+    paths-ignore:
+      - "**.md"
+      - LICENSE
+      - .gitignore
   workflow_dispatch:
     inputs:
       dry_run:
@@ -27,30 +30,38 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
       - name: Decide whether to publish
         id: plan
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="$(node -p "require('./package.json').version")"
+          LATEST="$(gh release view --json tagName -q .tagName 2>/dev/null || true)"
           SHOULD_BUILD=true
-          if [ "$DRY_RUN" != "true" ] && gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "Version $VERSION is already published. Nothing to do."
-            SHOULD_BUILD=false
+          if [ "$DRY_RUN" != "true" ] && [ -n "$LATEST" ]; then
+            RELEASED_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$LATEST" -q .object.sha 2>/dev/null || true)"
+            if [ "$RELEASED_SHA" = "$GITHUB_SHA" ]; then
+              echo "This commit is already published as $LATEST. Nothing to do."
+              SHOULD_BUILD=false
+            fi
           fi
+          VERSION="$(node scripts/next-version.mjs "$LATEST")"
+          echo "Next version: $VERSION"
           echo "build=$SHOULD_BUILD" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.plan.outputs.build == 'true'
-        with:
-          node-version: 20
-          cache: npm
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         if: steps.plan.outputs.build == 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
         run: |
           npm ci
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
           npm run whatsapp:install
           npm run whatsapp:audio-install
 
