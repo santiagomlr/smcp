@@ -124,7 +124,7 @@ function statusIcon(size, rgb, status) {
 }
 
 mkdirSync(OUT, { recursive: true });
-const BARS = { dark: [245, 245, 242], light: [28, 32, 30] };
+const BARS = { dark: [245, 245, 242], light: [12, 12, 12] };
 const DOTS = { on: [52, 199, 89], paused: [255, 69, 58] };
 for (const [bar, rgb] of Object.entries(BARS)) {
   for (const [status, dot] of Object.entries(DOTS)) {
