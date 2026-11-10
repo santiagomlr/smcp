@@ -30,6 +30,10 @@
         return tr("Closing the lid will still put the computer to sleep until closed-lid mode is set up in Settings.");
       case "lid-battery":
         return tr("On battery with the lid closed: keep it ventilated. It stops at the battery level you chose.");
+      case "display-never":
+        return tr("The screen is set to never turn off in System Settings, so it stays on. Use Turn screen off, or set Turn display off when inactive in System Settings > Lock Screen.");
+      case "display-held":
+        return tr("{apps} is keeping the screen on. Use Turn screen off, or close it.", { apps: warning.apps });
       case "low-power":
         return tr("Low Power Mode is on, so macOS may slow down network and background work.");
       case "sleep-disabled-elsewhere":

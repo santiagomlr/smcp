@@ -202,4 +202,6 @@ Object.assign((globalThis.SMCP_FR ??= {}), {
   "The last times it slept and what macOS said.": "Les dernières mises en veille et ce qu'a dit macOS.",
   "Check": "Vérifier",
   "Lets Claude keep this computer running while it works, and turn the screen off.": "Permet à Claude de garder cet ordinateur en marche pendant qu'il travaille et d'éteindre l'écran.",
+  "The screen is set to never turn off in System Settings, so it stays on. Use Turn screen off, or set Turn display off when inactive in System Settings > Lock Screen.": "L'écran est réglé pour ne jamais s'éteindre dans Réglages Système, il reste donc allumé. Utilisez Éteindre l'écran, ou réglez Éteindre l'écran en cas d'inactivité dans Réglages Système > Écran verrouillé.",
+  "{apps} is keeping the screen on. Use Turn screen off, or close it.": "{apps} garde l'écran allumé. Utilisez Éteindre l'écran, ou fermez-le.",
 });

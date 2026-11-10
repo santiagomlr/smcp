@@ -162,7 +162,7 @@ test("the closed-lid rule allows exactly two commands for one user, and is check
  * A pretend Mac: pmset, sudo and ps answer from `sim`, and the keeper and the guard are recorded.
  */
 function fakeMac({ lidRule = true, battery = { onBattery: false, percent: 100 }, processes = ["claude"], ...options } = {}) {
-  const sim = { sleepDisabled: false, keepers: [], guards: 0, guardsStopped: 0, battery, processes, calls: [] };
+  const sim = { displaySleep: 10, extraAssertions: "", sleepDisabled: false, keepers: [], guards: 0, guardsStopped: 0, battery, processes, calls: [] };
   let clock = Date.UTC(2026, 10, 10, 18, 0);
   const ok = (stdout = "") => ({ code: 0, stdout, stderr: "" });
   const run = async (file, args) => {
@@ -176,13 +176,14 @@ function fakeMac({ lidRule = true, battery = { onBattery: false, percent: 100 },
     if (file === "/usr/bin/pmset") {
       if (args[1] === "assertions") {
         const keeper = sim.keepers.at(-1);
-        return ok(keeper && !keeper.stopped ? ASSERTIONS.replaceAll("4242", String(keeper.pid)) : "Assertion status system-wide:\nListed by owning process:\n");
+        const listed = keeper && !keeper.stopped ? ASSERTIONS.replaceAll("4242", String(keeper.pid)) : "Assertion status system-wide:\nListed by owning process:\n";
+        return ok(listed.replace("Kernel Assertions", `${sim.extraAssertions}Kernel Assertions`));
       }
       if (args[1] === "batt") {
         const { onBattery, percent } = sim.battery;
         return ok(`Now drawing from '${onBattery ? "Battery Power" : "AC Power"}'\n -InternalBattery-0 (id=1)\t${percent}%; ${onBattery ? "discharging" : "charged"}; 1:00 remaining present: true\n`);
       }
-      if (args[0] === "-g" && args.length === 1) return ok(`System-wide power settings:\n SleepDisabled\t\t${sim.sleepDisabled ? 1 : 0}\nCurrently in use:\n displaysleep         10\n`);
+      if (args[0] === "-g" && args.length === 1) return ok(`System-wide power settings:\n SleepDisabled\t\t${sim.sleepDisabled ? 1 : 0}\nCurrently in use:\n displaysleep         ${sim.displaySleep}\n`);
       if (args[0] === "displaysleepnow") return ok();
       if (args[1] === "log") return ok("");
     }
@@ -352,6 +353,22 @@ test("turning the screen off says whether the computer stays on", async () => {
   await awake.start({});
   assert.match((await awake.screenOff()).note, /stays on/);
   assert.ok(sim.calls.includes("/usr/bin/pmset displaysleepnow"));
+});
+
+test("by default the screen may sleep while the system stays awake, and it says when the screen would stay on", async () => {
+  const { awake, sim } = fakeMac();
+  const status = await awake.start({});
+  assert.equal(sim.keepers[0].displayOn, false, "caffeinate runs without -d, so the screen sleeps on its schedule");
+  assert.equal(status.displaySleepMinutes, 10);
+  assert.deepEqual(status.warnings, []);
+  sim.displaySleep = 0;
+  assert.ok((await awake.status()).warnings.some((warning) => warning.code === "display-never"));
+  sim.displaySleep = 10;
+  sim.extraAssertions = '   pid 77(zoom.us): [0x1] 00:05:00 PreventUserIdleDisplaySleep named: "Meeting"\n';
+  const held = (await awake.status()).warnings.find((warning) => warning.code === "display-held");
+  assert.equal(held.apps, "zoom.us");
+  await awake.configure({ displayOn: true });
+  assert.deepEqual((await awake.status()).warnings, [], "with the screen kept on on purpose there is nothing to warn about");
 });
 
 test("warns when something other than SMCP has turned sleep off", async () => {

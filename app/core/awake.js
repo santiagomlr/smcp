@@ -285,6 +285,14 @@ export function createAwake({
     if (active && keeper && !verified) warnings.push({ code: "not-verified", text: "macOS does not show SMCP's keep-awake assertion yet. If this lasts, turn keep awake off and on." });
     if (active && settings.closedLid && !ready) warnings.push({ code: "lid-setup", text: "Closing the lid will still put the computer to sleep: closed-lid mode needs a one-time setup in SMCP's Settings." });
     if (active && settings.closedLid && power?.onBattery) warnings.push({ code: "lid-battery", text: "Running on battery with closed-lid mode: keep it ventilated, and it stops at the battery floor." });
+    // The point is a server with its screen off, so say plainly when the screen would stay on anyway.
+    if (active && !settings.displayOn && live.values.displaysleep === 0) {
+      warnings.push({ code: "display-never", text: "The screen is set to never turn off in System Settings, so it stays on. Use Turn screen off, or set Turn display off when inactive in System Settings > Lock Screen." });
+    }
+    const displayHolders = [...new Set(others.filter((owner) => owner.type === "PreventUserIdleDisplaySleep").map((owner) => owner.process))];
+    if (active && !settings.displayOn && displayHolders.length) {
+      warnings.push({ code: "display-held", apps: displayHolders.join(", "), text: `${displayHolders.join(", ")} is keeping the screen on. Use Turn screen off, or close it.` });
+    }
     if (live.values.lowpowermode === 1) warnings.push({ code: "low-power", text: "Low Power Mode is on. macOS may slow down network and background work." });
     if (live.sleepDisabled && !settings.lidOwned) warnings.push({ code: "sleep-disabled-elsewhere", text: "System sleep is turned off by something other than SMCP (for example Amphetamine Enhancer or a pmset command)." });
     return {

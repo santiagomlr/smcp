@@ -202,4 +202,6 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "The last times it slept and what macOS said.": "Las últimas veces que se durmió y lo que dijo macOS.",
   "Check": "Revisar",
   "Lets Claude keep this computer running while it works, and turn the screen off.": "Permite que Claude mantenga esta computadora funcionando mientras trabaja, y que apague la pantalla.",
+  "The screen is set to never turn off in System Settings, so it stays on. Use Turn screen off, or set Turn display off when inactive in System Settings > Lock Screen.": "La pantalla está configurada para no apagarse nunca en Configuración del Sistema, así que se queda prendida. Usa Apagar pantalla, o ajusta Apagar la pantalla cuando esté inactiva en Configuración del Sistema > Pantalla bloqueada.",
+  "{apps} is keeping the screen on. Use Turn screen off, or close it.": "{apps} está manteniendo la pantalla prendida. Usa Apagar pantalla, o ciérrala.",
 });
