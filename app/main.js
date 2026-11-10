@@ -149,7 +149,11 @@ const NIGHTLIGHT_OPS = {
 /** Tailscale and the person's other VPNs. A click in the window is the person's own choice, like the night light's. */
 const vpn = createVpn();
 const VPN_UI_OPS = {
-  status: () => vpn.status(),
+  // The window checks every few seconds, so a VPN turned on in its own app gets Tailscale's DNS out of the way too.
+  status: async () => {
+    await vpn.reconcile().catch(() => null);
+    return vpn.status();
+  },
   connect: (a) => vpn.connect(String(a.vpn ?? "")),
   disconnect: (a) => vpn.disconnect(String(a.vpn ?? "")),
 };

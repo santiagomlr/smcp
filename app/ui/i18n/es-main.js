@@ -140,7 +140,7 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "Off": "Apagada",
   "On · its DNS is off so your other VPN's names resolve": "Encendida · su DNS está apagado para que resuelvan los nombres de tu otra VPN",
   "Open the app to connect": "Abre la app para conectar",
-  "Tailscale and your other VPN are not working together yet. Press Connect on the other VPN to fix it; Tailscale stays on.": "Tailscale y tu otra VPN todavía no funcionan juntas. Presiona Conectar en la otra VPN para arreglarlo; Tailscale sigue encendida.",
+  "Tailscale and your other VPN are not working together yet. If Tailscale is using an exit node, turn it off in Tailscale; your AI can see the details with vpn_status.": "Tailscale y tu otra VPN todavía no funcionan juntas. Si Tailscale usa un exit node, apágalo en Tailscale; tu AI puede ver el detalle con vpn_status.",
   "Tailscale and your work VPN can stay on together: while another VPN is on, SMCP turns off only Tailscale's DNS so the work VPN's names resolve.": "Tailscale y la VPN del trabajo pueden estar encendidas a la vez: mientras otra VPN está encendida, SMCP apaga solo el DNS de Tailscale para que resuelvan los nombres de la VPN del trabajo.",
   "Lets Claude turn Tailscale and your other VPNs on and off.": "Permite que Claude encienda y apague Tailscale y tus otras VPN.",
   // Keep awake

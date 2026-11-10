@@ -224,10 +224,15 @@ export function createVpn({
       for (const service of services) {
         // Tailscale registers itself as a system VPN too; it already has its own entry.
         if (/tailscale/i.test(service.name) || /tailscale/i.test(service.type) || servicesTaken.has(fold(service.name))) continue;
-        add({ id: slug(service.name), name: service.name, kind: "macos", service: service.name, probe: null, source: "System Settings" });
+        // FortiClient often names its system VPN just "VPN"; only its type says it is FortiClient.
+        const isForti = /forti/i.test(service.type) && !/forti/i.test(service.name);
+        const name = isForti ? "FortiClient" : service.name;
+        add({ id: slug(name), name, kind: "macos", service: service.name, probe: null, source: "System Settings" });
       }
       const forti = "/Applications/FortiClient.app";
-      const fortiListed = vpns.some((vpn) => /forti/i.test(vpn.name) || /forti/i.test(vpn.service ?? "") || /forti/i.test(vpn.app ?? ""));
+      const fortiListed =
+        services.some((service) => /forti/i.test(service.type)) ||
+        vpns.some((vpn) => /forti/i.test(vpn.name) || /forti/i.test(vpn.service ?? "") || /forti/i.test(vpn.app ?? ""));
       if (isMac && !fortiListed && exists(forti)) {
         add({ id: "forticlient", name: "FortiClient", kind: "app", app: "FortiClient", probe: null, source: "found in Applications" });
       }
@@ -342,6 +347,24 @@ export function createVpn({
     if (ts.installed && ts.running) await setTailscaleDns(true);
     writeState(statePath, { tailscaleDnsOffBySmcp: false });
     return ts.running ? "Tailscale's DNS is back on." : null;
+  }
+
+  /**
+   * Keeps both VPNs working when one was turned on or off outside SMCP (in FortiClient's own app, say):
+   * takes Tailscale's DNS while another VPN is up, and gives it back once none is, only if SMCP took it.
+   */
+  async function reconcile() {
+    const config = readVpnConfig(configPath);
+    const { vpns } = await status();
+    const notes = [];
+    if (vpns.some((vpn) => vpn.connected)) {
+      const note = await makeRoomForOtherVpn(config);
+      if (note) notes.push(note);
+    } else {
+      const note = await restoreTailscaleDns();
+      if (note) notes.push(note);
+    }
+    return { notes };
   }
 
   async function waitFor(check) {
@@ -472,5 +495,5 @@ export function createVpn({
     };
   }
 
-  return { status, connect, disconnect, fixDns, tailscale, listVpns };
+  return { status, connect, disconnect, fixDns, reconcile, tailscale, listVpns };
 }
