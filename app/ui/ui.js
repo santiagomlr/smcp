@@ -204,7 +204,7 @@ async function loadVpn() {
     ...items.map((item) => statusStop(item.id === "tailscale" ? item.running : item.connected === true, item.name, vpnMeta(item), ...vpnAction(item))),
   );
   // The server explains conflicts for the AI; the person gets a fixed sentence in their language.
-  $("vpn-conflicts").textContent = tr("Tailscale and your other VPN are not working together yet. Press Connect on the other VPN to fix it; Tailscale stays on.");
+  $("vpn-conflicts").textContent = tr("Tailscale and your other VPN are not working together yet. If Tailscale is using an exit node, turn it off in Tailscale; your AI can see the details with vpn_status.");
   $("vpn-conflicts").hidden = !conflicts.length;
 }
 

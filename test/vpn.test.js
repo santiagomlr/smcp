@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
 import { denialFor, readPolicy, toolGroup } from "../src/policy.js";
 import { REMOTE_TOOLS } from "../src/remote-tools.js";
@@ -27,7 +28,7 @@ const SCUTIL = `Available network connection services in the current set (*=enab
  * A pretend computer: Tailscale on with its DNS, FortiClient as a system VPN. Each command changes
  * the pretend state the way the real one would.
  */
-function fakeComputer({ forti = "Disconnected", tsRunning = true, acceptDns = true, exitNode = false, resolves = () => forti === "Connected", files = [TS] } = {}) {
+function fakeComputer({ forti = "Disconnected", tsRunning = true, acceptDns = true, exitNode = false, resolves = () => forti === "Connected", files = [TS], scutil = SCUTIL, config = null } = {}) {
   const calls = [];
   const sim = { forti, tsRunning, acceptDns };
   const ok = (stdout = "") => ({ code: 0, stdout, stderr: "" });
@@ -44,18 +45,23 @@ function fakeComputer({ forti = "Disconnected", tsRunning = true, acceptDns = tr
       return ok();
     }
     if (file === "/usr/sbin/scutil") {
-      if (args[1] === "list") return ok(SCUTIL.replace("(Disconnected)", `(${sim.forti})`));
+      if (args[1] === "list") return ok(scutil.replace("(Disconnected)", `(${sim.forti})`));
       if (args[1] === "start") sim.forti = "Connected";
       if (args[1] === "stop") sim.forti = "Disconnected";
       return ok();
     }
     return { code: 1, stdout: "", stderr: "unknown" };
   };
+  const configPath = join(dir, Math.random().toString(36).slice(2), "vpn.json");
+  if (config) {
+    mkdirSync(dirname(configPath), { recursive: true });
+    writeFileSync(configPath, JSON.stringify(config));
+  }
   const vpn = createVpn({
     run,
     exists: (path) => files.includes(path),
     platform: "darwin",
-    configPath: join(dir, Math.random().toString(36).slice(2), "vpn.json"),
+    configPath,
     lookup: async () => {
       if (!resolves(sim)) throw new Error("ENOTFOUND");
       return { address: "10.0.0.1" };
@@ -250,4 +256,43 @@ test("las herramientas pasan el nombre tal cual y devuelven el error como texto"
   const failed = await handlers.vpn_disconnect({ vpn: "x" });
   assert.equal(failed.isError, true);
   assert.equal(failed.content[0].text, "nope");
+});
+
+test("FortiClient llamado solo \"VPN\" en Ajustes del sistema aparece una vez, como FortiClient", async () => {
+  const { vpn, calls } = fakeComputer({
+    files: [TS, "/Applications/FortiClient.app"],
+    scutil: SCUTIL.replace('"FortiClient"', '"VPN"'),
+  });
+  const status = await vpn.status();
+  assert.deepEqual(status.vpns.map((v) => [v.id, v.name, v.kind]), [["forticlient", "FortiClient", "macos"]]);
+  await vpn.connect("forticlient");
+  assert.ok(calls.includes("/usr/sbin/scutil --nc start VPN"), "usa el nombre real del servicio");
+});
+
+test("si la VPN del trabajo se prende en su propia app, reconcile le quita el DNS a Tailscale y se lo regresa al apagarla", async () => {
+  const { vpn, sim } = fakeComputer();
+  sim.forti = "Connected";
+  assert.equal((await vpn.status()).conflicts.length, 1);
+  await vpn.reconcile();
+  assert.equal(sim.acceptDns, false);
+  assert.equal(sim.tsRunning, true);
+  assert.deepEqual((await vpn.status()).conflicts, []);
+  sim.forti = "Disconnected";
+  await vpn.reconcile();
+  assert.equal(sim.acceptDns, true);
+});
+
+test("reconcile no toca el DNS que la persona apagó ni el que dejó prendido sin otra VPN", async () => {
+  const off = fakeComputer({ acceptDns: false });
+  await off.vpn.reconcile();
+  assert.equal(off.sim.acceptDns, false);
+  const on = fakeComputer();
+  await on.vpn.reconcile();
+  assert.equal(on.sim.acceptDns, true);
+});
+
+test("con keepBothWorking apagado, reconcile no toca a Tailscale", async () => {
+  const { vpn, sim } = fakeComputer({ forti: "Connected", config: { keepBothWorking: false } });
+  await vpn.reconcile();
+  assert.equal(sim.acceptDns, true);
 });
