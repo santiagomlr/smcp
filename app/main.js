@@ -1042,9 +1042,30 @@ function showWindow() {
   win.loadFile(join(HERE, "ui", "index.html"));
 }
 
+/** Whether the Windows taskbar is light. It has its own setting, apart from the app colors that nativeTheme follows. */
+let windowsTaskbarLight = false;
+const PERSONALIZE_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+
+function readWindowsTaskbar() {
+  if (process.platform !== "win32") return;
+  execFile("reg", ["query", PERSONALIZE_KEY, "/v", "SystemUsesLightTheme"], { windowsHide: true }, (error, stdout) => {
+    const light = !error && /SystemUsesLightTheme\s+REG_DWORD\s+0x0*1\b/i.test(stdout);
+    if (light === windowsTaskbarLight) return;
+    windowsTaskbarLight = light;
+    updateTray();
+  });
+}
+
+/** Light bars get the black mark with green, dark bars the white one. */
+function barIsLight() {
+  if (IS_MAC) return !nativeTheme.shouldUseDarkColors;
+  if (process.platform === "win32") return windowsTaskbarLight;
+  return false;
+}
+
 function trayLook() {
   return {
-    bar: !IS_MAC || nativeTheme.shouldUseDarkColors ? "dark" : "light",
+    bar: barIsLight() ? "light" : "dark",
     status: lastState?.policy.paused ? "paused" : "on",
   };
 }
@@ -1164,7 +1185,15 @@ function createTray() {
     tray.on("click", togglePanel);
     tray.on("right-click", () => tray.popUpContextMenu(trayMenu()));
   }
-  nativeTheme.on("updated", updateTray);
+  nativeTheme.on("updated", () => {
+    readWindowsTaskbar();
+    updateTray();
+  });
+  if (process.platform === "win32") {
+    readWindowsTaskbar();
+    // Changing only the taskbar color does not always reach nativeTheme, so it is checked now and then too.
+    setInterval(readWindowsTaskbar, 30_000).unref?.();
+  }
 }
 
 /** Every channel reports errors as data so the UI can show them. */
