@@ -72,6 +72,10 @@ export const REMOTE_TOOLS = new Set([
   // Seeing which VPNs are on is harmless. Turning them on or off stays on this computer: switching
   // Tailscale off from the phone would cut the very connection the phone uses.
   "vpn_status",
+  // Turning a VPN on from afar is how a computer serving with its screen off gets back onto the work
+  // network. Tailscale stays connected (only its DNS steps aside), so the phone's own connection holds.
+  // Turning VPNs off stays on this computer.
+  "vpn_connect",
   // A computer used as a server can be kept awake from the phone. Stopping, or turning the screen off,
   // stays on this computer: letting it sleep would cut the very connection the phone uses.
   "awake_status",

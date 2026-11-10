@@ -123,6 +123,8 @@ test("a damaged settings file falls back to safe values", () => {
     atLaunch: false,
     batteryFloor: 20,
     lidOwned: false,
+    keepVpns: true,
+    vpns: [],
   });
   assert.equal(readSettings(join(dir, "missing.json")).session, null);
 });
@@ -430,4 +432,35 @@ test("keep awake has its own switch, works in read-only mode, and only starts fr
   assert.ok(REMOTE_TOOLS.has("awake_start"));
   assert.ok(!REMOTE_TOOLS.has("awake_stop"), "letting it sleep from the phone would cut the phone's own connection");
   assert.ok(!REMOTE_TOOLS.has("awake_screen_off"));
+  assert.ok(REMOTE_TOOLS.has("vpn_connect"), "a server with its screen off must be able to get back onto the work VPN");
+  assert.ok(!REMOTE_TOOLS.has("vpn_disconnect"), "turning VPNs off from afar could cut the phone's own connection");
+  assert.ok(!REMOTE_TOOLS.has("vpn_tailscale_dns"));
+});
+
+test("during a session, keep awake brings back a VPN that drops, and lets go of them when it ends", async () => {
+  const state = { forti: true, connects: [] };
+  const vpn = {
+    status: async () => ({ tailscale: { installed: false }, vpns: [{ id: "forticlient", name: "FortiClient", kind: "macos", connected: state.forti }] }),
+    connect: async (id) => {
+      state.connects.push(id);
+      state.forti = true;
+      return { connected: true };
+    },
+  };
+  const { awake, advance } = fakeMac({ vpn, turnedOff: () => ({}) });
+  await awake.start({});
+  await awake.tick();
+  assert.deepEqual((await awake.status()).vpnGuard.watching.map((item) => item.id), ["forticlient"]);
+  state.forti = false;
+  advance(31_000);
+  await awake.tick();
+  assert.deepEqual(state.connects, ["forticlient"]);
+  await awake.stop();
+  assert.equal((await awake.status()).vpnGuard, undefined);
+  await awake.configure({ keepVpns: false });
+  await awake.start({});
+  state.forti = false;
+  advance(31_000);
+  await awake.tick();
+  assert.deepEqual(state.connects, ["forticlient"], "with the option off, VPNs are left alone");
 });

@@ -218,7 +218,7 @@ test("si la VPN falla al conectar, Tailscale recupera su DNS", async () => {
   void sim;
 });
 
-test("el área VPN tiene su permiso, funciona en solo lectura y desde el teléfono solo se consulta", () => {
+test("el área VPN tiene su permiso, funciona en solo lectura y desde el teléfono solo se consulta y se conecta", () => {
   assert.equal(toolGroup("vpn_connect"), "vpn");
   assert.equal(readPolicy(join(dir, "none.json")).disabled.vpn, false);
   const readOnly = { ...readPolicy(join(dir, "none.json")), readOnly: true };
@@ -227,7 +227,7 @@ test("el área VPN tiene su permiso, funciona en solo lectura y desde el teléfo
   off.disabled.vpn = true;
   assert.match(denialFor("vpn_status", { readOnlyHint: true }, off), /vpn/);
   assert.equal(REMOTE_TOOLS.has("vpn_status"), true);
-  assert.equal(REMOTE_TOOLS.has("vpn_connect"), false);
+  assert.equal(REMOTE_TOOLS.has("vpn_connect"), true);
   assert.equal(REMOTE_TOOLS.has("vpn_disconnect"), false);
 });
 

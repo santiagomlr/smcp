@@ -37,7 +37,8 @@ export function registerVpn(server, { vpn = createVpn() } = {}) {
       description:
         "Turns a VPN on. For a work VPN while Tailscale is on, Tailscale stays connected and SMCP turns off only Tailscale's DNS, " +
         "so the work VPN's internal names resolve and SMCP's private URL keeps working; Tailscale's DNS comes back when that VPN is turned off. " +
-        "Some VPN apps (FortiClient without a system VPN) can only be opened: then the answer says to press Connect in the app.",
+        "Some VPN apps (FortiClient without a system VPN) can only be opened: then the answer says to press Connect in the app. " +
+        "It also works from the phone or the web, so a computer serving with its screen off can get back onto the work network.",
       inputSchema: { vpn: target },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },

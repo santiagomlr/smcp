@@ -50,7 +50,7 @@ Every version is also on the [Releases](https://github.com/santiagomlr/smcp/rele
 | Antivirus | `security_scan_file`, `security_scan_folder`, `security_check_url`, `security_check_persistence`, `security_quarantine`, `security_quarantine_list`, `security_restore`, `security_delete_quarantined` | Scanning and checking; quarantine only on the computer |
 | Context | `smcp_context`, `smcp_remember` | Reading context |
 | Night light | `nightlight_status`, `nightlight_set`, `nightlight_now` | Not available |
-| VPN | `vpn_status`, `vpn_connect`, `vpn_disconnect`, `vpn_tailscale_dns` | Checking only |
+| VPN | `vpn_status`, `vpn_connect`, `vpn_disconnect`, `vpn_tailscale_dns` | Checking and turning on |
 | Keep awake | `awake_status`, `awake_start`, `awake_stop`, `awake_screen_off` | Checking and starting |
 | Status | `smcp_status` | Yes |
 
@@ -75,6 +75,7 @@ It leaves out groups, muted and archived chats, automated senders (no-reply, not
 - `awake_status` and Settings say whether macOS really shows SMCP's assertion, which other apps keep the computer awake, and anything that would still let it sleep. **Why did it sleep?** reads the macOS log and says when it slept and why (lid closed, idle, low battery).
 - **Closed-lid mode** keeps a laptop running with the lid closed. It asks for your password once and installs a rule that lets SMCP run only `pmset -a disablesleep 1` and `pmset -a disablesleep 0`, checked with `visudo` first. System sleep is turned off only while a session needs it and back on when it ends, when SMCP quits, and, through a small watcher, even if SMCP crashes. Remove the permission from Settings at any time.
 - On battery it stops at the level you choose (20% by default), so a closed laptop never runs flat in a bag.
+- **Keep VPNs connected:** while keep awake is on, SMCP remembers the VPNs that are on and turns one back on if it drops while nobody is at the computer, such as FortiClient after the company gateway cuts an idle tunnel. It tries again after 1, 2, 5 and 10 minutes, tells you if it can't, and never pops a VPN app up on screen. A VPN you turn off yourself, in SMCP or in its own app while you are using the computer, stays off. If the VPN has a `probe` name in `~/.smcp/vpn.json`, SMCP pings it every minute so the tunnel never looks idle. Settings lists each drop with its time and whether the screen was off.
 - **Start when SMCP opens**, together with Open at login, keeps the computer always available. A session in progress resumes if SMCP restarts.
 
 On Windows and Linux it keeps the computer awake with Electron's power blocker; closed-lid mode, turning the screen off and the sleep log are Mac only.
@@ -115,7 +116,7 @@ It's a first line of defense, not a replacement for the protection built into ma
 
 - `vpn_status` lists Tailscale and every other VPN: the ones in System Settings, found on their own, and FortiClient when it is installed (once, even when System Settings calls it just "VPN"). It also says whether Tailscale is handling name lookups or using an exit node, and anything that keeps the VPNs from working together.
 - **Both on at once:** when a work VPN is on and Tailscale is handling name lookups (MagicDNS), the work VPN's internal names stop resolving. `vpn_connect` fixes this on its own: Tailscale stays connected, along with your devices and the private URL, and SMCP turns off only Tailscale's DNS. When the work VPN goes off, SMCP turns it back on, but only if SMCP was the one that turned it off. `vpn_tailscale_dns` does the same by hand. If you turn the work VPN on or off in its own app, the SMCP window does the same thing within a few seconds while it is open.
-- Turning Tailscale off also cuts the private URL, so from the phone or the web your AI can only check the VPNs, not turn them on or off. Connections > VPN has a button for each one.
+- From the phone or the web your AI can check the VPNs and turn them on, so a computer serving with its screen off can get back onto the work network. Turning them off stays on the computer, because turning Tailscale off would cut the private URL. Connections > VPN has a button for each one.
 - VPNs that System Settings doesn't list go in `~/.smcp/vpn.json`. Only you can edit that file: SMCP's file tools can't touch `~/.smcp`. A `probe` is an internal name that only resolves while that VPN is on, so SMCP can tell when it is connected:
 
 ```json

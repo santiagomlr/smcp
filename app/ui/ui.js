@@ -1396,6 +1396,10 @@ function renderAwake(status) {
   $("aw-display").checked = status.settings.displayOn;
   $("aw-lid").checked = status.settings.closedLid;
   $("aw-battery").value = String(status.settings.batteryFloor);
+  $("aw-vpns").checked = status.settings.keepVpns !== false;
+  const vpnEvents = status.vpnGuard?.events ?? [];
+  $("aw-vpn-events").replaceChildren(...vpnEvents.slice(0, 8).map((event) => element("li", { textContent: AW.vpnEventText(event) })));
+  $("aw-vpn-events").hidden = !vpnEvents.length;
   const mac = status.platform === "darwin";
   for (const row of document.querySelectorAll(".aw-mac")) row.hidden = !mac;
   $("aw-lid-state").textContent = status.closedLidReady
@@ -1429,6 +1433,7 @@ $("aw-enabled").onchange = (event) => awakeCall(event.target.checked ? "start" :
 $("aw-launch").onchange = (event) => awakeCall("configure", { atLaunch: event.target.checked });
 $("aw-display").onchange = (event) => awakeCall("configure", { displayOn: event.target.checked });
 $("aw-lid").onchange = (event) => awakeCall("configure", { closedLid: event.target.checked });
+$("aw-vpns").onchange = (event) => awakeCall("configure", { keepVpns: event.target.checked });
 $("aw-battery").onchange = (event) => awakeCall("configure", { batteryFloor: Number(event.target.value) });
 $("aw-lid-setup").onclick = () => awakeCall("setupClosedLid");
 $("aw-lid-remove").onclick = () => awakeCall("removeClosedLid");

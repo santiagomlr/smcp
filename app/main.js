@@ -187,6 +187,14 @@ const awake = createAwake({
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send("awake-changed");
     updateTray();
   },
+  // Brings back a work VPN that drops while the computer serves with its screen off.
+  vpn,
+  onVpnNotice: ({ vpn: name, kind, error }) => {
+    if (!Notification.isSupported()) return;
+    if (kind === "reconnected") new Notification({ title: tr("{vpn} reconnected", { vpn: name }), body: tr("It dropped while the computer was unattended, and SMCP brought it back.") }).show();
+    else if (kind === "needs-you") new Notification({ title: tr("{vpn} disconnected", { vpn: name }), body: tr("It can only be connected in its own app. Open it and press Connect.") }).show();
+    else new Notification({ title: tr("{vpn} could not reconnect", { vpn: name }), body: error ? String(error).slice(0, 200) : tr("SMCP keeps trying every few minutes.") }).show();
+  },
   onEnded: (reason) => {
     if (!Notification.isSupported()) return;
     new Notification({ title: tr("SMCP stopped keeping the computer awake"), body: AWAKE_ENDED[reason]?.() ?? tr("Keep awake ended.") }).show();

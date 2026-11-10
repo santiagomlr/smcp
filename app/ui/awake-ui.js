@@ -72,5 +72,20 @@
     return `${clock(sleep.at)} · ${REASONS[sleep.reason]?.() ?? sleep.reason}`;
   }
 
-  root.SMCP_AWAKE = { nowText, warningText, lengthOf, startArgs, sleepText };
+  const VPN_EVENTS = {
+    dropped: (event) => (event.screenOff ? tr("dropped with the screen off") : tr("dropped")),
+    reconnected: () => tr("reconnected by SMCP"),
+    back: () => tr("back on"),
+    "reconnect-failed": () => tr("could not reconnect yet"),
+    "reconnect-pending": () => tr("reconnecting"),
+    "needs-you": () => tr("needs you to press Connect in its app"),
+    "dropped-while-in-use": () => tr("turned off while you were using the computer; left off"),
+    "turned-off-in-smcp": () => tr("turned off in SMCP; left off"),
+  };
+
+  function vpnEventText(event) {
+    return `${clock(event.at)} · ${event.vpn} · ${VPN_EVENTS[event.event]?.(event) ?? event.event}`;
+  }
+
+  root.SMCP_AWAKE = { nowText, warningText, lengthOf, startArgs, sleepText, vpnEventText };
 })(globalThis);
