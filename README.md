@@ -51,6 +51,7 @@ Every version is also on the [Releases](https://github.com/santiagomlr/smcp/rele
 | Context | `smcp_context`, `smcp_remember` | Reading context |
 | Night light | `nightlight_status`, `nightlight_set`, `nightlight_now` | Not available |
 | VPN | `vpn_status`, `vpn_connect`, `vpn_disconnect`, `vpn_tailscale_dns` | Checking only |
+| Keep awake | `awake_status`, `awake_start`, `awake_stop`, `awake_screen_off` | Checking and starting |
 | Status | `smcp_status` | Yes |
 
 Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
@@ -67,6 +68,16 @@ Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You
 It leaves out groups, muted and archived chats, automated senders (no-reply, notifications, newsletters, promotions) and conversations that ended with a "thanks" or a 👍. You can change the days and hours on each call.
 
 `followups_to_tasks` files them in your SMCP tasks: **Reply to Ana**, planned for today, and **Follow up with Beto**, under Waiting for. The names follow the app's language. Each task's note has the last messages and where they came from. Every message becomes a task only once, even if a routine runs it every morning; if Ana writes again while her task is still open, the new message is added to that task's note. Pass `keys` from `followups_list` to file only some of them, and `project` to put them in a project. It follows the Tasks permission and read-only mode, and from your phone or a routine it needs **Edit tasks from other devices** turned on. The `morning` prompt now includes who is waiting for you.
+
+**Keep awake** turns a computer into a server with its screen off, like Amphetamine, so Claude and your other devices can keep using it. Turn it on from the menu bar for a while, until you turn it off, or while Claude is open, and turn the screen off with one click. Claude can also call `awake_start` before long work so the computer does not sleep halfway. What makes it sturdier:
+
+- The assertion is held by macOS's own `caffeinate`, tied to SMCP's process: it can never be left behind, and if it stops while a session is on it is started again.
+- `awake_status` and Settings say whether macOS really shows SMCP's assertion, which other apps keep the computer awake, and anything that would still let it sleep. **Why did it sleep?** reads the macOS log and says when it slept and why (lid closed, idle, low battery).
+- **Closed-lid mode** keeps a laptop running with the lid closed. It asks for your password once and installs a rule that lets SMCP run only `pmset -a disablesleep 1` and `pmset -a disablesleep 0`, checked with `visudo` first. System sleep is turned off only while a session needs it and back on when it ends, when SMCP quits, and, through a small watcher, even if SMCP crashes. Remove the permission from Settings at any time.
+- On battery it stops at the level you choose (20% by default), so a closed laptop never runs flat in a bag.
+- **Start when SMCP opens**, together with Open at login, keeps the computer always available. A session in progress resumes if SMCP restarts.
+
+On Windows and Linux it keeps the computer awake with Electron's power blocker; closed-lid mode, turning the screen off and the sleep log are Mac only.
 
 **Calendar and Reminders** read every account on your Mac (iCloud, Google, Exchange) through the system calendar. `calendar_free_slots` finds free time within working hours. Adding an event opens a confirmation window like sending does. The first time, macOS asks whether SMCP may use your calendar or reminders.
 
@@ -218,6 +229,7 @@ Everything is in `~/.smcp/`, with permissions for your user only.
 | `vaults.json` | Vaults that are turned on |
 | `config.json` | Pause, read only, permissions by area, what the AI can do with WhatsApp, and whether other devices can edit tasks |
 | `remote.json` | Connected remote apps, with their tokens stored only as hashes |
+| `awake.json` | Keep awake: the session in progress and its settings |
 
 Whatever the AI reads is sent to that AI's provider.
 
@@ -236,6 +248,6 @@ Whatever the AI reads is sent to that AI's provider.
 
 - WhatsApp works through `wacli`, which isn't an official client, so your account could face restrictions. Avoid bulk sending.
 - Gmail uses app passwords, which give broad access to the account and which some companies block.
-- Remote access requires the computer to be on, awake and running SMCP.
+- Remote access requires the computer to be on, awake and running SMCP. Keep awake can take care of the awake part.
 - The app is not signed by Apple. macOS shows a warning when you open a downloaded copy. Releases are signed with SMCP's own certificate, so permissions stay on after an update; the first version signed this way asks for them once more. If SMCP already looks on in those lists, press **Turn on** in SMCP: it clears the old entry so you can switch it on for the current copy.
 - Windows shows a SmartScreen warning.

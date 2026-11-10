@@ -15,6 +15,7 @@ import {
   nativeImage,
   nativeTheme,
   Notification,
+  powerSaveBlocker,
   safeStorage,
   screen,
   shell,
@@ -52,6 +53,7 @@ import { disableFunnel, enableFunnel, isFunnelOn, readBaseUrl } from "./core/fun
 import { createAccountStore, createGmail } from "./core/gmail.js";
 import { linuxSshCommand, magicPacket, readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
 import { callPeer, createPeerHub, PEER_LOCAL_PORT, PEER_PORT, peerInfo } from "./core/peers.js";
+import { createAwake } from "./core/awake.js";
 import { createNightLight } from "./core/nightlight.js";
 import { createRemote, REMOTE_PORT } from "./core/remote.js";
 import { createRemoteTasks, createTasksHub, disableServe, enableServe, tailscaleLogin } from "./core/tasks-hub.js";
@@ -62,6 +64,7 @@ import { createUpdater, isNewer, RELEASES_PAGE } from "./core/updater.js";
 import { logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
 import { audioSupported, downloadModel } from "./core/whisper.js";
 import { buildRemoteServer } from "../src/remote-tools.js";
+import { isActive as isAwakeActive, readSettings as readAwakeSettings } from "../src/awake.js";
 import { clearAudit, readAudit } from "../src/audit.js";
 import { aboutLocation, aboutStatus, startAbout } from "../src/context.js";
 import { isLanguage } from "../src/languages.js";
@@ -159,6 +162,51 @@ const NIGHTLIGHT_UI_OPS = {
   pause: (a) => nightLight.pause(Number(a.minutes) || 60),
   clearNow: () => nightLight.clearNow(),
   preview: (a) => nightLight.preview(a),
+};
+
+/** Windows and Linux have no caffeinate: Electron's own blocker holds the computer awake there. */
+function startElectronKeeper({ displayOn }) {
+  const id = powerSaveBlocker.start(displayOn ? "prevent-display-sleep" : "prevent-app-suspension");
+  return { pid: null, stop: () => powerSaveBlocker.stop(id) };
+}
+
+const AWAKE_ENDED = {
+  time: () => tr("The time you chose is up."),
+  app: () => tr("The app it was waiting for has closed."),
+  battery: () => tr("The battery reached the level you chose, so the computer can sleep and save it."),
+};
+
+/** Keeps the computer running with its screen off, like Amphetamine. Every window hears about changes. */
+const awake = createAwake({
+  ...(IS_MAC ? {} : { startKeeper: startElectronKeeper }),
+  onChange: () => {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send("awake-changed");
+    updateTray();
+  },
+  onEnded: (reason) => {
+    if (!Notification.isSupported()) return;
+    new Notification({ title: tr("SMCP stopped keeping the computer awake"), body: AWAKE_ENDED[reason]?.() ?? tr("Keep awake ended.") }).show();
+  },
+});
+
+/** What the AI may ask: the same checks as any other tool. Setting up closed-lid mode is only for the person. */
+const AWAKE_OPS = {
+  status: { name: "awake_status", annotations: { readOnlyHint: true }, run: () => awake.status() },
+  diagnose: { name: "awake_status", annotations: { readOnlyHint: true }, run: () => awake.diagnose() },
+  start: { name: "awake_start", run: (a) => awake.start({ ...a, by: "ai" }) },
+  stop: { name: "awake_stop", run: () => awake.stop() },
+  screenOff: { name: "awake_screen_off", run: () => awake.screenOff() },
+};
+
+const AWAKE_UI_OPS = {
+  status: () => awake.status(),
+  diagnose: () => awake.diagnose(),
+  start: (a) => awake.start({ ...a, by: "person" }),
+  stop: () => awake.stop(),
+  screenOff: () => awake.screenOff(),
+  configure: (a) => awake.configure(a),
+  setupClosedLid: () => awake.setupClosedLid(),
+  removeClosedLid: () => awake.removeClosedLid(),
 };
 
 /** What each of the user's other computers running SMCP last said about itself, by machine name. */
@@ -851,6 +899,12 @@ function startActionHelper() {
       const annotations = entry.annotations ?? { readOnlyHint: false, destructiveHint: false };
       return allowed(entry.name, annotations, () => entry.run(args && typeof args === "object" ? args : {}))();
     },
+    awake: ({ op, args }) => {
+      const entry = AWAKE_OPS[op];
+      if (!entry) throw new Error("Unknown operation.");
+      const annotations = entry.annotations ?? { readOnlyHint: false, destructiveHint: false };
+      return allowed(entry.name, annotations, () => entry.run(args && typeof args === "object" ? args : {}))();
+    },
   });
 }
 
@@ -1005,14 +1059,19 @@ const setTrayTitle = whenChanged((text) => tray.setTitle(text));
 // The panel re-reads state when told it changed, so telling it on every read would loop forever.
 const tellPanel = whenChanged(() => panel?.webContents.send("state-changed"));
 
+/** Whether keep awake is on, for the tray's tooltip. Read from the file, so it never waits on macOS. */
+let awakeOn = false;
+
 function updateTray() {
+  awakeOn = isAwakeActive(readAwakeSettings());
   if (!tray) return;
   setTrayImage(trayLook());
   const online = lastState?.tailscale.machines.filter((machine) => machine.online).length ?? 0;
   const pending = lastState?.update?.status === "available" || Boolean(lastState?.tailscale.machines.some((machine) => machine.outdated));
   if (IS_MAC) setTrayTitle(pending ? "↑" : "");
   const status = lastState?.policy.paused ? tr("SMCP: paused") : tr("SMCP: active · {online} online", { online });
-  setTrayToolTip(pending ? `${status} · ${tr("update available")}` : status);
+  const parts = [status, ...(awakeOn ? [tr("keeping the computer awake")] : []), ...(pending ? [tr("update available")] : [])];
+  setTrayToolTip(parts.join(" · "));
   tellPanel(lastState);
 }
 
@@ -1287,6 +1346,11 @@ function registerIpc() {
     if (!run) throw new Error(tr("Unknown operation."));
     return run(args && typeof args === "object" ? args : {});
   });
+  handle("awake", (op, args) => {
+    const run = AWAKE_UI_OPS[op];
+    if (!run) throw new Error(tr("Unknown operation."));
+    return run(args && typeof args === "object" ? args : {});
+  });
   handle("vpn", (op, args) => {
     const run = VPN_UI_OPS[op];
     if (!run) throw new Error(tr("Unknown operation."));
@@ -1344,7 +1408,18 @@ if (!app.requestSingleInstanceLock()) {
   app.on("activate", () => {
     if (!startedInBackground || process.uptime() > 5) showWindow();
   });
-  app.on("before-quit", () => {
+  let awakeReleased = false;
+  app.on("before-quit", (event) => {
+    // Closed-lid mode must be undone before SMCP is gone, so wait for it once.
+    if (!awakeReleased) {
+      event.preventDefault();
+      awakeReleased = true;
+      const timeout = new Promise((resolve) => setTimeout(resolve, 5_000));
+      Promise.race([awake.shutdown(), timeout])
+        .catch(() => {})
+        .finally(() => app.quit());
+      return;
+    }
     quitting = true;
     cancelLogin?.();
     remote?.stop();
@@ -1364,6 +1439,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     if (IS_MAC) startActionHelper().catch((error) => console.error("helper:", error.message));
     if (IS_MAC) nightLight.start();
+    if (!SMOKE_TEST) awake.launch().catch((error) => console.error("awake:", error.message));
     createTray();
     collectState();
     setInterval(collectState, REFRESH_MS);
