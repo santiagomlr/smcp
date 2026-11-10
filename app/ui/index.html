@@ -170,6 +170,24 @@
           <p id="nl-missing" class="hint" hidden>This copy of SMCP does not include the night light helper. Install the latest version, or run npm run nightlight:install in development.</p>
         </section>
 
+        <section id="awake-section" aria-labelledby="h-awake">
+          <h2 id="h-awake">Keep awake</h2>
+          <p class="hint">Keeps this computer running with its screen off, so it works as a server for Claude and your other devices. Like Amphetamine, but SMCP checks that macOS really honors it and undoes everything if SMCP closes.</p>
+          <p id="aw-now" class="nl-now" role="status"></p>
+          <ul id="aw-warnings" class="aw-warnings" role="status" hidden></ul>
+          <ul class="rows">
+            <li><label for="aw-enabled">Keep awake</label><input id="aw-enabled" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="aw-launch">Start when SMCP opens<small>With Open at login, this computer is always available.</small></label><input id="aw-launch" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="aw-display">Keep the screen on<small>Off: the screen turns off on its usual schedule and the computer keeps running.</small></label><input id="aw-display" class="switch" type="checkbox" role="switch" /></li>
+            <li class="aw-mac"><label for="aw-lid">Keep running with the lid closed<small>System sleep is turned back on when the session ends or SMCP closes, even if it crashes.</small></label><input id="aw-lid" class="switch" type="checkbox" role="switch" /></li>
+            <li class="aw-mac"><span>Closed-lid permission<small id="aw-lid-state"></small></span><span class="nl-actions"><button id="aw-lid-setup" type="button">Set up</button><button id="aw-lid-remove" type="button" hidden>Remove</button></span></li>
+            <li><label for="aw-battery">On battery, stop at<small>So a closed laptop never runs flat.</small></label><select id="aw-battery"><option value="0">Never</option><option value="10">10%</option><option value="20">20%</option><option value="30">30%</option><option value="50">50%</option></select></li>
+            <li class="aw-mac"><span>Screen<small>Turns it off now. Any key brings it back.</small></span><span class="nl-actions"><button id="aw-screen" type="button">Turn screen off</button></span></li>
+            <li class="aw-mac"><span>Why did it sleep?<small id="aw-diagnose-note">The last times it slept and what macOS said.</small></span><span class="nl-actions"><button id="aw-diagnose" type="button">Check</button></span></li>
+          </ul>
+          <ol id="aw-sleeps" class="aw-sleeps" hidden></ol>
+        </section>
+
         <section aria-labelledby="h-perms">
           <h2 id="h-perms">What Claude can use</h2>
           <ul class="rows">
@@ -185,6 +203,7 @@
             <li><label for="group-terminal">Terminal<small>Can run any command.</small></label><input id="group-terminal" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-apps">Control apps</label><input id="group-apps" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-nightlight">Night light<small>Lets Claude warm the screen and change its schedule.</small></label><input id="group-nightlight" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="group-awake">Keep awake<small>Lets Claude keep this computer running while it works, and turn the screen off.</small></label><input id="group-awake" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-vpn">VPN<small>Lets Claude turn Tailscale and your other VPNs on and off.</small></label><input id="group-vpn" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="group-security">Antivirus<small>Scans files, links and start-up items. Quarantine can be undone.</small></label><input id="group-security" class="switch" type="checkbox" role="switch" /></li>
           </ul>
@@ -272,6 +291,7 @@
     <script src="i18n/it-tasks.js"></script>
     <script src="i18n/it-main.js"></script>
     <script src="nightlight-ui.js"></script>
+    <script src="awake-ui.js"></script>
     <script src="ui.js"></script>
   </body>
 </html>

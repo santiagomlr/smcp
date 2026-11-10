@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld("api", {
   setPolicy: (patch) => call("set-policy", patch),
   nightlight: (op, args) => call("nightlight", op, args),
   vpn: (op, args) => call("vpn", op, args),
+  awake: (op, args) => call("awake", op, args),
+  onAwakeChanged: (listener) => ipcRenderer.on("awake-changed", () => listener()),
   onNightLightChanged: (listener) => ipcRenderer.on("nightlight-changed", () => listener()),
   setOnboarded: (value) => call("set-onboarded", value),
   aboutSave: (text) => call("about-save", text),

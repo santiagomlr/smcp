@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps", "security", "nightlight", "vpn"];
+const GROUPS = ["whatsapp", "gmail", "notes", "tasks", "calendar", "reminders", "applenotes", "files", "clipboard", "terminal", "apps", "security", "nightlight", "vpn", "awake"];
 const ACTIVITY_SHOWN = 30;
 const openEditors = new Set();
 let state = null;
@@ -1383,6 +1383,67 @@ $("nl-resume").onclick = () => nightLightCall("clearNow");
 window.api.onNightLightChanged(loadNightLight);
 loadNightLight();
 setInterval(loadNightLight, 60_000);
+
+// Keep awake
+
+const AW = globalThis.SMCP_AWAKE;
+
+function renderAwake(status) {
+  $("awake-section").hidden = status.supported === false;
+  $("aw-now").textContent = AW.nowText(status);
+  $("aw-enabled").checked = status.active;
+  $("aw-launch").checked = status.settings.atLaunch;
+  $("aw-display").checked = status.settings.displayOn;
+  $("aw-lid").checked = status.settings.closedLid;
+  $("aw-battery").value = String(status.settings.batteryFloor);
+  const mac = status.platform === "darwin";
+  for (const row of document.querySelectorAll(".aw-mac")) row.hidden = !mac;
+  $("aw-lid-state").textContent = status.closedLidReady
+    ? tr("Set up. SMCP may run only the two commands that turn system sleep off and on.")
+    : tr("Needs your password once. SMCP may then run only the two commands that turn system sleep off and on.");
+  $("aw-lid-setup").hidden = Boolean(status.closedLidReady);
+  $("aw-lid-remove").hidden = !status.closedLidReady;
+  const warnings = status.warnings ?? [];
+  $("aw-warnings").replaceChildren(...warnings.map((warning) => element("li", { textContent: AW.warningText(warning) })));
+  $("aw-warnings").hidden = !warnings.length;
+}
+
+async function awakeCall(op, args) {
+  const result = await window.api.awake(op, args);
+  if (!result.ok) {
+    showError(result.error);
+    await loadAwake();
+    return null;
+  }
+  showError("");
+  if (result.value && "active" in result.value) renderAwake(result.value);
+  return result.value;
+}
+
+async function loadAwake() {
+  const result = await window.api.awake("status");
+  if (result.ok) renderAwake(result.value);
+}
+
+$("aw-enabled").onchange = (event) => awakeCall(event.target.checked ? "start" : "stop");
+$("aw-launch").onchange = (event) => awakeCall("configure", { atLaunch: event.target.checked });
+$("aw-display").onchange = (event) => awakeCall("configure", { displayOn: event.target.checked });
+$("aw-lid").onchange = (event) => awakeCall("configure", { closedLid: event.target.checked });
+$("aw-battery").onchange = (event) => awakeCall("configure", { batteryFloor: Number(event.target.value) });
+$("aw-lid-setup").onclick = () => awakeCall("setupClosedLid");
+$("aw-lid-remove").onclick = () => awakeCall("removeClosedLid");
+$("aw-screen").onclick = () => awakeCall("screenOff");
+$("aw-diagnose").onclick = async () => {
+  const result = await awakeCall("diagnose");
+  if (!result) return;
+  const sleeps = result.recentSleeps ?? [];
+  $("aw-sleeps").replaceChildren(...sleeps.map((sleep) => element("li", { textContent: AW.sleepText(sleep) })));
+  $("aw-sleeps").hidden = !sleeps.length;
+  $("aw-diagnose-note").textContent = sleeps.length ? tr("Newest first.") : tr("No recent sleeps in the macOS log.");
+};
+window.api.onAwakeChanged(loadAwake);
+loadAwake();
+setInterval(loadAwake, 60_000);
 
 document.fonts.ready.then(moveIndicator);
 refresh();

@@ -4,6 +4,7 @@ import { GROUPS, readPolicy } from "../policy.js";
 import { textResult } from "../util.js";
 import { enabledVaults } from "../vaults.js";
 import { createVpn } from "../vpn.js";
+import { awakeCall } from "./awake.js";
 import { nightLightCall } from "./nightlight.js";
 import { securityProbe } from "./security.js";
 import { callApp } from "./tasks.js";
@@ -61,6 +62,15 @@ export const DEFAULT_PROBES = {
       tailscale: tailscale.installed ? (tailscale.running ? "on" : "off") : "not installed",
       on: vpns.filter((vpn) => vpn.connected).map((vpn) => vpn.name),
       ...(conflicts.length ? { conflicts } : {}),
+    };
+  },
+  async awake() {
+    const state = await awakeCall("status");
+    if (state.running === false) throw new Error("Open the SMCP app to keep the computer awake.");
+    return {
+      on: state.active,
+      ...(state.active ? { ends: state.ends, verified: state.verified } : {}),
+      ...(state.warnings?.length ? { warnings: state.warnings.map((warning) => warning.text) } : {}),
     };
   },
   async whatsapp() {

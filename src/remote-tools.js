@@ -13,6 +13,7 @@ import { registerNotes } from "./tools/notes.js";
 import { registerPeople } from "./tools/people.js";
 import { registerSecurity } from "./tools/security.js";
 import { registerTasks } from "./tools/tasks.js";
+import { registerAwake } from "./tools/awake.js";
 import { registerVpn } from "./tools/vpn.js";
 import { registerWhatsApp } from "./tools/whatsapp.js";
 
@@ -71,6 +72,10 @@ export const REMOTE_TOOLS = new Set([
   // Seeing which VPNs are on is harmless. Turning them on or off stays on this computer: switching
   // Tailscale off from the phone would cut the very connection the phone uses.
   "vpn_status",
+  // A computer used as a server can be kept awake from the phone. Stopping, or turning the screen off,
+  // stays on this computer: letting it sleep would cut the very connection the phone uses.
+  "awake_status",
+  "awake_start",
 ]);
 
 /**
@@ -118,6 +123,7 @@ export function buildRemoteServer() {
   registerFiles(onlyAllowed);
   registerSecurity(onlyAllowed);
   registerVpn(onlyAllowed);
+  registerAwake(onlyAllowed);
   registerStatus(onlyAllowed, { remote: true });
   registerContext(onlyAllowed, { remote: true });
   registerPrompts(server, { remote: true });

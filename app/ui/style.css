@@ -1537,3 +1537,22 @@ button.add {
   display: flex;
   gap: 8px;
 }
+
+/* Keep awake */
+
+.aw-warnings,
+.aw-sleeps {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.aw-warnings li + li,
+.aw-sleeps li + li {
+  margin-top: 4px;
+}
+
+.aw-sleeps {
+  font-variant-numeric: tabular-nums;
+}
