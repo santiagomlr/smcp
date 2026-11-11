@@ -205,7 +205,6 @@ Object.assign((globalThis.SMCP_PT ??= {}), {
   "The screen is set to never turn off in System Settings, so it stays on. Use Turn screen off, or set Turn display off when inactive in System Settings > Lock Screen.": "A tela está configurada para nunca desligar nos Ajustes do Sistema, então fica ligada. Use Desligar tela, ou ajuste Desligar a tela quando inativo em Ajustes do Sistema > Tela Bloqueada.",
   "{apps} is keeping the screen on. Use Turn screen off, or close it.": "{apps} está mantendo a tela ligada. Use Desligar tela, ou feche.",
   "Keep VPNs connected": "Manter as VPNs conectadas",
-  "If FortiClient or another VPN drops while nobody is at the computer, SMCP turns it back on. One you turn off yourself stays off.": "Se o FortiClient ou outra VPN cair quando ninguém está no computador, o SMCP liga de novo. Se você desligar, ela fica desligada.",
   "VPN activity": "Atividade da VPN",
   "dropped with the screen off": "caiu com a tela desligada",
   "dropped": "caiu",
@@ -214,7 +213,6 @@ Object.assign((globalThis.SMCP_PT ??= {}), {
   "could not reconnect yet": "ainda não foi possível reconectar",
   "reconnecting": "reconectando",
   "needs you to press Connect in its app": "precisa que você aperte Conectar no app",
-  "turned off while you were using the computer; left off": "foi desligada enquanto você usava o computador; ficou desligada",
   "turned off in SMCP; left off": "desligada no SMCP; ficou desligada",
   "{vpn} reconnected": "{vpn} reconectada",
   "It dropped while the computer was unattended, and SMCP brought it back.": "Caiu enquanto ninguém usava o computador e o SMCP a trouxe de volta.",
@@ -222,4 +220,6 @@ Object.assign((globalThis.SMCP_PT ??= {}), {
   "It can only be connected in its own app. Open it and press Connect.": "Só pode ser conectada no próprio app. Abra e aperte Conectar.",
   "{vpn} could not reconnect": "{vpn} não conseguiu reconectar",
   "SMCP keeps trying every few minutes.": "O SMCP continua tentando a cada poucos minutos.",
+  "dropped while you were using the computer; back once you step away": "caiu enquanto você usava o computador; volta quando você se afastar",
+  "If FortiClient or another VPN drops, SMCP turns it back on, waiting until you step away if you are using the computer. One you turn off in SMCP stays off.": "Se o FortiClient ou outra VPN cair, o SMCP liga de novo; se você estiver usando o computador, espera você se afastar. Se você desligar no SMCP, ela fica desligada.",
 });

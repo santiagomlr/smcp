@@ -79,7 +79,7 @@
     "reconnect-failed": () => tr("could not reconnect yet"),
     "reconnect-pending": () => tr("reconnecting"),
     "needs-you": () => tr("needs you to press Connect in its app"),
-    "dropped-while-in-use": () => tr("turned off while you were using the computer; left off"),
+    "dropped-while-in-use": () => tr("dropped while you were using the computer; back once you step away"),
     "turned-off-in-smcp": () => tr("turned off in SMCP; left off"),
   };
 
