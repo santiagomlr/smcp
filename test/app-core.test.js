@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { addToDesktop, isRegistered, removeFromDesktop, serverEntry } from "../app/core/clients.js";
+import { addToDesktop, claudeCliCandidates, findClaudeCli, isRegistered, removeFromDesktop, serverEntry } from "../app/core/clients.js";
 import { linuxSshCommand, magicPacket, parseStatus, sshCommandFile, sshTarget, tailscaleCandidates } from "../app/core/machines.js";
 import { parseDoctor, qrFromEventLine } from "../app/core/whatsapp.js";
 
@@ -126,4 +126,34 @@ test("en Linux abre SSH con la primera terminal instalada, sin pasar por un shel
     "-e", "ssh", "-i", "/home/ana/.ssh/pc", "ana@100.1.2.3",
   ]);
   assert.equal(linuxSshCommand({ user: "ana", ip: "100.1.2.3" }, { path: "/usr/bin", exists: () => false }), null);
+});
+
+test("Claude Code: lo encuentra en ~/.local/bin aunque la app abra con el PATH mínimo", async () => {
+  const calls = [];
+  const runner = async (...args) => (calls.push(args), { code: 1, stdout: "" });
+  const exists = (path) => path === "/Users/s/.local/bin/claude";
+  const path = await findClaudeCli({ home: "/Users/s", exists, shell: "/bin/zsh", runner });
+  assert.equal(path, "/Users/s/.local/bin/claude");
+  assert.equal(calls.length, 0);
+  assert.ok(claudeCliCandidates("/Users/s").includes("/opt/homebrew/bin/claude"));
+});
+
+test("Claude Code: si el login shell no lo ve, pregunta a un shell interactivo (lee .zshrc)", async () => {
+  const calls = [];
+  const runner = async (shell, args) => {
+    calls.push(args[0]);
+    return args[0] === "-ilc" ? { code: 0, stdout: "aviso del .zshrc\n/Users/s/custom/claude\n" } : { code: 1, stdout: "" };
+  };
+  const exists = (path) => path === "/Users/s/custom/claude";
+  const path = await findClaudeCli({ home: "/Users/s", exists, shell: "/bin/zsh", runner });
+  assert.equal(path, "/Users/s/custom/claude");
+  assert.deepEqual(calls, ["-lc", "-ilc"]);
+});
+
+test("Claude Code: sin CLI en ningún lado da el error de siempre", async () => {
+  const runner = async () => ({ code: 0, stdout: "claude: aliased to foo\n" });
+  await assert.rejects(
+    findClaudeCli({ home: "/Users/s", exists: () => false, shell: "/bin/zsh", runner }),
+    /Claude Code was not found on this computer/,
+  );
 });

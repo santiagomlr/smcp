@@ -1,3 +1,4 @@
+import { accessSync, constants } from "node:fs";
 import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -79,14 +80,56 @@ export async function removeFromDesktop(path, key = "mcpServers") {
   await writeConfig(path, config);
 }
 
-/** Apps opened from Finder get a minimal PATH, so ask a login shell where the CLI lives. */
-async function findClaudeCli() {
-  const result = await run(userShell(), ["-lc", "command -v claude"], { timeoutMs: 10_000 });
-  const path = result.stdout.trim().split("\n").at(-1);
-  if (result.code !== 0 || !path?.startsWith("/")) {
-    throw new Error("Claude Code was not found on this computer.");
+/** Where the Claude Code installers put the CLI, newest installer first. */
+export function claudeCliCandidates(home = homedir()) {
+  return [
+    join(home, ".local", "bin", "claude"),
+    join(home, ".claude", "local", "claude"),
+    "/opt/homebrew/bin/claude",
+    "/usr/local/bin/claude",
+    join(home, ".npm-global", "bin", "claude"),
+    join(home, ".volta", "bin", "claude"),
+    join(home, ".bun", "bin", "claude"),
+  ];
+}
+
+function isExecutable(path) {
+  try {
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
   }
-  return path;
+}
+
+function lastAbsoluteLine(text) {
+  return text
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("/"))
+    .at(-1);
+}
+
+/**
+ * Apps opened from the Dock or Finder get a minimal PATH and never read the user's shell files,
+ * so look in the usual install folders first, then ask a login shell (reads .zprofile), then an
+ * interactive one (also reads .zshrc, where the installer usually adds ~/.local/bin).
+ */
+export async function findClaudeCli({
+  home = homedir(),
+  exists = isExecutable,
+  shell = userShell(),
+  runner = run,
+} = {}) {
+  const known = claudeCliCandidates(home).find((path) => exists(path));
+  if (known) return known;
+  for (const flags of ["-lc", "-ilc"]) {
+    const result = await runner(shell, [flags, "command -v claude"], { timeoutMs: 10_000 });
+    const path = result.code === 0 ? lastAbsoluteLine(result.stdout ?? "") : undefined;
+    if (path && exists(path)) return path;
+  }
+  throw new Error("Claude Code was not found on this computer.");
 }
 
 export async function addToClaudeCode(entry) {
