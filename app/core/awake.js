@@ -23,6 +23,7 @@ import {
   normalizeSettings,
   parseAssertions,
   parseBattery,
+  parseIdleSeconds,
   parsePowerSettings,
   parseSleepLog,
   PMSET,
@@ -35,9 +36,13 @@ import {
   watchRunning,
 } from "../../src/awake.js";
 import { formatLocal } from "../../src/tools/calendar.js";
+import { readTurnedOff } from "../../src/vpn.js";
+import { createVpnGuard } from "./vpn-guard.js";
 import { run as runCommand } from "../../src/util.js";
 
 const TICK_MS = 15_000;
+/** How often the VPNs are looked at during a session. */
+const VPN_CHECK_MS = 30_000;
 /** If caffeinate keeps dying right after starting, stop restarting it until the next change. */
 const MAX_QUICK_FAILURES = 3;
 const QUICK_FAILURE_MS = 5_000;
@@ -99,6 +104,10 @@ export function createAwake({
   clearTimer = clearInterval,
   onChange = () => {},
   onEnded = () => {},
+  /** The VPN controller (src/vpn.js). Without one, keep awake leaves VPNs alone. */
+  vpn = null,
+  turnedOff = () => readTurnedOff(),
+  onVpnNotice = () => {},
 } = {}) {
   const mac = platform === "darwin";
   let keeper = null;
@@ -110,6 +119,7 @@ export function createAwake({
   let ticker = null;
   let lastError = null;
   let busy = Promise.resolve();
+  let lastVpnCheck = 0;
 
   const read = () => readSettings(path);
   const write = (patch) => {
@@ -117,6 +127,25 @@ export function createAwake({
     saveSettings(settings, path);
     return settings;
   };
+
+  async function idleSeconds() {
+    if (!mac) return null;
+    const result = await run("/usr/sbin/ioreg", ["-c", "IOHIDSystem", "-d", "4"], { timeoutMs: 10_000 });
+    return result.code === 0 ? parseIdleSeconds(result.stdout) : null;
+  }
+
+  const vpnGuard = vpn
+    ? createVpnGuard({
+        vpn,
+        run,
+        now,
+        idleSeconds,
+        turnedOff,
+        load: () => read().vpns,
+        save: (vpns) => write({ vpns }),
+        onNotice: onVpnNotice,
+      })
+    : null;
 
   /** One change at a time: a tick and a click must not both start caffeinate. */
   const serial = (fn) => {
@@ -176,6 +205,10 @@ export function createAwake({
     let settings = read();
     const active = isActive(settings, now());
     if (!active && settings.session) settings = write({ session: null });
+    if (!active && settings.vpns.length) {
+      vpnGuard?.reset();
+      settings = write({ vpns: [] });
+    }
     if (active) ensureKeeper(settings);
     else stopKeeper();
     if (!mac) return settings;
@@ -253,6 +286,11 @@ export function createAwake({
       if (power?.onBattery && power.percent !== null && power.percent <= settings.batteryFloor) return end("battery");
     }
     await apply();
+    if (vpnGuard && settings.keepVpns && now() - lastVpnCheck >= VPN_CHECK_MS) {
+      lastVpnCheck = now();
+      const live = mac ? parsePowerSettings((await run(PMSET, ["-g"], { timeoutMs: 10_000 })).stdout) : null;
+      await vpnGuard.check({ displaySleepMinutes: live?.values.displaysleep ?? null }).catch(() => {});
+    }
   }
 
   /** Live facts from macOS, plus what SMCP is doing and anything that would stop it from working. */
@@ -263,10 +301,11 @@ export function createAwake({
       supported: true,
       platform,
       ...describe(settings, now(), { formatTime: formatLocal }),
-      settings: { displayOn: settings.displayOn, closedLid: settings.closedLid, atLaunch: settings.atLaunch, batteryFloor: settings.batteryFloor },
+      settings: { displayOn: settings.displayOn, closedLid: settings.closedLid, atLaunch: settings.atLaunch, batteryFloor: settings.batteryFloor, keepVpns: settings.keepVpns },
       batteryFloors: BATTERY_FLOORS,
       holding: Boolean(keeper),
       ...(lastError ? { error: lastError } : {}),
+      ...(vpnGuard && settings.keepVpns && active ? { vpnGuard: vpnGuard.describe() } : {}),
     };
     if (!mac) return { ...base, closedLidSupported: false, warnings: [] };
     const [assertions, power, settingsText, ready] = await Promise.all([
@@ -348,7 +387,7 @@ export function createAwake({
     configure(input = {}) {
       return serial(async () => {
         const patch = {};
-        for (const key of ["displayOn", "closedLid", "atLaunch"]) {
+        for (const key of ["displayOn", "closedLid", "atLaunch", "keepVpns"]) {
           if (input[key] !== undefined) patch[key] = input[key] === true;
         }
         if (input.batteryFloor !== undefined) {
