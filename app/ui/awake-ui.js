@@ -27,13 +27,13 @@
       case "not-verified":
         return tr("macOS does not show SMCP's keep-awake assertion yet. If this lasts, turn keep awake off and on.");
       case "lid-setup":
-        return tr("Closing the lid will still put the computer to sleep until closed-lid mode is set up in Settings.");
+        return tr("Closing the lid will still put the computer to sleep: turn on Works with the lid closed in Settings.");
       case "lid-battery":
         return tr("On battery with the lid closed: keep it ventilated. It stops at the battery level you chose.");
       case "display-never":
-        return tr("The screen is set to never turn off in System Settings, so it stays on. Use Turn screen off, or set Turn display off when inactive in System Settings > Lock Screen.");
+        return tr("The screen is set to never turn off in System Settings, so it stays on. Change it in System Settings > Lock Screen.");
       case "display-held":
-        return tr("{apps} is keeping the screen on. Use Turn screen off, or close it.", { apps: warning.apps });
+        return tr("{apps} is keeping the screen on.", { apps: warning.apps });
       case "low-power":
         return tr("Low Power Mode is on, so macOS may slow down network and background work.");
       case "sleep-disabled-elsewhere":
@@ -43,48 +43,10 @@
     }
   }
 
-  /** What the length menu should show for the session in progress. */
-  function lengthOf(status) {
-    if (!status.active) return null;
-    if (status.watching?.kind === "claude") return "claude";
-    if (!status.endsAt) return "0";
-    return null;
+  /** The warnings worth showing a person. A sleep setting left by another app is only for Claude's status. */
+  function shownWarnings(status) {
+    return (status.warnings ?? []).filter((warning) => warning.code !== "sleep-disabled-elsewhere");
   }
 
-  /** Turns a length menu value into what start() takes. */
-  function startArgs(value) {
-    if (value === "claude") return { whileClaude: true };
-    const minutes = Number(value);
-    return minutes > 0 ? { minutes } : {};
-  }
-
-  const REASONS = {
-    "lid closed": () => tr("Lid closed"),
-    idle: () => tr("Idle"),
-    "low battery": () => tr("Low battery"),
-    "too hot": () => tr("Too hot"),
-    "power button": () => tr("Power button"),
-    maintenance: () => tr("Maintenance"),
-    "an app or the person asked": () => tr("Asked by an app or by you"),
-  };
-
-  function sleepText(sleep) {
-    return `${clock(sleep.at)} · ${REASONS[sleep.reason]?.() ?? sleep.reason}`;
-  }
-
-  const VPN_EVENTS = {
-    dropped: (event) => (event.inUse ? tr("dropped while you were using the computer") : event.screenOff ? tr("dropped with the screen off") : tr("dropped")),
-    reconnected: () => tr("reconnected by SMCP"),
-    back: () => tr("back on"),
-    "reconnect-failed": () => tr("could not reconnect yet"),
-    "reconnect-pending": () => tr("reconnecting"),
-    "needs-you": () => tr("needs you to press Connect in its app"),
-    "turned-off-in-smcp": () => tr("turned off in SMCP; left off"),
-  };
-
-  function vpnEventText(event) {
-    return `${clock(event.at)} · ${event.vpn} · ${VPN_EVENTS[event.event]?.(event) ?? event.event}`;
-  }
-
-  root.SMCP_AWAKE = { nowText, warningText, lengthOf, startArgs, sleepText, vpnEventText };
+  root.SMCP_AWAKE = { nowText, warningText, shownWarnings };
 })(globalThis);

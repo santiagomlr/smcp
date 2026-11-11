@@ -86,19 +86,12 @@ export function readVpnConfig(path = vpnConfigPath()) {
   return { vpns, keepBothWorking: saved.keepBothWorking !== false, discover: saved.discover !== false };
 }
 
-/** `turnedOff` holds, by VPN id, when it was last turned off through SMCP, so nothing turns it back on. */
 function readState(path) {
   try {
     const state = JSON.parse(readFileSync(path, "utf8"));
-    const turnedOff = {};
-    for (const [id, at] of Object.entries(state?.turnedOff ?? {})) {
-      if (SAFE_ID.test(id) || id === TAILSCALE_ID) {
-        if (Number.isFinite(at)) turnedOff[id] = at;
-      }
-    }
-    return { tailscaleDnsOffBySmcp: state?.tailscaleDnsOffBySmcp === true, turnedOff };
+    return { tailscaleDnsOffBySmcp: state?.tailscaleDnsOffBySmcp === true };
   } catch {
-    return { tailscaleDnsOffBySmcp: false, turnedOff: {} };
+    return { tailscaleDnsOffBySmcp: false };
   }
 }
 
@@ -111,17 +104,6 @@ function writeState(path, patch) {
   renameSync(temp, path);
 }
 
-/** When each VPN was last turned off through SMCP, by id. Keep awake never reconnects one turned off after it was seen on. */
-export function readTurnedOff(configPath = vpnConfigPath()) {
-  return readState(vpnStatePath(configPath)).turnedOff;
-}
-
-function markTurnedOff(statePath, id, on) {
-  const { turnedOff } = readState(statePath);
-  if (on) delete turnedOff[id];
-  else turnedOff[id] = Date.now();
-  writeState(statePath, { turnedOff });
-}
 
 /**
  * The VPNs listed in macOS System Settings, from `scutil --nc list`. A line looks like
@@ -429,12 +411,8 @@ export function createVpn({
   }
 
   async function connect(target) {
-    if (fold(target).trim() === TAILSCALE_ID) {
-      markTurnedOff(statePath, TAILSCALE_ID, true);
-      return connectTailscale();
-    }
+    if (fold(target).trim() === TAILSCALE_ID) return connectTailscale();
     const { vpn, services, config } = await findVpn(target);
-    markTurnedOff(statePath, vpn.id, true);
     try {
       return await connectOther(vpn, services, config);
     } catch (error) {
@@ -485,12 +463,8 @@ export function createVpn({
   }
 
   async function disconnect(target) {
-    if (fold(target).trim() === TAILSCALE_ID) {
-      markTurnedOff(statePath, TAILSCALE_ID, false);
-      return disconnectTailscale();
-    }
+    if (fold(target).trim() === TAILSCALE_ID) return disconnectTailscale();
     const { vpn } = await findVpn(target);
-    markTurnedOff(statePath, vpn.id, false);
     if (vpn.kind === "macos") {
       const result = await run("/usr/sbin/scutil", ["--nc", "stop", vpn.service], { timeoutMs: 15_000 });
       if (result.code !== 0) throw new Error(failure(result, `${vpn.name} did not stop.`));

@@ -272,28 +272,25 @@ $("p-nl-kelvin").onchange = async (event) => {
 $("p-nl-resume").onclick = () => nightLight("clearNow");
 window.api.onNightLightChanged(() => nightLight("status"));
 
-// Keep awake: a switch, how long, closed lid and screen off, like Amphetamine in the menu bar.
+// Keep awake: one switch to keep the computer on, one to keep the screen on too.
 const AW = globalThis.SMCP_AWAKE;
-let awakeState = null;
+let awakeBusy = false;
 
 function renderAwake(status) {
-  awakeState = status;
   $("p-awake").hidden = status.supported === false;
+  if (awakeBusy) return;
   $("p-aw-enabled").checked = status.active;
-  const length = AW.lengthOf(status);
-  if (length !== null) $("p-aw-length").value = length;
-  const mac = status.platform === "darwin";
-  $("p-aw-screen").hidden = !mac;
-  $("p-aw-lid-row").hidden = !mac;
-  $("p-aw-lid").checked = status.settings.closedLid;
+  $("p-aw-screen").checked = status.settings.displayOn;
   $("p-aw-note").textContent = AW.nowText(status);
-  const warning = status.warnings?.[0];
+  const warning = AW.shownWarnings(status)[0];
   $("p-aw-warning").textContent = warning ? AW.warningText(warning) : "";
   $("p-aw-warning").hidden = !warning;
 }
 
 async function awake(op, args) {
+  awakeBusy = true;
   const result = await window.api.awake(op, args);
+  awakeBusy = false;
   if (result.ok && result.value && "active" in result.value) renderAwake(result.value);
   else if (!result.ok) {
     $("p-aw-warning").textContent = result.error;
@@ -302,17 +299,8 @@ async function awake(op, args) {
   resize();
 }
 
-$("p-aw-enabled").onchange = (event) => (event.target.checked ? awake("start", AW.startArgs($("p-aw-length").value)) : awake("stop"));
-// Choosing another length while it is on starts again with that length.
-$("p-aw-length").onchange = (event) => {
-  if (awakeState?.active) awake("start", AW.startArgs(event.target.value));
-};
-$("p-aw-lid").onchange = async (event) => {
-  await awake("configure", { closedLid: event.target.checked });
-  // The one-time setup lives in Settings, where there is room to explain it.
-  if (event.target.checked && awakeState && !awakeState.closedLidReady) window.api.openMain("settings");
-};
-$("p-aw-screen").onclick = () => awake("screenOff");
+$("p-aw-enabled").onchange = (event) => awake(event.target.checked ? "start" : "stop");
+$("p-aw-screen").onchange = (event) => awake("configure", { displayOn: event.target.checked });
 window.api.onAwakeChanged(() => awake("status"));
 
 $("panel-mark").append($("mark-template").content.firstElementChild.cloneNode(true));
