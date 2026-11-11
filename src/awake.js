@@ -42,10 +42,6 @@ export const DEFAULTS = {
   batteryFloor: 20,
   /** SMCP turned system sleep off and must turn it back on. Survives crashes. */
   lidOwned: false,
-  /** While a session is on, reconnect VPNs that drop, like FortiClient after an idle timeout. */
-  keepVpns: true,
-  /** The VPNs seen on during this session, which keep awake brings back if they drop. */
-  vpns: [],
 };
 
 const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
@@ -92,8 +88,6 @@ export function normalizeSettings(saved = {}) {
     atLaunch: source.atLaunch === true,
     batteryFloor: BATTERY_FLOORS.includes(floor) ? floor : DEFAULTS.batteryFloor,
     lidOwned: source.lidOwned === true,
-    keepVpns: source.keepVpns !== false,
-    vpns: Array.isArray(source.vpns) ? source.vpns.filter((id) => typeof id === "string" && /^[a-z0-9][a-z0-9_-]{0,39}$/.test(id)).slice(0, 20) : [],
   };
 }
 
@@ -181,7 +175,6 @@ export function describe(settings, now = Date.now(), { formatTime = (ms) => new 
     closedLid: settings.closedLid,
     atLaunch: settings.atLaunch,
     batteryFloor: settings.batteryFloor,
-    keepVpns: settings.keepVpns,
   };
 }
 
@@ -268,12 +261,6 @@ export function parseSleepLog(text, limit = 5) {
     sleeps.push({ at: Number.isFinite(at) ? new Date(at).toISOString() : match[1], cause: cause || null, reason: plain });
   }
   return sleeps.slice(-limit).reverse();
-}
-
-/** Seconds since the keyboard or trackpad was last touched, from `ioreg -c IOHIDSystem -d 4`. Null if unknown. */
-export function parseIdleSeconds(text) {
-  const match = /"HIDIdleTime"\s*=\s*(\d+)/.exec(String(text ?? ""));
-  return match ? Math.floor(Number(match[1]) / 1e9) : null;
 }
 
 /** Process names from `ps -Ao comm=`, reduced to what each executable is called. */

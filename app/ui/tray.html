@@ -65,18 +65,7 @@
           <h2 id="p-awake-title">Keep awake</h2>
           <input id="p-aw-enabled" class="switch" type="checkbox" role="switch" aria-label="Keep awake" />
         </div>
-        <div class="panel-aw">
-          <select id="p-aw-length" aria-label="For how long">
-            <option value="0">Until I turn it off</option>
-            <option value="60">For 1 hour</option>
-            <option value="120">For 2 hours</option>
-            <option value="240">For 4 hours</option>
-            <option value="480">For 8 hours</option>
-            <option value="claude">While Claude is open</option>
-          </select>
-          <button id="p-aw-screen" type="button" class="quiet">Screen off</button>
-        </div>
-        <label id="p-aw-lid-row" class="panel-toggle panel-aw-lid" for="p-aw-lid">Lid closed<input id="p-aw-lid" class="switch" type="checkbox" role="switch" /></label>
+        <label class="panel-toggle panel-aw-row" for="p-aw-screen">Screen always on<input id="p-aw-screen" class="switch" type="checkbox" role="switch" /></label>
         <p class="panel-nl-meta"><span id="p-aw-note"></span></p>
         <p id="p-aw-warning" class="panel-aw-warning" role="status" hidden></p>
       </section>

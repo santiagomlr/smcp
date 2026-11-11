@@ -32,7 +32,6 @@ export function registerAwake(server, { call = awakeCall } = {}) {
       description:
         "Says whether SMCP is keeping this computer awake, until when, and whether macOS really shows SMCP's assertion (verified). " +
         "Also: battery, closed-lid mode, which other apps keep it awake, and warnings about anything that would still let it sleep. " +
-        "While a session is on, vpnGuard lists the VPNs it keeps connected and each time one dropped (with whether the screen was off) and was brought back. " +
         "Pass diagnose: true to also get the latest times it went to sleep and why (lid closed, idle, low battery).",
       inputSchema: { diagnose: z.boolean().optional() },
       annotations: { readOnlyHint: true, openWorldHint: false },

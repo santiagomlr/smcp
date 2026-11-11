@@ -123,8 +123,6 @@ test("a damaged settings file falls back to safe values", () => {
     atLaunch: false,
     batteryFloor: 20,
     lidOwned: false,
-    keepVpns: true,
-    vpns: [],
   });
   assert.equal(readSettings(join(dir, "missing.json")).session, null);
 });
@@ -437,30 +435,19 @@ test("keep awake has its own switch, works in read-only mode, and only starts fr
   assert.ok(!REMOTE_TOOLS.has("vpn_tailscale_dns"));
 });
 
-test("during a session, keep awake brings back a VPN that drops, and lets go of them when it ends", async () => {
-  const state = { forti: true, connects: [] };
-  const vpn = {
-    status: async () => ({ tailscale: { installed: false }, vpns: [{ id: "forticlient", name: "FortiClient", kind: "macos", connected: state.forti }] }),
-    connect: async (id) => {
-      state.connects.push(id);
-      state.forti = true;
-      return { connected: true };
-    },
-  };
-  const { awake, advance } = fakeMac({ vpn, turnedOff: () => ({}) });
+test("screen always on also tells macOS the user is active every tick, so no screen saver locks the Mac", async () => {
+  const { awake, sim, advance } = fakeMac();
   await awake.start({});
-  await awake.tick();
-  assert.deepEqual((await awake.status()).vpnGuard.watching.map((item) => item.id), ["forticlient"]);
-  state.forti = false;
+  assert.ok(!sim.calls.some((call) => call.startsWith("/usr/bin/caffeinate -u")), "not while the screen may turn off");
+  await awake.configure({ displayOn: true });
+  assert.equal(sim.keepers.at(-1).displayOn, true, "the display assertion is held");
+  const declared = () => sim.calls.filter((call) => call === "/usr/bin/caffeinate -u -t 30").length;
+  assert.equal(declared(), 1);
   advance(15_000);
   await awake.tick();
-  assert.deepEqual(state.connects, ["forticlient"], "checked on every 15-second tick");
+  assert.equal(declared(), 2, "repeated on every tick");
   await awake.stop();
-  assert.equal((await awake.status()).vpnGuard, undefined);
-  await awake.configure({ keepVpns: false });
-  await awake.start({});
-  state.forti = false;
-  advance(31_000);
+  advance(15_000);
   await awake.tick();
-  assert.deepEqual(state.connects, ["forticlient"], "with the option off, VPNs are left alone");
+  assert.equal(declared(), 2, "stops with the session");
 });
