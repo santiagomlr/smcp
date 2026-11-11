@@ -4,17 +4,18 @@ import { createVpnGuard } from "../app/core/vpn-guard.js";
 import { parseIdleSeconds } from "../src/awake.js";
 
 /** A pretend FortiClient (a macOS system VPN) and Tailscale, with a clock and an idle timer. */
-function setup({ forti = true, kind = "macos", probe = null, connectWorks = true, idle = 600 } = {}) {
+function setup({ forti = true, kind = "macos", probe = null, connectWorks = true, comesUp = true, idle = 600 } = {}) {
   const sim = { forti, tailscale: true, idle, connects: [], pings: [], notices: [], saved: [], off: {} };
   let clock = Date.UTC(2026, 10, 10, 22, 0);
   const vpn = {
     status: async () => ({
       tailscale: { installed: true, running: sim.tailscale },
-      vpns: [{ id: "forticlient", name: "FortiClient", kind, connected: kind === "app" && !probe && !sim.forti ? false : sim.forti, probe }],
+      vpns: [{ id: "forticlient", name: "FortiClient", kind, connected: kind === "app" && !probe && !sim.forti ? false : sim.forti, status: sim.status, probe }],
     }),
     connect: async (id) => {
       sim.connects.push(id);
       if (!connectWorks) throw new Error("FortiClient did not start.");
+      if (!comesUp) return { connected: false };
       if (id === "forticlient") sim.forti = true;
       if (id === "tailscale") sim.tailscale = true;
       return { connected: true };
@@ -140,4 +141,29 @@ test("reset forgets everything when the session ends", async () => {
   guard.reset();
   assert.deepEqual(guard.describe().watching, []);
   assert.deepEqual(sim.saved.at(-1), []);
+});
+
+test("a VPN that is connecting is in motion, not dropped: nothing is started on top of it", async () => {
+  const { guard, sim, advance } = setup();
+  await guard.check();
+  sim.forti = false;
+  sim.status = "Connecting";
+  advance(15_000);
+  await guard.check();
+  assert.deepEqual(sim.connects, []);
+  assert.deepEqual(guard.describe().events, []);
+});
+
+test("a VPN that macOS accepts but never brings up still gets the person told, once", async () => {
+  const { guard, sim, advance } = setup({ comesUp: false });
+  await guard.check();
+  sim.forti = false;
+  for (let i = 0; i < 40; i += 1) {
+    advance(15_000);
+    await guard.check();
+  }
+  assert.ok(sim.connects.length >= 3);
+  assert.equal(sim.forti, false);
+  assert.equal(sim.notices.filter((notice) => notice.kind === "failed").length, 1);
+  assert.equal(guard.describe().events[0].event, "reconnect-pending");
 });
