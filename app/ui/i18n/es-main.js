@@ -205,7 +205,6 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "The screen is set to never turn off in System Settings, so it stays on. Use Turn screen off, or set Turn display off when inactive in System Settings > Lock Screen.": "La pantalla está configurada para no apagarse nunca en Configuración del Sistema, así que se queda prendida. Usa Apagar pantalla, o ajusta Apagar la pantalla cuando esté inactiva en Configuración del Sistema > Pantalla bloqueada.",
   "{apps} is keeping the screen on. Use Turn screen off, or close it.": "{apps} está manteniendo la pantalla prendida. Usa Apagar pantalla, o ciérrala.",
   "Keep VPNs connected": "Mantener las VPN conectadas",
-  "If FortiClient or another VPN drops while nobody is at the computer, SMCP turns it back on. One you turn off yourself stays off.": "Si FortiClient u otra VPN se cae cuando nadie está en la computadora, SMCP la vuelve a prender. Si tú la apagas, se queda apagada.",
   "VPN activity": "Actividad de VPN",
   "dropped with the screen off": "se cayó con la pantalla apagada",
   "dropped": "se cayó",
@@ -214,7 +213,6 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "could not reconnect yet": "todavía no se pudo reconectar",
   "reconnecting": "reconectando",
   "needs you to press Connect in its app": "necesita que presiones Conectar en su app",
-  "turned off while you were using the computer; left off": "la apagaron mientras usabas la computadora; se quedó apagada",
   "turned off in SMCP; left off": "la apagaron en SMCP; se quedó apagada",
   "{vpn} reconnected": "{vpn} se reconectó",
   "It dropped while the computer was unattended, and SMCP brought it back.": "Se cayó mientras nadie usaba la computadora y SMCP la regresó.",
@@ -222,4 +220,6 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "It can only be connected in its own app. Open it and press Connect.": "Solo se puede conectar en su propia app. Ábrela y presiona Conectar.",
   "{vpn} could not reconnect": "{vpn} no se pudo reconectar",
   "SMCP keeps trying every few minutes.": "SMCP lo sigue intentando cada pocos minutos.",
+  "dropped while you were using the computer": "se cayó mientras usabas la computadora",
+  "If FortiClient or another VPN drops, SMCP turns it back on within about 15 seconds. To keep one off, turn it off in SMCP or turn this off.": "Si FortiClient u otra VPN se cae, SMCP la vuelve a prender en unos 15 segundos. Para dejarla apagada, apágala en SMCP o desactiva esta opción.",
 });

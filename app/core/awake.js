@@ -41,8 +41,7 @@ import { createVpnGuard } from "./vpn-guard.js";
 import { run as runCommand } from "../../src/util.js";
 
 const TICK_MS = 15_000;
-/** How often the VPNs are looked at during a session. */
-const VPN_CHECK_MS = 30_000;
+
 /** If caffeinate keeps dying right after starting, stop restarting it until the next change. */
 const MAX_QUICK_FAILURES = 3;
 const QUICK_FAILURE_MS = 5_000;
@@ -119,7 +118,6 @@ export function createAwake({
   let ticker = null;
   let lastError = null;
   let busy = Promise.resolve();
-  let lastVpnCheck = 0;
 
   const read = () => readSettings(path);
   const write = (patch) => {
@@ -286,8 +284,8 @@ export function createAwake({
       if (power?.onBattery && power.percent !== null && power.percent <= settings.batteryFloor) return end("battery");
     }
     await apply();
-    if (vpnGuard && settings.keepVpns && now() - lastVpnCheck >= VPN_CHECK_MS) {
-      lastVpnCheck = now();
+    // Every tick (15 seconds), so a dropped VPN is back within about that long.
+    if (vpnGuard && settings.keepVpns) {
       const live = mac ? parsePowerSettings((await run(PMSET, ["-g"], { timeoutMs: 10_000 })).stdout) : null;
       await vpnGuard.check({ displaySleepMinutes: live?.values.displaysleep ?? null }).catch(() => {});
     }

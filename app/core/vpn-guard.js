@@ -3,8 +3,9 @@
 //
 // - Remembers every VPN seen connected during the session, and reconnects it if it drops, with a
 //   growing pause between tries so a VPN that needs a password is not hammered.
-// - Never fights the person: a VPN turned off through SMCP, or that drops while someone is using the
-//   computer (they probably turned it off in its own app), is forgotten instead of reconnected.
+// - Brings a dropped VPN back right away, whether or not someone is using the computer: on a server,
+//   a VPN that is down is a VPN that is broken. To keep one off on purpose, turn it off in SMCP (that
+//   is remembered) or turn off Keep VPNs connected.
 // - Apps that can only be opened (FortiClient without a system VPN) are never popped up on screen;
 //   the person is told instead.
 // - Sends a ping to the VPN's probe name every minute, when it has one, so a gateway that cuts idle
@@ -14,10 +15,10 @@ import { TAILSCALE_ID } from "../../src/vpn.js";
 
 /** Pauses before each reconnect try: right away, then 1, 2, 5 and 10 minutes. */
 const BACKOFF_MS = [0, 60_000, 120_000, 300_000, 600_000];
-/** Someone who touched the keyboard or trackpad this recently is using the computer. */
+/** Someone who touched the keyboard or trackpad (or Screen Sharing) this recently is using the computer. Only logged. */
 const PRESENT_SECONDS = 60;
 const KEEPALIVE_MS = 60_000;
-/** Checks are about 30 seconds apart, so a turn-off just before the last sighting still counts. */
+/** Checks are about 15 seconds apart; this slack lets a turn-off just before the last sighting still count. */
 const CHECK_SLACK_MS = 60_000;
 const MAX_EVENTS = 20;
 const SAFE_HOST = /^[A-Za-z0-9.-]{1,253}$/;
@@ -88,15 +89,14 @@ export function createVpnGuard({
           continue;
         }
         const seconds = await readIdle();
-        // Someone is at the computer: they probably turned it off in the VPN's own app.
-        if (seconds !== null && seconds < PRESENT_SECONDS) {
-          log({ vpn: item.name, event: "dropped-while-in-use", note: "Not reconnected: someone was using the computer." });
-          forget(item.id);
-          continue;
-        }
         const screenOff = seconds !== null && displaySleepMinutes > 0 ? seconds >= displaySleepMinutes * 60 : null;
         known.droppedAt = now();
-        log({ vpn: item.name, event: "dropped", ...(screenOff === null ? {} : { screenOff }), ...(seconds === null ? {} : { idleMinutes: Math.floor(seconds / 60) }) });
+        log({
+          vpn: item.name,
+          event: "dropped",
+          ...(screenOff === null ? {} : { screenOff }),
+          ...(seconds === null ? {} : { idleSeconds: seconds, inUse: seconds < PRESENT_SECONDS }),
+        });
       }
 
       if (item.kind === "app") {

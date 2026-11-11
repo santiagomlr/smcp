@@ -452,9 +452,9 @@ test("during a session, keep awake brings back a VPN that drops, and lets go of 
   await awake.tick();
   assert.deepEqual((await awake.status()).vpnGuard.watching.map((item) => item.id), ["forticlient"]);
   state.forti = false;
-  advance(31_000);
+  advance(15_000);
   await awake.tick();
-  assert.deepEqual(state.connects, ["forticlient"]);
+  assert.deepEqual(state.connects, ["forticlient"], "checked on every 15-second tick");
   await awake.stop();
   assert.equal((await awake.status()).vpnGuard, undefined);
   await awake.configure({ keepVpns: false });

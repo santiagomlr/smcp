@@ -79,14 +79,16 @@ test("an old turn-off from before the VPN was seen on does not count", async () 
   assert.deepEqual(sim.connects, ["forticlient"]);
 });
 
-test("a drop while someone uses the computer is their choice: not reconnected", async () => {
+test("a drop while someone uses the computer is brought back right away too, and logged as in use", async () => {
   const { guard, sim, advance } = setup({ idle: 5 });
   await guard.check();
   sim.forti = false;
-  advance(30_000);
+  advance(15_000);
   await guard.check();
-  assert.deepEqual(sim.connects, []);
-  assert.equal(guard.describe().events[0].event, "dropped-while-in-use");
+  assert.deepEqual(sim.connects, ["forticlient"]);
+  const dropped = guard.describe().events.find((event) => event.event === "dropped");
+  assert.equal(dropped.inUse, true);
+  assert.equal(dropped.idleSeconds, 5);
 });
 
 test("a VPN that will not come back is retried with growing pauses, and the person is told once", async () => {
