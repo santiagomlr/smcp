@@ -57,7 +57,14 @@ export function createVpnGuard({
     const state = await vpn.status();
     const all = [
       { id: TAILSCALE_ID, name: "Tailscale", kind: "tailscale", connected: state.tailscale.installed ? state.tailscale.running === true : null },
-      ...state.vpns.map((item) => ({ id: item.id, name: item.name, kind: item.kind, connected: item.connected, probe: item.probe ?? null })),
+      ...state.vpns.map((item) => ({
+        id: item.id,
+        name: item.name,
+        kind: item.kind,
+        // Connecting or disconnecting is a VPN in motion, often the person pressing Connect: not a drop.
+        connected: /^(connecting|disconnecting|reasserting)$/i.test(item.status ?? "") ? null : item.connected,
+        probe: item.probe ?? null,
+      })),
     ];
     const off = turnedOff();
     let idle;
@@ -116,7 +123,14 @@ export function createVpnGuard({
           log({ vpn: item.name, event: "reconnected", afterSeconds: Math.round((now() - known.droppedAt) / 1000) });
           onNotice({ vpn: item.name, kind: "reconnected" });
           Object.assign(known, { seenAt: now(), droppedAt: null, tries: 0, nextTry: 0, told: false });
-        } else log({ vpn: item.name, event: "reconnect-pending", try: known.tries });
+        } else {
+          // macOS took the request but the VPN did not come up (FortiClient waiting on its own app, say).
+          log({ vpn: item.name, event: "reconnect-pending", try: known.tries });
+          if (known.tries === 3 && !known.told) {
+            known.told = true;
+            onNotice({ vpn: item.name, kind: "failed", error: `${item.name} did not come back when asked. It may need you to connect it in its own app.` });
+          }
+        }
       } catch (error) {
         log({ vpn: item.name, event: "reconnect-failed", try: known.tries, error: String(error.message).slice(0, 200) });
         if (known.tries === 3 && !known.told) {
