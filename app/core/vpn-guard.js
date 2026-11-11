@@ -3,9 +3,9 @@
 //
 // - Remembers every VPN seen connected during the session, and reconnects it if it drops, with a
 //   growing pause between tries so a VPN that needs a password is not hammered.
-// - Never fights the person: a VPN turned off through SMCP stays off. One that drops while someone is
-//   using the computer (at the keyboard or through Screen Sharing) is left alone until they have been
-//   away for two minutes, so turning it off in its own app for a moment is not undone under them.
+// - Brings a dropped VPN back right away, whether or not someone is using the computer: on a server,
+//   a VPN that is down is a VPN that is broken. To keep one off on purpose, turn it off in SMCP (that
+//   is remembered) or turn off Keep VPNs connected.
 // - Apps that can only be opened (FortiClient without a system VPN) are never popped up on screen;
 //   the person is told instead.
 // - Sends a ping to the VPN's probe name every minute, when it has one, so a gateway that cuts idle
@@ -15,12 +15,10 @@ import { TAILSCALE_ID } from "../../src/vpn.js";
 
 /** Pauses before each reconnect try: right away, then 1, 2, 5 and 10 minutes. */
 const BACKOFF_MS = [0, 60_000, 120_000, 300_000, 600_000];
-/** Someone who touched the keyboard or trackpad (or Screen Sharing) this recently is using the computer. */
+/** Someone who touched the keyboard or trackpad (or Screen Sharing) this recently is using the computer. Only logged. */
 const PRESENT_SECONDS = 60;
-/** A VPN that dropped while someone was there comes back once nobody has touched anything this long. */
-const AWAY_SECONDS = 120;
 const KEEPALIVE_MS = 60_000;
-/** Checks are about 30 seconds apart, so a turn-off just before the last sighting still counts. */
+/** Checks are about 15 seconds apart; this slack lets a turn-off just before the last sighting still count. */
 const CHECK_SLACK_MS = 60_000;
 const MAX_EVENTS = 20;
 const SAFE_HOST = /^[A-Za-z0-9.-]{1,253}$/;
@@ -73,7 +71,7 @@ export function createVpnGuard({
           persist();
         } else {
           if (known.droppedAt) log({ vpn: item.name, event: "back", afterSeconds: Math.round((now() - known.droppedAt) / 1000) });
-          Object.assign(known, { name: item.name, kind: item.kind, seenAt: now(), droppedAt: null, waitForAway: false, tries: 0, nextTry: 0, told: false, probe: item.probe });
+          Object.assign(known, { name: item.name, kind: item.kind, seenAt: now(), droppedAt: null, tries: 0, nextTry: 0, told: false, probe: item.probe });
         }
         continue;
       }
@@ -93,20 +91,12 @@ export function createVpnGuard({
         const seconds = await readIdle();
         const screenOff = seconds !== null && displaySleepMinutes > 0 ? seconds >= displaySleepMinutes * 60 : null;
         known.droppedAt = now();
-        // Someone is at the computer: wait until they step away before bringing it back.
-        known.waitForAway = seconds !== null && seconds < PRESENT_SECONDS;
         log({
           vpn: item.name,
-          event: known.waitForAway ? "dropped-while-in-use" : "dropped",
+          event: "dropped",
           ...(screenOff === null ? {} : { screenOff }),
-          ...(seconds === null ? {} : { idleSeconds: seconds }),
+          ...(seconds === null ? {} : { idleSeconds: seconds, inUse: seconds < PRESENT_SECONDS }),
         });
-      }
-
-      if (known.waitForAway) {
-        const seconds = await readIdle();
-        if (seconds !== null && seconds < AWAY_SECONDS) continue;
-        known.waitForAway = false;
       }
 
       if (item.kind === "app") {

@@ -220,6 +220,6 @@ Object.assign((globalThis.SMCP_IT ??= {}), {
   "It can only be connected in its own app. Open it and press Connect.": "Si può connettere solo nella sua app. Aprila e premi Connetti.",
   "{vpn} could not reconnect": "{vpn} non è riuscita a riconnettersi",
   "SMCP keeps trying every few minutes.": "SMCP continua a provare ogni pochi minuti.",
-  "dropped while you were using the computer; back once you step away": "caduta mentre usavi il computer; torna quando ti allontani",
-  "If FortiClient or another VPN drops, SMCP turns it back on, waiting until you step away if you are using the computer. One you turn off in SMCP stays off.": "Se FortiClient o un'altra VPN cade, SMCP la riattiva, aspettando che ti allontani se stai usando il computer. Una che spegni in SMCP resta spenta.",
+  "dropped while you were using the computer": "caduta mentre usavi il computer",
+  "If FortiClient or another VPN drops, SMCP turns it back on within about 15 seconds. To keep one off, turn it off in SMCP or turn this off.": "Se FortiClient o un'altra VPN cade, SMCP la riattiva in circa 15 secondi. Per lasciarla spenta, spegnila in SMCP o disattiva questa opzione.",
 });

@@ -73,13 +73,12 @@
   }
 
   const VPN_EVENTS = {
-    dropped: (event) => (event.screenOff ? tr("dropped with the screen off") : tr("dropped")),
+    dropped: (event) => (event.inUse ? tr("dropped while you were using the computer") : event.screenOff ? tr("dropped with the screen off") : tr("dropped")),
     reconnected: () => tr("reconnected by SMCP"),
     back: () => tr("back on"),
     "reconnect-failed": () => tr("could not reconnect yet"),
     "reconnect-pending": () => tr("reconnecting"),
     "needs-you": () => tr("needs you to press Connect in its app"),
-    "dropped-while-in-use": () => tr("dropped while you were using the computer; back once you step away"),
     "turned-off-in-smcp": () => tr("turned off in SMCP; left off"),
   };
 
