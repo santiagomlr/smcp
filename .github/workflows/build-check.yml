@@ -42,12 +42,19 @@ jobs:
       - name: Package the Mac app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: bash scripts/retry.sh npx electron-builder --mac dir --arm64 --publish never -c.directories.output="$RUNNER_TEMP/build"
+        run: bash scripts/retry.sh npx electron-builder --mac dir --arm64 --x64 --publish never -c.directories.output="$RUNNER_TEMP/build"
 
-      - name: Check the native helpers are inside the app
+      # Apple Silicon lands in mac-arm64 and Intel in mac; each must carry helpers built for its own chip.
+      - name: Check the native helpers are inside each app
         run: |
-          for name in wacli whisper-cli smcp-nightlight; do
-            test -x "$RUNNER_TEMP/build/mac-arm64/SMCP.app/Contents/Resources/bin/$name" || { echo "::error::The app was packaged without $name."; exit 1; }
+          for pair in mac-arm64:arm64 mac:x86_64; do
+            dir="${pair%%:*}"; arch="${pair##*:}"
+            app="$RUNNER_TEMP/build/$dir/SMCP.app"
+            lipo "$app/Contents/MacOS/SMCP" -verify_arch "$arch" || { echo "::error::$dir/SMCP.app is not built for $arch."; exit 1; }
+            for name in wacli whisper-cli smcp-nightlight; do
+              test -x "$app/Contents/Resources/bin/$name" || { echo "::error::The $arch app was packaged without $name."; exit 1; }
+              lipo "$app/Contents/Resources/bin/$name" -verify_arch "$arch" || { echo "::error::$name in the $arch app is for another chip."; exit 1; }
+            done
           done
 
       - name: Save Electron downloads

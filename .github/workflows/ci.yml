@@ -30,6 +30,11 @@ jobs:
             os: macos-15
             package: --mac dir --arm64
             app: dist/mac-arm64/SMCP.app/Contents/MacOS/SMCP
+          # Intel Macs get their own build, so it starts on a real Intel Mac too.
+          - name: macOS Intel
+            os: macos-15-intel
+            package: --mac dir --x64
+            app: dist/mac/SMCP.app/Contents/MacOS/SMCP
           - name: Windows
             os: windows-latest
             package: --win nsis --x64
@@ -119,7 +124,7 @@ jobs:
           case "$RUNNER_OS" in
             Linux) ls -l dist/SMCP-linux-x86_64.AppImage dist/SMCP-linux-amd64.deb ;;
             Windows) ls -l dist/SMCP-windows-x64-setup.exe ;;
-            macOS) ls -ld dist/mac-arm64/SMCP.app ;;
+            macOS) ls -ld "$(dirname "$(dirname "$(dirname "${{ matrix.app }}")")")" ;;
           esac
 
       - name: Save Electron downloads
