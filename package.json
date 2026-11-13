@@ -20,7 +20,7 @@
     "nightlight:install": "bash scripts/install-nightlight.sh",
     "app": "electron .",
     "icons": "node scripts/make-icons.mjs",
-    "dist:mac": "electron-builder --mac --arm64 --publish never -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
+    "dist:mac": "electron-builder --mac --arm64 --x64 --publish never -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
     "dist:win": "electron-builder --win --x64 --publish never -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
     "dist:linux": "electron-builder --linux --x64 --publish never -c.directories.output=\"$HOME/Library/Caches/smcp-build\"",
     "release": "node scripts/release.mjs"
@@ -71,22 +71,22 @@
       },
       "extraResources": [
         {
-          "from": "vendor/bin/wacli",
+          "from": "vendor/mac-${arch}/wacli",
           "to": "bin/wacli"
         },
         {
-          "from": "vendor/bin/whisper-cli",
+          "from": "vendor/mac-${arch}/whisper-cli",
           "to": "bin/whisper-cli"
         },
         {
-          "from": "vendor/bin/smcp-nightlight",
+          "from": "vendor/mac-${arch}/smcp-nightlight",
           "to": "bin/smcp-nightlight"
         }
       ],
       "hardenedRuntime": false
     },
     "dmg": {
-      "artifactName": "SMCP-mac-arm64.${ext}"
+      "artifactName": "SMCP-mac-${arch}.${ext}"
     },
     "win": {
       "target": [
