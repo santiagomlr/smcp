@@ -37,9 +37,9 @@ export function relayableArgs(args) {
 
 /** What wacli's run() would return for a failure, so the tools report it the same way. */
 export const SEND_ELSEWHERE =
-  "WhatsApp is linked on another of your computers, not this one. Sending works only there, because the confirmation window appears on that computer.";
+  "WhatsApp is linked on another of your computers, not this one, so nothing was sent from here. If that computer is chosen as your server in SMCP, send again with `machine: \"server\"`: it goes out from there once you approve it.";
 export const MEDIA_ELSEWHERE =
-  "WhatsApp is linked on another of your computers, not this one. Files and voice notes can be opened only there.";
+  "WhatsApp is linked on another of your computers, not this one. Files and voice notes can be opened only there; if it is your server in SMCP, call this again with `machine: \"server\"`.";
 
 export function failedResult(error) {
   return { code: 1, stdout: "", stderr: JSON.stringify({ success: false, error }), timedOut: false };

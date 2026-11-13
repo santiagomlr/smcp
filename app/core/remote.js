@@ -78,12 +78,18 @@ function createPersistence(path) {
   };
 }
 
-export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteStatePath(), port = REMOTE_PORT, host = "127.0.0.1", now = Date.now }) {
+const HEALTH_PER_MINUTE = 30;
+
+export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteStatePath(), port = REMOTE_PORT, host = "127.0.0.1", now = Date.now, healthCheck = null }) {
   const store = createPersistence(statePath);
   const pending = new Map();
   const authCodes = new Map();
   let pairing = null;
   let listener = null;
+  // When a request last got in, and when one was last turned away, so the app can tell
+  // "nothing reaches SMCP" from "something reaches it but is not let in".
+  const activity = { lastRequestAt: null, lastClient: null, lastRejectedAt: null, lastHealthAt: null };
+  let healthHits = [];
 
   const issueTokens = (clientId) => {
     const access = token();
@@ -225,14 +231,44 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
       res.redirect(302, target.href);
     });
 
-    const auth = requireBearerAuth({
+    const bearer = requireBearerAuth({
       verifier: provider,
       resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpUrl),
     });
+    const auth = (req, res, next) => {
+      res.on("finish", () => {
+        if (res.statusCode === 401 || res.statusCode === 403) activity.lastRejectedAt = now();
+      });
+      bearer(req, res, next);
+    };
+
+    /**
+     * A page the person can open from the phone's browser, with no sign-in, to see whether the whole
+     * path works: the public URL, SMCP, and a tool. It says only yes or no, and nothing about them.
+     */
+    app.get("/health", async (_req, res) => {
+      const cutoff = now() - 60_000;
+      healthHits = healthHits.filter((at) => at > cutoff);
+      if (healthHits.length >= HEALTH_PER_MINUTE) return res.status(429).json({ ok: false, reason: "Too many checks. Wait a minute." });
+      healthHits.push(now());
+      activity.lastHealthAt = now();
+      let tool = "not checked";
+      try {
+        if (healthCheck) tool = (await healthCheck()) ? "ok" : "failed";
+      } catch {
+        tool = "failed";
+      }
+      res.status(tool === "failed" ? 503 : 200).json({ ok: tool !== "failed", smcp: "running", tool, at: new Date(now()).toISOString() });
+    });
 
     // Stateless: every request gets its own server, so no session can outlive a revoked token.
-    app.post("/mcp", auth, express.json({ limit: "1mb" }), async (req, res) => {
-      const server = buildServer();
+    app.post("/mcp", auth, express.json({ limit: "2mb" }), async (req, res) => {
+      const clientId = req.auth?.clientId ?? null;
+      const name = store.data.clients[clientId]?.client_name || "Unnamed app";
+      activity.lastRequestAt = now();
+      activity.lastClient = name;
+      // Who is calling, for the limits and the activity log: the app's name and the start of its id.
+      const server = buildServer({ client: clientId ? `${name} · ${String(clientId).slice(0, 8)}` : name });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       res.on("close", () => {
         transport.close();
@@ -296,5 +332,17 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
       }
       store.save();
     },
+    /** Signs out every connected app at once. Each one has to pair again with a new code. */
+    revokeAll() {
+      const count = Object.values(store.data.clients).filter((client) => client.smcp_connected_at).length;
+      store.data.clients = {};
+      store.data.tokens = {};
+      pairing = null;
+      pending.clear();
+      authCodes.clear();
+      store.save();
+      return count;
+    },
+    activity: () => ({ ...activity }),
   };
 }
