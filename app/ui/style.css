@@ -430,6 +430,67 @@ h2 {
   color: var(--muted);
 }
 
+/* Two lists in a row read as one: the second keeps the rule above its first row. */
+.rows + .rows > li:first-child {
+  border-top: 1px solid var(--rule);
+}
+
+/* An address or a path: it wraps anywhere and can be selected to copy by hand. */
+.rows small.address {
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.rows small.warn,
+.rows > li.troubled small {
+  color: var(--copper);
+  overflow-wrap: anywhere;
+}
+
+/* A row whose button sits above its explanation, for an action too long to fit beside it. */
+.rows > li.stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 0;
+}
+
+.rows > li.brain-account {
+  display: block;
+}
+
+.brain-fields {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.brain-status {
+  margin-top: 8px;
+}
+
+.notice {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  font-weight: 500;
+  color: var(--copper);
+  background: var(--copper-wash);
+  border-radius: 8px;
+}
+
+.inline-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.inline-action .hint {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Activity log */
 
 .activity {
@@ -442,9 +503,10 @@ h2 {
 
 .activity > li {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0 12px;
   padding: 6px 0;
   border-top: 1px solid var(--rule);
 }
@@ -454,16 +516,40 @@ h2 {
 }
 
 .activity-tool {
+  flex: 1 1 0;
+  min-width: 64px;
   overflow: hidden;
   font: 500 var(--text-sm) / 1.4 ui-monospace, "SF Mono", monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* The tool name gives way first; where it came from can be long ("Another of your computers"), so past that it wraps. */
 .activity small {
-  flex: none;
+  flex: 0 1 auto;
+  max-width: calc(100% - 76px);
   font-size: var(--text-sm);
+  text-align: right;
   color: var(--muted);
+}
+
+.activity-waiting small {
+  color: var(--copper);
+}
+
+/* The whole terminal command of a call from outside: it wraps, scrolls past a few lines and can be selected. */
+.activity-detail {
+  flex: 0 0 100%;
+  max-height: 86px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  overflow-y: auto;
+  font: 400 var(--text-sm) / 1.45 ui-monospace, "SF Mono", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--wash);
+  border-radius: 6px;
+  user-select: text;
 }
 
 .activity-denied small,
@@ -517,6 +603,16 @@ button.primary {
 button.primary:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+}
+
+/* The red leans toward the ink so the small label stays readable on the page. */
+button.danger {
+  color: color-mix(in oklch, var(--halt) 80%, var(--ink));
+  border-color: color-mix(in oklch, var(--halt) 55%, transparent);
+}
+
+button.danger:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--halt) 12%, transparent);
 }
 
 button:disabled {
@@ -1113,6 +1209,10 @@ button.add {
 
 .rows select {
   max-width: 170px;
+}
+
+.rows select.wide {
+  max-width: 250px;
 }
 
 .task-add input {

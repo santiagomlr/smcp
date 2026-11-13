@@ -15,6 +15,13 @@ let clientsKey = null;
 let notesKey = null;
 let vpnKey = null;
 let vpnBusy = false;
+let activityKey = null;
+let awayKey = null;
+let calendarChoices = null;
+let calendarKey = null;
+let brainAccountsKey = null;
+let brainAccountsRejected = false;
+let brainRunning = false;
 let activeTab = "connections";
 let gmailFormOpen = false;
 
@@ -62,6 +69,27 @@ function machineDetail(machine) {
 
 function setStop(id, on) {
   $(id).classList.toggle("on", Boolean(on));
+}
+
+/** A moment today shows as a time; any other day as a short date and time. */
+function whenText(value) {
+  const date = new Date(value);
+  const today = date.toDateString() === new Date().toDateString();
+  return date.toLocaleString(SMCP_I18N.locale(), today ? { timeStyle: "short" } : { dateStyle: "short", timeStyle: "short" });
+}
+
+/** Copies an address shown on screen, and the button says so for a moment. */
+function copyOnClick(id, read) {
+  const node = $(id);
+  node.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(read());
+      node.textContent = tr("Copied");
+      setTimeout(() => (node.textContent = tr("Copy")), 1500);
+    } catch {
+      // Copying is a convenience: the address is right there to select.
+    }
+  };
 }
 
 /* Machines */
@@ -583,11 +611,280 @@ $("remote-copy").onclick = async () => {
   setTimeout(() => ($("remote-copy").textContent = tr("Copy")), 1500);
 };
 
+/* What remote access may do */
+
+const REMOTE_SWITCHES = { taskWrites: "policy-remote-tasks", write: "policy-remote-write", control: "policy-remote-control", send: "policy-remote-send" };
+
+function renderRemoteSettings() {
+  const { remote, policy } = state;
+  $("remote-settings").hidden = !remote.supported;
+  if (!remote.supported) return;
+  for (const [name, id] of Object.entries(REMOTE_SWITCHES)) $(id).checked = policy.remote?.[name] === true;
+  $("remote-waiting").textContent = remote.waiting > 0 ? tr("{count} waiting for your approval", { count: remote.waiting }) : "";
+  $("remote-waiting").hidden = !(remote.waiting > 0);
+  $("approvals-url").textContent = remote.approvalsUrl ?? tr("It runs while remote access is on.");
+  $("approvals-copy").hidden = !remote.approvalsUrl;
+  $("health-row").hidden = !remote.healthUrl;
+  $("health-url").textContent = remote.healthUrl ?? "";
+  const { lastRequestAt, lastClient, lastRejectedAt } = remote.activity ?? {};
+  $("remote-last").textContent = lastRequestAt ? [whenText(lastRequestAt), lastClient].filter(Boolean).join(" · ") : tr("None since SMCP opened.");
+  // A rejection is worth showing only while nothing has worked since: a later request means the app connected again.
+  const rejected = Boolean(lastRejectedAt) && (!lastRequestAt || lastRejectedAt > lastRequestAt);
+  $("remote-rejected").textContent = rejected ? tr("A request was turned away at {time}: the app has to connect again.", { time: whenText(lastRejectedAt) }) : "";
+  $("remote-rejected").hidden = !rejected;
+}
+
+for (const [name, id] of Object.entries(REMOTE_SWITCHES)) {
+  $(id).onchange = (event) => act(window.api.setPolicy({ remote: { [name]: event.target.checked } }));
+}
+copyOnClick("approvals-copy", () => state.remote.approvalsUrl);
+copyOnClick("health-copy", () => state.remote.healthUrl);
+// The main process asks "are you sure?" in a native window before anything is turned off.
+$("remote-panic").onclick = () => act(window.api.remotePanic());
+
+/* Your server computer */
+
+// Each switch moves a few related areas together, so the person chooses by what they do, not by tool group.
+const SERVER_BUNDLES = {
+  terminal: ["terminal", "files", "apps", "clipboard", "security"],
+  notes: ["notes", "applenotes"],
+  calendar: ["calendar", "reminders"],
+  gmail: ["gmail"],
+  brief: ["brief"],
+};
+
+/** The complete areas object the backend expects, as it is saved now. */
+function serverAreas() {
+  const { chosen, areas } = state.server;
+  return Object.fromEntries(areas.map((area) => [area, chosen?.areas?.[area] === true]));
+}
+
+function renderServer() {
+  const { server, tailscale, policy } = state;
+  $("server-section").hidden = !isMac();
+  if (!isMac()) return;
+  const { chosen } = server;
+  const select = $("server-host");
+  const options = [
+    ["", tr("This computer works on its own")],
+    ...tailscale.machines
+      .filter((machine) => !machine.self && machine.dns && machine.smcp)
+      .map((machine) => {
+        const name = machine.alias || machine.name;
+        return [machine.dns, machine.smcp.tools ? name : tr("{name} (does not accept other computers yet)", { name })];
+      }),
+  ];
+  // A server that is asleep or offline drops out of the list above, but it is still the one chosen.
+  if (chosen && !options.some(([value]) => value === chosen.host)) options.push([chosen.host, chosen.name]);
+  const key = JSON.stringify(options);
+  if (select.dataset.key !== key) {
+    select.dataset.key = key;
+    select.replaceChildren(...options.map(([value, label]) => element("option", { value, textContent: label })));
+  }
+  if (document.activeElement !== select) select.value = chosen?.host ?? "";
+  $("server-choice").hidden = !tailscale.running && !chosen;
+  for (const [bundle, areas] of Object.entries(SERVER_BUNDLES)) {
+    const input = $(`server-area-${bundle}`);
+    input.checked = Boolean(chosen) && areas.every((area) => chosen.areas?.[area] === true);
+    input.closest("li").hidden = !chosen;
+  }
+  $("peers-tools").checked = policy.peers?.tools === true;
+}
+
+async function saveServer(choice) {
+  const result = await act(window.api.serverSet(choice));
+  // The menu keeps the focus after a choice that was refused, so put it back on what is really saved.
+  if (!result.ok) $("server-host").value = state.server.chosen?.host ?? "";
+}
+
+$("server-host").onchange = (event) => saveServer(event.target.value ? { host: event.target.value, areas: serverAreas() } : null);
+for (const [bundle, areas] of Object.entries(SERVER_BUNDLES)) {
+  $(`server-area-${bundle}`).onchange = (event) => {
+    const next = serverAreas();
+    for (const area of areas) if (area in next) next[area] = event.target.checked;
+    return saveServer({ host: state.server.chosen.host, areas: next });
+  };
+}
+$("peers-tools").onchange = (event) => act(window.api.setPolicy({ peers: { tools: event.target.checked } }));
+
+/* Calendars that skip the confirmation window */
+
+function calendarAutoRow(calendar, index) {
+  const id = `calendar-auto-${index}`;
+  const input = element("input", { id, type: "checkbox", className: "switch" });
+  input.setAttribute("role", "switch");
+  input.dataset.calendar = calendar.id;
+  // Only what is on screen is sent, so a calendar that was deleted cannot stay allowed out of sight.
+  input.onchange = () => {
+    const ids = [...$("calendar-auto-rows").querySelectorAll("input:checked")].map((node) => node.dataset.calendar);
+    return act(window.api.setPolicy({ calendar: { autoWrite: ids } }));
+  };
+  return element("li", {}, element("label", { htmlFor: id }, calendar.title, element("small", { textContent: calendar.account })), input);
+}
+
+function renderCalendarAuto() {
+  $("calendar-auto-section").hidden = !isMac();
+  if (!isMac() || !calendarChoices) return;
+  const rows = $("calendar-auto-rows");
+  const key = JSON.stringify(calendarChoices);
+  if (key !== calendarKey) {
+    calendarKey = key;
+    const failed = !calendarChoices.ok;
+    // Without permission to see the calendars there is nothing to choose: only the reason is shown.
+    $("calendar-auto-hint").textContent = failed
+      ? tr(calendarChoices.error)
+      : tr("In the calendars you turn on here, your AI can add, move and delete events without the confirmation window, and each event says where it came from. Use a calendar made for this. Every other calendar still asks you.");
+    const writable = failed ? [] : calendarChoices.value.filter((calendar) => calendar.writable);
+    rows.replaceChildren(...writable.map(calendarAutoRow));
+  }
+  // The rows stay in place when a switch changes, so the keyboard does not lose its spot.
+  const chosen = state.policy.calendar?.autoWrite ?? [];
+  for (const input of rows.querySelectorAll("input")) input.checked = chosen.includes(input.dataset.calendar);
+}
+
+/** Asking macOS for the calendars is slow and can prompt, so it happens once per visit, not on every refresh. */
+async function loadCalendars() {
+  $("calendar-auto-refresh").disabled = true;
+  calendarChoices = await window.api.calendarList();
+  $("calendar-auto-refresh").disabled = false;
+  if (state) renderCalendarAuto();
+}
+
+$("calendar-auto-refresh").onclick = loadCalendars;
+
+/* Brain: raw exports to the notes vault */
+
+// What the exporter answers when a folder is outside raw/. Kept as the same text so it is shown translated.
+const BRAIN_FOLDER_ERROR = "The folder must be inside the vault's raw/ folder, for example raw/Personal/gmail.";
+const BRAIN_FOLDER_EXAMPLE = "raw/Personal/gmail";
+
+/** The title the exporter gives an account's notes when none is typed. It follows the folder, in the vault's own language. */
+function defaultMailTitle(folder) {
+  const owner = folder.split("/")[1] || BRAIN_FOLDER_EXAMPLE.split("/")[1];
+  return owner.toLowerCase() === "personal" ? "personal" : `de ${owner}`;
+}
+
+/** The menus offer a few intervals; one saved by hand outside them still has to show as what it is. */
+function setEvery(select, minutes) {
+  if (document.activeElement === select) return;
+  const value = String(minutes);
+  if (![...select.options].some((option) => option.value === value)) {
+    select.append(element("option", { value, textContent: tr("{count} minutes", { count: minutes }) }));
+  }
+  select.value = value;
+}
+
+async function saveBrainAccounts() {
+  const accounts = {};
+  for (const row of $("brain-accounts").children) {
+    const [folder, title] = [...row.querySelectorAll("input")].map((input) => input.value.trim());
+    if (folder) accounts[row.dataset.email] = { folder, label: title };
+  }
+  const result = await window.api.brainSet({ gmail: { accounts } });
+  // A folder outside raw/ is refused or left out; either way the typed text stays so it can be fixed.
+  const dropped = result.ok && Object.keys(accounts).some((email) => !result.value?.gmail?.accounts?.[email.toLowerCase()]);
+  brainAccountsRejected = !result.ok || dropped;
+  showError(result.ok ? (dropped ? BRAIN_FOLDER_ERROR : "") : result.error);
+  await refresh();
+}
+
+function brainAccountRow({ email }, index) {
+  const saved = state.brain.config.gmail.accounts[email.toLowerCase()];
+  const folder = element("input", { id: `brain-folder-${index}`, type: "text", value: saved?.folder ?? "", placeholder: BRAIN_FOLDER_EXAMPLE, maxLength: 200, autocomplete: "off", spellcheck: false });
+  // The saved title is shown only when the person chose it; the default stays a placeholder that follows the folder.
+  const custom = saved && saved.label !== defaultMailTitle(saved.folder) ? saved.label : "";
+  const title = element("input", { id: `brain-title-${index}`, type: "text", value: custom, placeholder: defaultMailTitle(folder.value), maxLength: 60, autocomplete: "off" });
+  folder.oninput = () => (title.placeholder = defaultMailTitle(folder.value.trim()));
+  folder.onchange = saveBrainAccounts;
+  title.onchange = saveBrainAccounts;
+  const fields = element("div", { className: "brain-fields" }, field(tr("Folder"), folder), field(tr("Title"), title));
+  fields.setAttribute("role", "group");
+  fields.setAttribute("aria-label", email);
+  const row = element("li", { className: "brain-account" }, element("span", { textContent: email }), fields);
+  row.dataset.email = email;
+  return row;
+}
+
+function renderBrainAccounts() {
+  const list = $("brain-accounts");
+  // Do not wipe a folder the person is typing, or one that was just refused.
+  if (list.contains(document.activeElement) || brainAccountsRejected) return;
+  const { accounts } = state.gmail;
+  const key = JSON.stringify([accounts, state.brain.config.gmail.accounts]);
+  if (key === brainAccountsKey) return;
+  brainAccountsKey = key;
+  list.replaceChildren(...accounts.map(brainAccountRow));
+  $("brain-accounts-hint").hidden = !accounts.length;
+}
+
+function brainSourceStatus(source) {
+  if (source.status === "failed") return tr("Failed: {reason}", { reason: tr(source.error ?? "") });
+  if (source.status === "late") return tr("Late: it has not run since {time}", { time: whenText(source.last_run) });
+  if (source.status === "never") return tr("Has not run yet");
+  return tr("Up to date");
+}
+
+/** How much the last good run brought in. A failed source shows no numbers: they would be from an older run. */
+function brainSourceResult(source) {
+  if (source.status !== "ok" || !source.last_result) return "";
+  if (source.source === "whatsapp") {
+    const count = source.last_result.new_messages;
+    return typeof count !== "number" ? "" : count === 1 ? tr("1 new message") : tr("{count} new messages", { count });
+  }
+  const count = source.last_result.new_emails;
+  return typeof count !== "number" ? "" : count === 1 ? tr("1 new email") : tr("{count} new emails", { count });
+}
+
+function brainSourceRow(source) {
+  const parts = [brainSourceStatus(source), brainSourceResult(source)];
+  // "Late" already says when it last ran.
+  if (source.last_run && source.status !== "late") parts.push(tr("last run {time}", { time: whenText(source.last_run) }));
+  const troubled = source.status === "failed" || source.status === "late";
+  return element(
+    "li",
+    { className: troubled ? "troubled" : "" },
+    element("span", {}, source.source === "whatsapp" ? "WhatsApp" : (source.account ?? source.source), element("small", { textContent: parts.filter(Boolean).join(" · ") })),
+  );
+}
+
+function renderBrain() {
+  const { brain } = state;
+  $("brain-section").hidden = !brain;
+  if (!brain) return;
+  const { whatsapp, gmail } = brain.config;
+  $("brain-vault").textContent = brain.vault ?? tr("Not chosen");
+  $("brain-wa-enabled").checked = whatsapp.enabled;
+  if (document.activeElement !== $("brain-wa-name")) $("brain-wa-name").value = whatsapp.ownName;
+  setEvery($("brain-wa-every"), whatsapp.everyMinutes);
+  $("brain-gmail-enabled").checked = gmail.enabled;
+  setEvery($("brain-gmail-every"), gmail.everyMinutes);
+  renderBrainAccounts();
+  $("brain-status").replaceChildren(...brain.sources.filter((source) => source.status !== "off").map(brainSourceRow));
+  $("brain-run").disabled = brainRunning;
+}
+
+$("brain-choose").onclick = () => act(window.api.brainChooseVault());
+$("brain-wa-enabled").onchange = (event) => act(window.api.brainSet({ whatsapp: { enabled: event.target.checked } }));
+$("brain-wa-name").onchange = (event) => act(window.api.brainSet({ whatsapp: { ownName: event.target.value.trim() } }));
+$("brain-wa-every").onchange = (event) => act(window.api.brainSet({ whatsapp: { everyMinutes: Number(event.target.value) } }));
+$("brain-gmail-enabled").onchange = (event) => act(window.api.brainSet({ gmail: { enabled: event.target.checked } }));
+$("brain-gmail-every").onchange = (event) => act(window.api.brainSet({ gmail: { everyMinutes: Number(event.target.value) } }));
+$("brain-run").onclick = async () => {
+  brainRunning = true;
+  $("brain-run").disabled = true;
+  $("brain-run-result").textContent = "";
+  const result = await window.api.brainRun();
+  brainRunning = false;
+  // One line is enough: the list above shows how each source ended.
+  const failed = result.ok ? result.value.ran.find((run) => !run.ok) : null;
+  $("brain-run-result").textContent = !result.ok ? tr(result.error) : failed ? tr(failed.error ?? failed.reason ?? "Failed") : tr("Done.");
+  await refresh();
+};
+
 function renderSettings() {
   const { policy, permissions } = state;
   $("policy-paused").checked = policy.paused;
   $("policy-readonly").checked = policy.readOnly;
-  $("policy-remote-tasks").checked = policy.remote?.taskWrites === true;
   for (const group of GROUPS) $(`group-${group}`).checked = !policy.disabled[group];
   $("whatsapp-access").hidden = !state.whatsapp.supported;
   $("wa-access-off").hidden = !policy.disabled.whatsapp;
@@ -598,43 +895,78 @@ function renderSettings() {
   for (const node of document.querySelectorAll("[data-privacy]")) node.hidden = permissions[node.dataset.privacy];
   $("paused-banner").hidden = !policy.paused;
   $("version").textContent = tr("Version {version}", { version: state.version });
-  if (activeTab === "settings") renderActivity();
+  $("away-section").hidden = !isMac();
+  if (activeTab === "settings") {
+    renderActivity();
+    renderAwayActivity();
+  }
 }
 
-const OUTCOME_LABELS = { ok: "Done", error: "Failed", denied: "Blocked", failed: "Failed" };
+function sourceLabel(source) {
+  if (source === "remote") return tr("Remote");
+  if (source === "peer") return tr("Another of your computers");
+  return tr("This computer");
+}
 
-/** The last calls, newest first. Only names, times and outcomes: the log holds nothing else. */
+function outcomeLabel(outcome) {
+  if (outcome === "ok") return tr("Done");
+  if (outcome === "denied") return tr("Blocked");
+  if (outcome === "waiting") return tr("Waiting for approval");
+  return tr("Failed");
+}
+
+/** One call: its tool, when, from where and how it ended, and the whole command when the log kept it. */
+function activityRow(entry, time) {
+  const meta = [time.format(new Date(entry.at)), sourceLabel(entry.source), entry.client, outcomeLabel(entry.outcome)];
+  if (entry.to === "server") meta.push(tr("Ran on your server computer"));
+  const row = element(
+    "li",
+    { className: `activity-${entry.outcome}` },
+    element("span", { className: "activity-tool", textContent: entry.tool }),
+    element("small", { textContent: meta.filter(Boolean).join(" · ") }),
+  );
+  if (entry.detail) row.append(element("code", { className: "activity-detail", textContent: entry.detail }));
+  return row;
+}
+
+/** Fills a list only when it changed, so a command being selected or scrolled is not reset every few seconds. */
+function fillActivity(list, entries, time, previousKey) {
+  const key = JSON.stringify(entries);
+  if (key === previousKey) return key;
+  list.replaceChildren(...entries.map((entry) => activityRow(entry, time)));
+  // A long command scrolls inside its box; the keyboard has to be able to reach it to do the same.
+  for (const detail of list.querySelectorAll(".activity-detail")) {
+    if (detail.scrollHeight > detail.clientHeight) detail.tabIndex = 0;
+  }
+  return key;
+}
+
+/** The last calls, newest first. Names, times and outcomes; the log holds nothing else but outside terminal commands. */
 async function renderActivity() {
   const result = await window.api.auditList();
   const list = $("activity");
   if (!result.ok) {
     list.replaceChildren();
+    activityKey = null;
     $("activity-status").textContent = tr(result.error);
     return;
   }
   const entries = result.value;
   const time = new Intl.DateTimeFormat(SMCP_I18N.locale(), { dateStyle: "short", timeStyle: "short" });
-  list.replaceChildren(
-    ...entries.slice(0, ACTIVITY_SHOWN).map((entry) =>
-      element(
-        "li",
-        { className: `activity-${entry.outcome}` },
-        element("span", { className: "activity-tool", textContent: entry.tool }),
-        element("small", {
-          textContent: [
-            time.format(new Date(entry.at)),
-            tr(entry.source === "remote" ? "Remote" : "This computer"),
-            entry.client,
-            tr(OUTCOME_LABELS[entry.outcome] ?? "Failed"),
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        }),
-      ),
-    ),
-  );
+  activityKey = fillActivity(list, entries.slice(0, ACTIVITY_SHOWN), time, activityKey);
   $("activity-status").textContent = entries.length ? tr("{count} recent calls", { count: entries.length }) : tr("No calls yet.");
   $("activity-clear").disabled = !entries.length;
+}
+
+/** Everything done today from the phone, the web, a routine or another of the person's computers. */
+async function renderAwayActivity() {
+  const result = await window.api.remoteActivity();
+  if (!result.ok) return;
+  const entries = result.value.today;
+  const time = new Intl.DateTimeFormat(SMCP_I18N.locale(), { timeStyle: "short" });
+  awayKey = fillActivity($("away-activity"), entries, time, awayKey);
+  $("away-activity").hidden = !entries.length;
+  $("away-empty").hidden = entries.length > 0;
 }
 
 function renderSummary() {
@@ -947,7 +1279,7 @@ const STEPS = {
         onboardingKey = null;
         act(window.api.vaultAdd());
       }),
-      hint(tr("From your phone they can only be read. Writing notes only works on this computer.")),
+      hint(tr("From your phone they can be read. Writing them from there stays off until you turn it on in Settings.")),
     ];
   },
   about: aboutStep,
@@ -1146,7 +1478,11 @@ async function refresh() {
   renderClients();
   renderRemote();
   renderSettings();
+  renderRemoteSettings();
   renderTaskSettings();
+  renderServer();
+  renderCalendarAuto();
+  renderBrain();
   moveIndicator();
   if (appWasHidden) playEntrance();
 }
@@ -1168,7 +1504,11 @@ function selectTab(name) {
   void view.offsetWidth; // Restart the entrance animation.
   view.classList.add("entering");
   moveIndicator();
-  if (name === "settings") renderActivity();
+  if (name === "settings") {
+    renderActivity();
+    renderAwayActivity();
+    if (!calendarChoices) loadCalendars();
+  }
 }
 
 window.api.onSelectTab(selectTab);
@@ -1218,7 +1558,6 @@ window.api.onLoginEvent(({ state: login, image, error }) => {
 
 $("policy-paused").onchange = (event) => act(window.api.setPolicy({ paused: event.target.checked }));
 $("policy-readonly").onchange = (event) => act(window.api.setPolicy({ readOnly: event.target.checked }));
-$("policy-remote-tasks").onchange = (event) => act(window.api.setPolicy({ remote: { taskWrites: event.target.checked } }));
 $("resume").onclick = () => act(window.api.setPolicy({ paused: false }));
 for (const group of GROUPS) {
   $(`group-${group}`).onchange = (event) => act(window.api.setPolicy({ disabled: { [group]: !event.target.checked } }));

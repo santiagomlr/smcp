@@ -151,7 +151,7 @@ Object.assign((globalThis.SMCP_IT ??= {}), {
   "Connect your notes": "Connetti le tue note",
   "Choose the Obsidian vaults or Markdown folders your AI can read. It only sees the ones you turn on.": "Scegli i vault di Obsidian o le cartelle Markdown che la tua IA potrà leggere. Vedrà solo quelli che attivi.",
   "Choose folder": "Scegli cartella",
-  "From your phone they can only be read. Writing notes only works on this computer.": "Dal telefono si possono solo leggere. Scrivere note funziona solo su questo computer.",
+  "From your phone they can be read. Writing them from there stays off until you turn it on in Settings.": "Dal telefono si possono leggere. Scriverle da lì resta disattivato finché non lo attivi nelle Impostazioni.",
   "Not signed in yet": "Accesso non ancora effettuato",
   "Not installed": "Non installato",
   "Have more computers?": "Hai altri computer?",

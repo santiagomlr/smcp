@@ -67,7 +67,7 @@ import { coalesce, retry, whenChanged } from "./core/throttle.js";
 import { createUpdater, isNewer, RELEASES_PAGE } from "./core/updater.js";
 import { createLiveSync, logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
 import { audioSupported, downloadModel } from "./core/whisper.js";
-import { readBrainConfig, writeBrainConfig } from "../src/brain/config.js";
+import { rawFolder, readBrainConfig, writeBrainConfig } from "../src/brain/config.js";
 import { isAway } from "../src/origin.js";
 import { buildAwayServer, buildRemoteServer } from "../src/remote-tools.js";
 import { readServerConfig, ROUTED_AREAS, writeServerConfig } from "../src/server-route.js";
@@ -849,6 +849,9 @@ function setServer(choice) {
 
 /** Saves the raw export settings. The vault must be a folder that already has raw/ inside. */
 function setBrain(patch) {
+  // A folder outside raw/ is refused out loud; dropping it quietly would look like it was saved.
+  for (const entry of Object.values(patch?.gmail?.accounts ?? {})) rawFolder(entry?.folder);
+  if (patch?.whatsapp?.folder !== undefined) rawFolder(patch.whatsapp.folder);
   const current = readBrainConfig();
   const next = {
     ...current,
