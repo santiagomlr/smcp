@@ -23,6 +23,14 @@ if (navigator.userAgent.includes("Macintosh")) document.body.classList.add("mac"
 function showError(message) {
   $("error").textContent = message ? tr(message) : "";
   $("error").hidden = !message;
+  if (message) replay($("error"));
+}
+
+/** Plays an element's CSS animation again, so a repeated error shakes even if it was already showing. */
+function replay(node) {
+  node.style.animation = "none";
+  void node.offsetWidth;
+  node.style.animation = "";
 }
 
 /** Runs an action, surfaces its error, then refreshes what's on screen. */
@@ -380,6 +388,7 @@ function accountForm({ onDone, onCancel }) {
         if (!result.ok) {
           error.textContent = tr(result.error);
           error.hidden = false;
+          replay(error);
           return;
         }
         form.reset();
@@ -765,6 +774,7 @@ function aboutStep() {
         if (!result.ok) {
           error.textContent = tr(result.error);
           error.hidden = false;
+          replay(error);
           return;
         }
         text.blur();
