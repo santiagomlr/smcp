@@ -32,33 +32,36 @@ Every version is also on the [Releases](https://github.com/santiagomlr/smcp/rele
 
 ## What's included
 
+The last column says what a client outside the computer (your phone, the web, a routine) can do. Reading always works once remote access is on. Everything else needs one of four switches in Settings > Remote access, and each starts off: **tasks** (edit tasks), **write** (notes, calendar and reminders), **control** (the terminal, writing files and driving the computer) and **send** (messages and email, each approved by you). See [From your phone](#from-your-phone-the-web-and-routines).
+
 | Area | Tools | From your phone |
 |---|---|---|
 | Your day | `daily_brief` | Yes |
-| People and follow-ups | `people_lookup`, `followups_list`, `followups_to_tasks` | Yes; filing tasks only if you allow editing tasks from other devices |
-| WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_chat_digest`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_send_file`, `whatsapp_transcribe_audio`, `whatsapp_search_transcripts`, `whatsapp_scan_file` | Everything except sending and listening to audio |
-| Gmail, multiple accounts | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_read_attachment`, `gmail_send`, `gmail_reply`, `gmail_draft` | Everything except sending and drafts |
-| Notes, Obsidian or Markdown | `notes_list_vaults`, `notes_search`, `notes_semantic_search`, `notes_recent`, `notes_read`, `notes_write` | Everything except writing |
-| Tasks | `tasks_available`, `tasks_search`, `tasks_list_projects`, `tasks_claude_queue`, `tasks_hygiene`, `tasks_forecast`, `tasks_review_list`, `tasks_mark_reviewed`, `tasks_create`, `tasks_update`, `tasks_append_note`, `tasks_complete` | Reading, and editing if you turn it on |
-| Calendar | `calendar_list_calendars`, `calendar_list_events`, `calendar_free_slots`, `calendar_create_event` | Everything except adding events |
-| Reminders | `reminders_list_lists`, `reminders_list`, `reminders_create`, `reminders_complete` | Read only |
+| People and follow-ups | `people_lookup`, `followups_list`, `followups_to_tasks` | Yes; filing tasks needs **tasks** |
+| WhatsApp | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_messages`, `whatsapp_search_messages`, `whatsapp_chat_digest`, `whatsapp_search_contacts`, `whatsapp_sync`, `whatsapp_send`, `whatsapp_send_file`, `whatsapp_transcribe_audio`, `whatsapp_search_transcripts`, `whatsapp_scan_file` | Reading, yes. Sending needs **send** and your approval each time |
+| Gmail, multiple accounts | `gmail_list_accounts`, `gmail_search`, `gmail_read`, `gmail_read_attachment`, `gmail_send`, `gmail_reply`, `gmail_draft` | Reading, yes. Drafts need **write**. Sending needs **send** and your approval each time |
+| Notes, Obsidian or Markdown | `notes_list_vaults`, `notes_search`, `notes_semantic_search`, `notes_recent`, `notes_read`, `notes_write` | Reading, yes. Writing needs **write** |
+| Raw exports to your vault | `brain_inbox`, `brain_inbox_mark`, `brain_export_now` | Reading, yes. Marking and running an export need **write** |
+| Tasks | `tasks_available`, `tasks_search`, `tasks_list_projects`, `tasks_claude_queue`, `tasks_hygiene`, `tasks_forecast`, `tasks_review_list`, `tasks_mark_reviewed`, `tasks_create`, `tasks_update`, `tasks_append_note`, `tasks_complete` | Reading, yes. Editing needs **tasks** |
+| Calendar | `calendar_list_calendars`, `calendar_list_events`, `calendar_free_slots`, `calendar_create_event`, `calendar_update_event`, `calendar_delete_event`, `calendar_auto_history` | Reading, yes. Adding, changing and deleting need **write**, plus your approval unless the calendar is one you chose for writing without the window |
+| Reminders | `reminders_list_lists`, `reminders_list`, `reminders_create`, `reminders_update`, `reminders_complete`, `reminders_delete` | Reading, yes. The rest needs **write** |
 | Apple Notes | `applenotes_search`, `applenotes_recent`, `applenotes_read` | Yes |
-| Files | `file_list`, `file_read`, `file_search`, `file_write` | Everything except writing |
-| Clipboard | `clipboard_read`, `clipboard_write` | Not available |
-| Terminal | `run_command` | Not available |
-| Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot`, `screen_read_text` | Not available |
-| Antivirus | `security_scan_file`, `security_scan_folder`, `security_check_url`, `security_check_persistence`, `security_quarantine`, `security_quarantine_list`, `security_restore`, `security_delete_quarantined` | Scanning and checking; quarantine only on the computer |
-| Context | `smcp_context`, `smcp_remember` | Reading context |
-| Night light | `nightlight_status`, `nightlight_set`, `nightlight_now` | Not available |
-| VPN | `vpn_status`, `vpn_connect`, `vpn_disconnect`, `vpn_tailscale_dns` | Checking and turning on |
-| Keep awake | `awake_status`, `awake_start`, `awake_stop`, `awake_screen_off` | Checking and starting |
-| Status | `smcp_status` | Yes |
+| Files | `file_list`, `file_read`, `file_search`, `file_write` | Reading, yes. Writing needs **control**, because a file can be a command that runs later |
+| Clipboard | `clipboard_read`, `clipboard_write` | Needs **control** |
+| Terminal | `run_command` | Needs **control**. Commands stop after 120 seconds |
+| Apps | `app_list`, `window_list`, `app_focus`, `ui_read_tree`, `ui_click`, `ui_type`, `ui_key`, `screenshot`, `screen_read_text` | Needs **control** |
+| Antivirus | `security_scan_file`, `security_scan_folder`, `security_check_url`, `security_check_persistence`, `security_quarantine`, `security_quarantine_list`, `security_restore`, `security_delete_quarantined` | Scanning and checking, yes. Quarantine and restore need **write**; deleting needs **control** |
+| Context | `smcp_context`, `smcp_remember` | Reading, yes. Remembering needs **write** |
+| Night light | `nightlight_status`, `nightlight_set`, `nightlight_now` | Never: nobody is looking at that screen |
+| VPN | `vpn_status`, `vpn_connect`, `vpn_disconnect`, `vpn_tailscale_dns` | Checking and turning on. Turning off never: it could cut the connection you are using |
+| Keep awake | `awake_status`, `awake_start`, `awake_stop`, `awake_screen_off` | Checking and starting. Stopping never, for the same reason |
+| Status | `smcp_status`, `smcp_ping`, `approval_status` | Yes |
 
-Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window.
+Terminal and Apps start turned off, and so do Apple Notes and the clipboard. You can turn them on in Settings. With Terminal on, the AI could send messages without going through the confirmation window. An area that is off on the computer is off from everywhere: a remote switch never turns it on.
 
 **Your day:** `daily_brief` gathers today's events, reminders due, available tasks, unread WhatsApp chats and recent unread email in one call. Each part follows its own permission, so an area you turned off is left out.
 
-**People:** `people_lookup` finds someone across WhatsApp, Gmail, notes and tasks in one call: their WhatsApp contact and chats with the exact JID, the email addresses they write from with how many emails and the latest date, the notes that mention them and their tasks. Your AI uses it before writing to someone or preparing a meeting, so it never has to guess a recipient.
+**People:** `people_lookup` finds someone across WhatsApp, Gmail, notes, tasks and your Mac's Contacts in one call: their WhatsApp contact and chats with the exact JID, the email addresses they write from with how many emails and the latest date, the notes that mention them, their tasks, and their phone numbers, email addresses and birthday from Contacts. The first time, macOS asks whether SMCP may use your contacts. Your AI uses it before writing to someone or preparing a meeting, so it never has to guess a recipient.
 
 **Follow-ups:** `followups_list` looks through your WhatsApp chats and your email from the last two weeks and returns two lists, longest wait first:
 
@@ -78,7 +81,13 @@ It leaves out groups, muted and archived chats, automated senders (no-reply, not
 
 The assertion is held by macOS's own `caffeinate`, tied to SMCP's process so it can never be left behind, and restarted if it stops. Claude can call `awake_start` before long work (for a while, until a time, or while an app or Claude is open) and `awake_status` to check that macOS really honors it and why the computer last slept. On Windows and Linux it keeps the computer awake with Electron's power blocker.
 
-**Calendar and Reminders** read every account on your Mac (iCloud, Google, Exchange) through the system calendar. `calendar_free_slots` finds free time within working hours. Adding an event opens a confirmation window like sending does. The first time, macOS asks whether SMCP may use your calendar or reminders.
+**Calendar and Reminders** read every account on your Mac (iCloud, Google, Exchange) through the system calendar. `calendar_free_slots` finds free time within working hours. The first time, macOS asks whether SMCP may use your calendar or reminders.
+
+- **Changing things where they live.** `calendar_update_event` and `calendar_delete_event` move, edit and remove events, and `reminders_update` and `reminders_delete` do the same for reminders, so a plan that changed is changed in the calendar instead of being noted somewhere else. Repeating events take `span`: this one, or this and the future ones.
+- **Clashes.** Before it adds or moves an event, SMCP reports what already occupies that time, in every calendar, so your AI can tell you about a clash. `check_only` asks without adding anything.
+- **With the window, by default.** Adding, changing or deleting an event opens a confirmation window like sending does. From outside the computer it waits for your approval instead.
+- **Without the window, where you say.** In Settings > Calendar without the window you choose one or more calendars where SMCP may add, move and delete events by itself. Use a calendar made for this. An event added this way must say where it came from (`source`: the chat or email, the date and a short quote), which SMCP writes at the end of the event's notes together with a small stable mark. The same call made twice adds one event: SMCP finds the mark and answers that the event already exists. Every change made without the window is kept in `~/.smcp/calendar-auto.jsonl` with the values from before, and `calendar_auto_history` returns it, so anything can be undone.
+- SMCP does not decide what counts as a confirmed plan. Your AI decides that with your own rules; SMCP carries it out, records it and never duplicates it.
 
 **Search by meaning:** `notes_semantic_search` finds notes about an idea even when the words differ. It uses the language model built into macOS, so nothing is downloaded and nothing leaves your computer. The first search of a large vault indexes it in steps.
 
@@ -144,6 +153,73 @@ It's a first line of defense, not a replacement for the protection built into ma
 - `smcp_context` returns all of this in one call, for routines and for clients that ignore server instructions.
 - **Ready-made prompts** appear as commands in apps that support them: `morning` (your day), `inbox` (triage email and flag phishing), `catch_up` (summarise a WhatsApp chat), `prepare_meeting` (everything about the next meeting's people and topic) and `security_checkup`.
 
+## From your phone, the web and routines
+
+Remote access gives a connected app the same tools as a session at the computer, with the risky ones behind switches you turn on one by one in Settings > Remote access. All of them start off.
+
+| Switch | What it opens |
+|---|---|
+| Edit tasks from other devices | Creating, changing and completing tasks in SMCP's own list. |
+| Write notes, calendar and reminders | Notes inside your vaults (Markdown and text only), calendar events, reminders, email drafts, quarantine, and what your AI remembers about you. |
+| Terminal, files and control of this computer | Commands, writing any file, the screen, clicks, typing and the clipboard. |
+| Send messages and email | WhatsApp messages and files, and email. Each one waits for your approval. |
+
+**Approving a send when you are not at the computer.** The confirmation window appears on the computer, where nobody would see it. So a send asked from outside waits on an approval page instead. The tool answers `waiting_for_approval` with the page's address; you open it on your phone or any device of yours, read exactly what will go out and to whom, and press the button. SMCP then sends that exact text: the tool that asked is still holding it, so nothing can change between your approval and the send. Your AI learns how it ended with `approval_status`. A request expires after 15 minutes.
+
+The page is served only inside your Tailscale network (Tailscale Serve, never Funnel) and answers only your own Tailscale login, so your phone needs the Tailscale app signed in to your account. Each button carries a secret that another website cannot read, the request has to come from the page itself, and the page cannot be framed. The address is in Settings; you can keep it on your phone's home screen. The same page approves calendar changes asked from outside in a calendar you did not choose for writing without the window.
+
+**Limits.** Every connected app gets 60 calls a minute, 20 of them for the terminal and the screen and 6 sends. A command stops after 120 seconds. A call that takes more than 100 seconds is answered with "still running", never with silence. A result longer than 200,000 characters is cut and says so. A single write carries up to a million characters and stops when the disk has less than 1 GB free. Two heavy tools run at once.
+
+**What happened while you were away.** Every call from outside is written to `~/.smcp/audit.jsonl`: when, which app (its name and the start of its id), which tool and how it ended. A terminal command is kept whole. Settings shows what was done from outside today, when the last remote request arrived, and whether one was turned away. **Turn off all remote access** ends everything at once: the private URL goes off, the four switches go back to off, every connected app is signed out and whatever was waiting for approval is rejected.
+
+**Is it SMCP or the connection?** When a client cannot reach SMCP, the problem can be the computer, the private URL or the client's own network. Three things tell them apart:
+
+- `https://<your computer>/health` opens in any browser with no sign-in. It answers `ok` only when the whole path works: the private URL, SMCP and a tool. It says nothing about you. The address is in Settings.
+- `smcp_ping` is the same check as a tool, for the client itself.
+- A tool that is off, a server that does not answer or a call that takes too long comes back as an error that says so and what to do. SMCP also tells every client to say plainly when it could not connect, and never to present something as read when the tool did not return it.
+
+### If someone steals a connector token
+
+The token is what a connected app holds after pairing. Assume someone has it. They still need nothing else to call SMCP until you disconnect that app or press **Turn off all remote access**. This is what they can do:
+
+| You turned on | They can | They cannot |
+|---|---|---|
+| Nothing (the default) | Read whatever the areas you left on allow: chats, email, notes, tasks, calendar, contacts, files outside the blocked folders. That is serious by itself. Keep the computer awake and turn a VPN on. | Change, write or send anything. Read `~/.smcp`, your keychains or the blocked credential folders. |
+| Tasks | Also create, change and complete your tasks. | Touch anything outside SMCP's task list. Every edit can be undone in the app. |
+| Write | Also write notes in your vaults, including a note your other AI tools read as instructions; add events to a calendar you chose for writing without the window, and move or delete events there; change reminders; leave email drafts; quarantine files. | Write outside your vaults, or any file that is not Markdown or text. Send anything. Touch a calendar you did not choose without your approval. |
+| Send | Also ask for a send. It appears on your approval page with the full text. | Send anything by themselves: the approval page only opens inside your Tailscale network with your login. More than 6 requests a minute, or more than 10 waiting. |
+| Control | Everything you can do on that computer: run commands, write files that run later, read the screen, click and type. That includes sending without your approval and turning the other switches on. | Nothing is out of reach. Turn this on only for as long as you need it. |
+
+Limits and the activity log bound the damage and show it afterwards; they do not prevent it. An area turned off on the computer stays off whatever the switches say, and pausing SMCP stops everything.
+
+## One computer as your server
+
+If one of your computers stays on all day and holds what matters (the notes vault, the WhatsApp session, your files), the others can send their work to it.
+
+- On the server, turn on **Let my other computers use this one** in Settings.
+- On each other computer, choose the server in Settings > Your server computer and turn on the areas that should run there: terminal, files and apps; notes; calendar and reminders; Gmail; your day, people and follow-ups.
+- Any routable tool also takes `machine`: `"server"` or `"here"`, for one call.
+
+The calls travel over Tailscale Serve and only your own Tailscale login is answered, the same rule as the shared task list. Three things always hold:
+
+- **The server decides.** Its switches, its pause and its approvals apply to what runs on it. A computer that asks cannot get around a switch that is off on the server, and the switches of the computer that asks do not matter for what runs on the server, except its own pause and read-only mode.
+- **A send from another computer waits for your approval** on the server's approval page, like a send from the phone.
+- **A server that does not answer is an error.** The tool says so ("your server computer does not answer over Tailscale") and nothing runs on the computer you are at instead, because that would return another computer's data without saying so.
+
+`smcp_status` and `smcp_context` say which computer each area runs on, and whether the server answers. Tasks keep their own setting (Where your tasks live), and reading WhatsApp already asks whichever computer has it linked. `whatsapp_send` with `machine: "server"` sends from the computer that has WhatsApp. Both computers need this version.
+
+## SMCP pulls, your AI interprets
+
+SMCP can write what is new in WhatsApp and Gmail into your notes vault, on a schedule, as raw text. Your AI reads it there and does the interpreting: SMCP never summarises, files or decides anything. Set it up in Settings > Brain: the vault, which sources, how often, and for Gmail which folder each account goes to.
+
+- SMCP writes only inside the vault's `raw/` folder. It never runs git and never changes anything else in the vault, so a vault that another tool syncs is safe.
+- **WhatsApp** goes to `raw/Personal/whatsapp/`, one note per chat: `Personales/` or `Grupos/`, a file named after the chat plus a short hash of its id (so a renamed chat keeps its note), front matter with `chat_id`, a `## YYYY-MM-DD` heading per day and one line per message, `**HH:MM** — Sender: text`. Photos, voice notes and other media become a marker such as `[imagen]` or `[audio]`. A chat that changed from a hidden id to a phone number is recognised as the same chat; groups are never merged by name. SMCP reads its own WhatsApp store through a copy, so it never competes with the live sync.
+- **Gmail** goes to the folder you choose for each account, one file per day: `YYYY-MM-DD.md` with front matter (`fuente`, `fecha`), a title, and one block per email: `## HH:MM · sender — subject` (sent mail shows `yo → recipient`), a hidden `<!-- gmail:id -->` mark, an optional `Adjuntos:` line and the text. A quoted thread is replaced by `[…hilo citado omitido]` and text past 2500 characters is cut with `…[recortado]`. Spam, trash, drafts, promotions, social and forum mail are left out, and so is any email whose subject looks like a sign-in code, a password or a security alert. An email whose mark is already in the file is never written twice, so an existing folder is continued, not duplicated.
+- **A heartbeat on every run.** Each source records every run, including the ones that found nothing, so "there was nothing new" and "it did not run" never look the same. A source is `ok`, `failed` (with the reason), `late` (it should have run by now) or `never`. A failure shows in Settings, in `smcp_status` and in a notification the first time, not only in a log. Pausing SMCP or turning off WhatsApp reading or Gmail stops the export too, and the gap is recorded with that reason.
+- **`brain_inbox`** gives your AI the exact list of raw files that changed since it last interpreted them, how much was added to each, anything else that changed under `raw/`, and the state of every source. `brain_inbox_mark` saves where it got to. `brain_export_now` runs an export without waiting for its turn.
+
+The WhatsApp notes are byte-for-byte what the earlier export scripts wrote: a test compares both on the same data, so existing notes are continued in place.
+
 ## Built for scheduled routines
 
 A routine that runs at night with nobody watching needs to know what will work before it starts, and to keep going when one part is down.
@@ -153,6 +229,7 @@ A routine that runs at night with nobody watching needs to know what will work b
 - **No account, no monthly limit, one name.** There is no SMCP account to lose and no cap on calls, and every tool lives under one server, `smcp`.
 - **Reading tasks with the app closed:** if SMCP.app doesn't respond, task reads come straight from the saved list, with a note saying so. Writing still waits for the app, so there is never a second list.
 - **Tasks from the phone, the web and routines:** turn on **Edit tasks from other devices** in Settings and remote clients can create, change and complete tasks. It starts off, it only touches SMCP's task list, and Read-only still blocks it.
+- **Stale data is visible:** `smcp_status` reports each raw export to your vault, so a routine that interprets them can stop when a source failed or went quiet, instead of reading old files as "nothing new".
 - **No duplicates:** `tasks_create` rejects a pending task with the same name in the same project, ignoring accents, case and punctuation, and returns the existing task's id. `allow_duplicate: true` skips the check.
 - **Accents:** task, note and file searches ignore accents and treat macOS file names (NFD) the same as typed text (NFC).
 - **Long commands:** `run_command` asks for no confirmation and accepts up to 600 seconds.
@@ -227,10 +304,14 @@ Everything is in `~/.smcp/`, with permissions for your user only.
 | `whisper/` | Audio model, if you turned it on |
 | `transcripts.jsonl` | Text of the voice notes you transcribed. Deleted when you disconnect WhatsApp |
 | `notes-index.json` | Search-by-meaning index of your vaults, with short previews. A vault you turn off leaves it |
-| `audit.jsonl` | Recent activity: which tool ran, when, from where and how it ended. Never what it read or sent |
+| `audit.jsonl` | Recent activity: which tool ran, when, from where and how it ended. Never what it read or sent. The one exception is a terminal command asked from outside the computer, which is kept whole |
 | `gmail.json` | Accounts, with passwords encrypted by the system keychain |
 | `vaults.json` | Vaults that are turned on |
-| `config.json` | Pause, read only, permissions by area, what the AI can do with WhatsApp, and whether other devices can edit tasks |
+| `config.json` | Pause, read only, permissions by area, what the AI can do with WhatsApp, the remote access switches, whether your other computers may use this one, and the calendars written without the window |
+| `server.json` | Your server computer and the areas that run on it, if you chose one |
+| `brain.json` | The raw exports: the vault, the sources, how often, and each Gmail account's folder |
+| `brain/` | The exports' own state: how far each chat was written, the heartbeat of every run and the list of files each run changed |
+| `calendar-auto.jsonl` | Every calendar change made without the window, with the values from before |
 | `remote.json` | Connected remote apps, with their tokens stored only as hashes |
 | `awake.json` | Keep awake: the session in progress and its settings |
 
@@ -238,11 +319,12 @@ Whatever the AI reads is sent to that AI's provider.
 
 ## Security
 
-- **Sending:** every WhatsApp message, file and email opens a macOS window showing the recipient and the text or file. It only goes out if you press Send. Adding a calendar event asks the same way. This can't be turned off in settings.
-- **Recent activity:** Settings lists the last calls your AI made, with the time, whether it came from this computer or remotely, and whether it worked or was blocked. You can clear it at any time.
+- **Sending:** every WhatsApp message, file and email opens a macOS window showing the recipient and the text or file. It only goes out if you press Send. Asked from outside the computer, it waits on your approval page instead. This can't be turned off in settings.
+- **Calendar:** adding, changing or deleting an event asks the same way, except in the calendars you chose for writing without the window.
+- **Recent activity:** Settings lists the last calls your AI made, with the time, whether it came from this computer, remotely or from another of your computers, and whether it worked, was blocked or is waiting for your approval. You can clear it at any time.
 - **Clipboard:** off until you turn it on, because it often holds passwords and codes.
-- **Remote access:** uses [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). The URL is public, but it requires OAuth and a pairing code that only appears in the app. The code works once, lasts 10 minutes and is invalidated after 5 attempts.
-- **Tasks across computers:** go through Tailscale Serve, without opening the firewall, and only accept your own Tailscale account.
+- **Remote access:** uses [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). The URL is public, but it requires OAuth and a pairing code that only appears in the app. The code works once, lasts 10 minutes and is invalidated after 5 attempts. Beyond reading, nothing is on until you turn on its switch; see [If someone steals a connector token](#if-someone-steals-a-connector-token).
+- **Between your computers:** tasks, WhatsApp reading, tools sent to your server and the approval page go through Tailscale Serve, without opening the firewall, and only accept your own Tailscale account. Any program on one of your own devices can use that path, so a device of yours that is compromised is trusted like you are.
 - **Notes:** off until you turn them on. The tools can't leave the vault or enter hidden folders.
 - **Files:** credentials and `~/.smcp` are blocked, for reading and for sending through WhatsApp. This is a barrier against accidents: `run_command` doesn't have this limit.
 - **Don't set** `run_command`, `ui_click`, `ui_type` or `ui_key` **to "always allow".** A malicious message could try to trick the AI into using them.
@@ -252,5 +334,7 @@ Whatever the AI reads is sent to that AI's provider.
 - WhatsApp works through `wacli`, which isn't an official client, so your account could face restrictions. Avoid bulk sending.
 - Gmail uses app passwords, which give broad access to the account and which some companies block.
 - Remote access requires the computer to be on, awake and running SMCP. Keep awake can take care of the awake part.
+- Approving a send from your phone needs the Tailscale app on the phone, signed in to your account.
+- The raw exports need a Mac: WhatsApp and Gmail live there. Reading WhatsApp's store uses the `sqlite3` tool that comes with macOS.
 - The app is not signed by Apple. macOS shows a warning when you open a downloaded copy. Releases are signed with SMCP's own certificate, so permissions stay on after an update; the first version signed this way asks for them once more. If SMCP already looks on in those lists, press **Turn on** in SMCP: it clears the old entry so you can switch it on for the current copy.
 - Windows shows a SmartScreen warning.
