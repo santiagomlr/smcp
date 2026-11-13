@@ -80,6 +80,7 @@ body {
 }
 
 .icon-button {
+  position: relative;
   width: 24px;
   height: 24px;
   padding: 0;
@@ -87,6 +88,12 @@ body {
   line-height: 1;
   color: var(--muted);
   border-color: transparent;
+}
+
+.icon-button::before {
+  content: "";
+  position: absolute;
+  inset: -10px -2px;
 }
 
 .side-projects {
@@ -270,6 +277,13 @@ body {
   transition: transform var(--base) var(--ease);
 }
 
+/* Fitts: the circle is 18px, the click target fills the 40px row and the gap beside it. */
+.check::before {
+  content: "";
+  position: absolute;
+  inset: -11px -10px;
+}
+
 .row.leaving .check::after,
 .row.done .check::after {
   transform: scale(1);
@@ -311,12 +325,19 @@ body {
 }
 
 .who {
+  position: relative;
   justify-self: start;
   padding: 1px 8px;
   font-size: var(--text-sm);
   font-weight: 400;
   color: var(--muted);
   border-color: transparent;
+}
+
+.who::before {
+  content: "";
+  position: absolute;
+  inset: -10px -5px;
 }
 
 .who.claude {
@@ -596,6 +617,50 @@ body {
   border: 1px solid var(--rule);
   border-radius: 8px;
   transform: translateX(-50%);
+  animation: shake var(--fast) var(--ease);
+}
+
+/* Placeholder rows while a new view loads (only when it takes longer than ~150 ms). */
+.row.skeleton {
+  pointer-events: none;
+  animation: fade-up var(--fast) var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+.skeleton i {
+  display: block;
+  height: 9px;
+  background: var(--wash);
+  border-radius: 5px;
+  animation: breathe 900ms ease-in-out infinite alternate;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+.skeleton .bone-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.skeleton i:nth-child(2) {
+  width: 62%;
+}
+
+.skeleton:nth-child(3n + 2) i:nth-child(2) {
+  width: 44%;
+}
+
+.skeleton:nth-child(3n) i:nth-child(2) {
+  width: 78%;
+}
+
+.skeleton i:nth-child(3) {
+  width: 36px;
+}
+
+.skeleton i:nth-child(4) {
+  width: 56px;
+  justify-self: end;
 }
 
 .calendar-link {
