@@ -4,17 +4,25 @@ import { chmodSync, mkdirSync, rmSync } from "node:fs";
 import { connect, createServer } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { cleanOrigin, currentOrigin, isAway, runWithOrigin } from "./origin.js";
 import { run } from "./util.js";
 
 const APP_BUNDLE_ID = "com.santiago.smcp";
 const MAX_REQUEST_BYTES = 256 * 1024;
 const LAUNCH_WAIT_MS = 6_000;
+/** A call from outside this computer may wait for the person to approve it on their own device. */
+const AWAY_WAIT_MS = 16 * 60 * 1000;
 
 export function socketPath() {
   return process.env.SMCP_SOCKET || join(homedir(), ".smcp", "smcp.sock");
 }
 
-/** App side. `ops` maps an operation name to an async function; nothing else can be called. */
+/**
+ * App side. `ops` maps an operation name to an async function; nothing else can be called.
+ * A request that began outside this computer says so, and its operation runs with that origin, so a
+ * confirmation it needs is asked of the person where they are instead of in a window nobody sees.
+ * Claiming an origin can only make a request stricter: it never skips a confirmation.
+ */
 export function startHelper(ops, path = socketPath()) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   rmSync(path, { force: true });
@@ -34,9 +42,10 @@ export function startHelper(ops, path = socketPath()) {
       socket.removeAllListeners("data");
       let reply;
       try {
-        const { op, params } = JSON.parse(line);
+        const { op, params, origin } = JSON.parse(line);
         if (!Object.hasOwn(ops, op)) throw new Error("Unknown operation.");
-        reply = { value: await ops[op](params) };
+        const from = cleanOrigin(origin);
+        reply = { value: await (from ? runWithOrigin(from, () => ops[op](params)) : ops[op](params)) };
       } catch (error) {
         reply = { error: error.message };
       }
@@ -56,6 +65,8 @@ export class HelperUnavailable extends Error {}
 
 /** One request and one reply over the socket. */
 export function requestHelper(op, params, { path = socketPath(), timeoutMs = 140_000 } = {}) {
+  const origin = currentOrigin();
+  if (isAway(origin)) timeoutMs = Math.max(timeoutMs, AWAY_WAIT_MS);
   return new Promise((resolve, reject) => {
     const socket = connect(path);
     let buffer = "";
@@ -69,7 +80,7 @@ export function requestHelper(op, params, { path = socketPath(), timeoutMs = 140
     };
     const timer = setTimeout(() => finish(reject, new Error("SMCP took too long to respond.")), timeoutMs);
     socket.setEncoding("utf8");
-    socket.on("connect", () => socket.write(`${JSON.stringify({ op, params })}\n`));
+    socket.on("connect", () => socket.write(`${JSON.stringify(origin ? { op, params, origin } : { op, params })}\n`));
     socket.on("data", (chunk) => {
       buffer += chunk;
     });

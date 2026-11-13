@@ -1,6 +1,6 @@
 {
   "name": "smcp",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": true,
   "description": "Personal app that connects WhatsApp, your machines and Claude.",
   "type": "module",
@@ -67,7 +67,10 @@
         "NSAppleEventsUsageDescription": "SMCP usa esto para controlar apps cuando se lo pides y mostrar confirmaciones.",
         "NSScreenCaptureUsageDescription": "SMCP usa esto para tomar capturas de pantalla cuando se lo pides.",
         "NSCalendarsFullAccessUsageDescription": "SMCP muestra tus eventos en el Pronóstico de Tareas.",
-        "NSCalendarsUsageDescription": "SMCP muestra tus eventos en el Pronóstico de Tareas."
+        "NSCalendarsUsageDescription": "SMCP muestra tus eventos en el Pronóstico de Tareas.",
+        "NSRemindersFullAccessUsageDescription": "SMCP lee y cambia tus recordatorios cuando se lo pides.",
+        "NSRemindersUsageDescription": "SMCP lee y cambia tus recordatorios cuando se lo pides.",
+        "NSContactsUsageDescription": "SMCP busca en tus contactos cuando le pides datos de una persona."
       },
       "extraResources": [
         {

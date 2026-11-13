@@ -32,13 +32,14 @@ export async function tailscaleLogin() {
  */
 export const identifyFromServe = (req) => req.headers["tailscale-user-login"] ?? null;
 
-export async function enableServe(port = TASKS_PORT, localPort = LOCAL_PORT) {
-  const result = await run(tailscaleBin(), ["serve", "--bg", "--yes", `--http=${port}`, `http://127.0.0.1:${localPort}`], { timeoutMs: 20_000 });
+/** `scheme` is "http" for calls between computers, or "https" for a page a browser opens. */
+export async function enableServe(port = TASKS_PORT, localPort = LOCAL_PORT, { scheme = "http", exec = run, bin = tailscaleBin } = {}) {
+  const result = await exec(bin(), ["serve", "--bg", "--yes", `--${scheme}=${port}`, `http://127.0.0.1:${localPort}`], { timeoutMs: 20_000 });
   if (result.code !== 0) throw new Error("Could not share the list over Tailscale.");
 }
 
-export async function disableServe(port = TASKS_PORT) {
-  await run(tailscaleBin(), ["serve", `--http=${port}`, "off"], { timeoutMs: 15_000 });
+export async function disableServe(port = TASKS_PORT, { scheme = "http", exec = run, bin = tailscaleBin } = {}) {
+  await exec(bin(), ["serve", `--${scheme}=${port}`, "off"], { timeoutMs: 15_000 });
 }
 
 export function createTasksHub({ store, host = "127.0.0.1", port = LOCAL_PORT, owner, identify = identifyFromServe }) {

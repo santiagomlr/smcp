@@ -1,12 +1,13 @@
 // Lets one person's computers running SMCP talk to each other over Tailscale:
 // see which version each one runs, ask one to update itself, or ask one to wake the PC.
 import { createServer } from "node:http";
+import { callPeer, PEER_OPERATIONS, PEER_PORT } from "../../src/peer-client.js";
 import { identifyFromServe } from "./tasks-hub.js";
 
-export const PEER_PORT = 47824;
+export { callPeer, PEER_OPERATIONS, PEER_PORT };
 export const PEER_LOCAL_PORT = 47825;
-export const PEER_OPERATIONS = ["info", "update", "wake", "whatsapp"];
-const MAX_BODY_BYTES = 64 * 1024;
+// Large enough for a tool call that writes a file, which is capped at a million characters.
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 /**
  * Answers only the owner's own devices: Tailscale Serve sets the login header itself and discards any value
@@ -52,36 +53,16 @@ export function createPeerHub({ handlers, owner, host = "127.0.0.1", port = PEER
   };
 }
 
-const UNREACHABLE = "Cannot reach SMCP on that computer. Check that it is on and has SMCP open.";
-
-/** Calls another computer's SMCP. Throws a plain message when it does not answer. */
-export async function callPeer(host, op, args = {}, { port = PEER_PORT, timeoutMs = 4_000, fetchImpl = fetch } = {}) {
-  if (!PEER_OPERATIONS.includes(op)) throw new Error("Unknown operation.");
-  let body;
-  try {
-    const response = await fetchImpl(`http://${host}:${port}/peer`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ op, args }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    // With SMCP closed, Tailscale Serve still answers, with an empty 502 instead of JSON.
-    body = await response.json();
-  } catch {
-    throw new Error(UNREACHABLE);
-  }
-  if (body.error) throw new Error(body.error);
-  return body.value;
-}
-
 /** What a computer tells the others about itself. Only plain facts, never paths or accounts. */
-export function peerInfo({ version, platform, update, whatsapp = null }) {
+export function peerInfo({ version, platform, update, whatsapp = null, tools = false }) {
   return {
     version,
     platform,
     update: { status: update.status, latest: update.latest, canInstall: Boolean(update.canInstall) },
     // Whether WhatsApp is linked here, so the others know whom to ask. Never the number or the chats.
     whatsapp: { linked: Boolean(whatsapp?.linked), live: Boolean(whatsapp?.live) },
+    // Whether this computer lets the person's other computers run tools on it, so it can be their server.
+    tools: Boolean(tools),
   };
 }
 

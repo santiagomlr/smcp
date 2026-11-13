@@ -6,7 +6,9 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
+import { gmailIdToHex, stripHtml } from "../../src/brain/gmail-export.js";
 import { bufferText } from "../../src/documents.js";
+import { notConfirmed } from "../../src/origin.js";
 import { riskyLinks, scanAttachment, securityOn } from "../../src/security/inline.js";
 
 const EMAIL = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/;
@@ -18,6 +20,9 @@ const MAX_READ_CHARS = 50_000;
 const MAX_RECIPIENTS = 10;
 const MAX_DRAFT_CHARS = 50_000;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const MAX_EXPORT = 500;
+// What the vault export leaves out, in Gmail's own search syntax.
+const EXPORT_QUERY = "-in:spam -in:trash -in:drafts -category:promotions -category:social -category:forums";
 
 /** Draft bytes for IMAP APPEND. Replaceable in tests. */
 export function composeMessage(mail) {
@@ -143,6 +148,75 @@ function addressText(list) {
 function plainText(parsed) {
   const text = parsed.text ?? String(parsed.html || "").replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ");
   return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** RFC 2047 words ("=?UTF-8?Q?Jos=C3=A9?=") to text. A word in a charset this computer does not know stays as written. */
+function decodeHeaderWords(value) {
+  const word = /=\?([^?\s]+)\?([bq])\?([^?\s]*)\?=/gi;
+  return value
+    .replace(/(=\?[^?\s]+\?[bq]\?[^?\s]*\?=)\s+(?==\?[^?\s]+\?[bq]\?[^?\s]*\?=)/gi, "$1")
+    .replace(/(?:=\?[^?\s]+\?[bq]\?[^?\s]*\?=)+/gi, (run) => {
+      // Neighbouring words in one charset are joined before decoding: a character may be split across them.
+      const pieces = [];
+      for (const [, charset, encoding, text] of run.matchAll(word)) {
+        const name = charset.split("*")[0].toLowerCase();
+        const bytes =
+          encoding.toLowerCase() === "b"
+            ? Buffer.from(text, "base64")
+            : Buffer.from(text.replace(/_/g, " ").replace(/=([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16))), "latin1");
+        if (pieces.at(-1)?.name === name) pieces.at(-1).bytes.push(bytes);
+        else pieces.push({ name, bytes: [bytes] });
+      }
+      try {
+        return pieces.map(({ name, bytes }) => new TextDecoder(name).decode(Buffer.concat(bytes))).join("");
+      } catch {
+        return run;
+      }
+    });
+}
+
+/**
+ * A header the way the Gmail API shows it: unfolded and decoded, otherwise as the sender wrote it.
+ * mailparser's own `from.text` is rebuilt from the parsed addresses and adds quotes that were not there.
+ */
+function headerText(parsed, key) {
+  const line = (parsed.headerLines ?? []).find((item) => item.key === key)?.line ?? "";
+  const value = line.replace(/^[^:]*:/, "").replace(/(?:\r?\n|\r)[ \t]*/g, " ").trim();
+  // Header lines arrive one byte per character, so UTF-8 written without encoding is restored here.
+  return decodeHeaderWords(Buffer.from(value, "latin1").toString()).trim();
+}
+
+/** Gmail's own id for a fetched message, in the hex form its API uses. Any other kind of id is a failure, not a guess. */
+function exportId(item) {
+  if (!/^\d+$/.test(String(item?.emailId ?? ""))) throw new Error("BAD_EXPORT");
+  return gmailIdToHex(item.emailId);
+}
+
+/** One fetched message as the vault export needs it. */
+async function exportedMessage(item) {
+  const id = exportId(item);
+  if (!item.source || !(item.internalDate instanceof Date)) throw new Error("BAD_EXPORT");
+  // The HTML is kept as it came: converting it or inlining its images would only be thrown away.
+  const parsed = await simpleParser(item.source, { skipHtmlToText: true, skipTextToHtml: true, skipImageLinks: true, keepCidLinks: true });
+  const labels = [...(item.labels ?? []), ...(item.flags ?? [])].map((label) => String(label).toLowerCase());
+  return {
+    id,
+    date: item.internalDate.getTime(),
+    sent: labels.includes("\\sent"),
+    draft: labels.includes("\\draft"),
+    from: headerText(parsed, "from"),
+    to: headerText(parsed, "to"),
+    subject: String(parsed.subject ?? ""),
+    text: String(parsed.text ?? "").trim() || stripHtml(parsed.html),
+    // Only named parts count, with the type the sender declared rather than one guessed from the name.
+    attachments: (parsed.attachments ?? [])
+      .filter((attachment) => attachment.filename)
+      .map((attachment) => ({
+        filename: attachment.filename,
+        contentType: String(attachment.headers?.get("content-type")?.value || attachment.contentType || "").toLowerCase(),
+        size: attachment.size ?? 0,
+      })),
+  };
 }
 
 /** Dependencies are injectable so tests never reach Google or open a dialog. */
@@ -305,6 +379,47 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp, 
       }
     },
 
+    /**
+     * Mail since a moment, oldest first, for the vault export. `known` is a Set of ids that are already
+     * in the notes: those are not downloaded again. Drafts come back flagged rather than hidden, so the
+     * caller can drop them even if the search let one through. When more new mail matched than one call
+     * takes, the oldest is returned and `total` says how much there was.
+     */
+    async exportSince({ account, since, limit = MAX_EXPORT, known }) {
+      const target = await resolve(account);
+      const from = new Date(since ?? NaN).getTime();
+      if (!Number.isFinite(from)) throw new Error("Give a valid start date.");
+      const max = Math.min(Math.max(Number(limit) || MAX_EXPORT, 1), MAX_EXPORT);
+      try {
+        return await withMailbox(target.email, async (client) => {
+          const found = await client.search({ gmraw: `after:${Math.floor(from / 1000)} ${EXPORT_QUERY}` }, { uid: true });
+          // A refused search answers false. Reading that as "no mail" would hide the failure.
+          if (!Array.isArray(found)) throw new Error("SEARCH_REFUSED");
+          let fresh = [...found].sort((a, b) => a - b);
+          if (known?.size && fresh.length) {
+            // Ids first: a run every few minutes must not download the whole day again each time.
+            const unseen = [];
+            for await (const item of client.fetch(fresh, { uid: true }, { uid: true })) {
+              if (!known.has(exportId(item))) unseen.push(item.uid);
+            }
+            fresh = unseen;
+          }
+          const uids = fresh.slice(0, max);
+          const messages = [];
+          if (uids.length) {
+            const wanted = { uid: true, flags: true, internalDate: true, labels: true, source: true };
+            for await (const item of client.fetch(uids, wanted, { uid: true })) messages.push(await exportedMessage(item));
+          }
+          if (messages.length !== uids.length) throw new Error("BAD_EXPORT");
+          messages.sort((a, b) => a.date - b.date);
+          return { account: target.email, total: fresh.length, messages };
+        });
+      } catch (error) {
+        if (error.message === "BAD_EXPORT") throw new Error("Gmail did not return every message with its id, date and content. Nothing was exported.");
+        throw new Error(friendlyMailError(error));
+      }
+    },
+
     /** The dialog lives here, inside the app, so nothing that reaches the socket can skip it. */
     async send({ account, to, subject, body, reply_to_uid: replyToUid }) {
       const target = await resolve(account);
@@ -333,7 +448,7 @@ export function createGmail({ store, confirm, imap = openImap, smtp = openSmtp, 
 
       const summary = `From: ${target.label} (${target.email})\nTo: ${recipients.join(", ")}\nSubject: ${cleanSubject || "(no subject)"}\n\nMessage:\n${text}`;
       if (!(await confirm(summary, "SMCP: send email"))) {
-        return { sent: false, reason: "Not confirmed in the macOS window. Nothing was sent." };
+        return { sent: false, reason: notConfirmed() };
       }
 
       const credentials = await store.credentials(target.email);

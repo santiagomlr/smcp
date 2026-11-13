@@ -25,6 +25,7 @@ before(async () => {
         SMCP_CONFIG: join(dir, "config.json"),
         SMCP_AUDIT: join(dir, "audit.jsonl"),
         SMCP_SOCKET: join(dir, "none.sock"),
+        SMCP_SERVER_CONFIG: join(dir, "server.json"),
       },
     }),
   );
@@ -43,14 +44,21 @@ test("expone las herramientas esperadas por MCP", async () => {
     "applenotes_read",
     "applenotes_recent",
     "applenotes_search",
+    "approval_status",
     "awake_screen_off",
     "awake_start",
     "awake_status",
     "awake_stop",
+    "brain_export_now",
+    "brain_inbox",
+    "brain_inbox_mark",
+    "calendar_auto_history",
     "calendar_create_event",
+    "calendar_delete_event",
     "calendar_free_slots",
     "calendar_list_calendars",
     "calendar_list_events",
+    "calendar_update_event",
     "clipboard_read",
     "clipboard_write",
     "daily_brief",
@@ -79,8 +87,10 @@ test("expone las herramientas esperadas por MCP", async () => {
     "people_lookup",
     "reminders_complete",
     "reminders_create",
+    "reminders_delete",
     "reminders_list",
     "reminders_list_lists",
+    "reminders_update",
     "run_command",
     "screen_read_text",
     "screenshot",
@@ -93,6 +103,7 @@ test("expone las herramientas esperadas por MCP", async () => {
     "security_scan_file",
     "security_scan_folder",
     "smcp_context",
+    "smcp_ping",
     "smcp_remember",
     "smcp_status",
     "tasks_append_note",
@@ -131,6 +142,16 @@ test("expone las herramientas esperadas por MCP", async () => {
   ]);
   const send = tools.find((tool) => tool.name === "whatsapp_send");
   assert.equal(send.annotations.destructiveHint, true);
+  // Tools whose data belongs to one computer can be sent to the person's server; the rest cannot.
+  const takesMachine = (name) => "machine" in (tools.find((tool) => tool.name === name).inputSchema.properties ?? {});
+  for (const name of ["run_command", "file_read", "calendar_list_calendars", "notes_search", "whatsapp_send"]) assert.ok(takesMachine(name), name);
+  for (const name of ["tasks_create", "smcp_status", "whatsapp_read_messages"]) assert.ok(!takesMachine(name), name);
+});
+
+test("asking for the server when none is chosen is an error, not a run on this computer", async () => {
+  const result = await client.callTool({ name: "run_command", arguments: { command: "echo aqui", machine: "server" } });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /No server computer is chosen/);
 });
 
 test("sin wacli instalado, el error dice qué hacer", async () => {

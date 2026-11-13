@@ -8,6 +8,7 @@ import { confirmGate } from "../confirm-gate.js";
 import { annotateLinks, MALICIOUS_WARNING, securityOn, SUSPICIOUS_WARNING } from "../security/inline.js";
 import { scanPath } from "../security/scanner.js";
 import { viaHelper } from "../helper.js";
+import { notConfirmed } from "../origin.js";
 import { createRelay, MEDIA_ELSEWHERE, SEND_ELSEWHERE } from "../whatsapp-relay.js";
 import { errorResult, externalResult, run, textResult } from "../util.js";
 import { modelPath, modelReady, whisperBin } from "../whisper.js";
@@ -218,7 +219,7 @@ export function createWhatsApp({
     const name = await displayName(recipient);
     const header = name ? `To: ${name} (${recipient})` : `To: ${recipient}`;
     if (!(await confirm(`${header}\n\nMessage:\n${message}`))) {
-      return textResult({ sent: false, reason: "Not confirmed in the macOS window. Nothing was sent." });
+      return textResult({ sent: false, reason: notConfirmed() });
     }
 
     const result = await wacli(
@@ -290,7 +291,7 @@ export function createWhatsApp({
     const size = info.size >= 1024 * 1024 ? `${(info.size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(info.size / 1024))} KB`;
     const shown = `${header}\n\nFile: ${basename(file)} (${size})\nFolder: ${dirname(file).replace(homedir(), "~")}${caption ? `\n\nCaption:\n${caption}` : ""}`;
     if (!(await confirm(shown))) {
-      return textResult({ sent: false, reason: "Not confirmed in the macOS window. Nothing was sent." });
+      return textResult({ sent: false, reason: notConfirmed() });
     }
     const args = ["--json", "send", "file", `--to=${recipient}`, `--file=${file}`, "--max-size-mb=100"];
     if (caption) args.push(`--caption=${caption}`);

@@ -1,5 +1,5 @@
-// People and follow-ups. `people_lookup` finds someone across WhatsApp, Gmail, notes and tasks in one
-// call. `followups_list` finds who is waiting for an answer from the person and who the person is
+// People and follow-ups. `people_lookup` finds someone across WhatsApp, Gmail, this Mac's Contacts,
+// notes and tasks in one call. `followups_list` finds who is waiting for an answer from the person and who the person is
 // waiting on, and `followups_to_tasks` files those as tasks in SMCP's own list, once each.
 // Like daily_brief, each part reuses an existing tool and asks for that tool's permission, so an area
 // turned off in Settings is left out and says so.
@@ -19,6 +19,8 @@ const SECTION_TIMEOUT_MS = 60_000;
 const CHAT_CONCURRENCY = 4;
 const MESSAGES_PER_CHAT = 10;
 const PREVIEW_CHARS = 280;
+/** Contacts are an extra on top of the other sections, so only the best few matches come back. */
+const MAX_CONTACTS = 5;
 const READ = { readOnlyHint: true };
 const WRITE = { readOnlyHint: false, destructiveHint: true };
 
@@ -54,6 +56,11 @@ export function defaultSources() {
   return {
     whatsapp: async (args, action) => unwrap(await whatsapp.read(args, action)),
     gmailSearch: (params) => app("gmailSearch", params),
+    // macOS gives the Contacts permission to SMCP.app, so the lookup runs there.
+    contacts: (params) =>
+      viaHelper("contacts", params, () => {
+        throw new Error("Open the SMCP app to use Contacts.");
+      }),
     notesSearch: (params) => notes.search(params),
     tasks: async (op, args) => (await callTasks(op, args)).value,
   };
@@ -347,14 +354,35 @@ export async function followupsToTasks({ sources = defaultSources(), policy = re
 }
 
 /** Everything known about someone, with the exact JID and addresses to use. */
-export async function lookupPerson({ query, limit = 5, sources = defaultSources(), policy = readPolicy, timeoutMs = SECTION_TIMEOUT_MS }) {
+export async function lookupPerson({
+  query,
+  limit = 5,
+  contacts: withContacts = true,
+  sources = defaultSources(),
+  policy = readPolicy,
+  timeoutMs = SECTION_TIMEOUT_MS,
+  platform = process.platform,
+}) {
   const clean = String(query ?? "").replace(/["(){}\\]/g, " ").replace(/\s+/g, " ").trim();
   if (!clean) throw new Error("Type a name, phone number or email address.");
   const terms = fold(clean).split(" ");
   const matches = (value) => terms.every((term) => fold(value).includes(term));
   const current = policy();
 
-  const [whatsapp, email, notes, tasks] = await Promise.all([
+  // Contacts have no switch of their own: they follow people_lookup itself, which only a pause stops.
+  // The caller can leave them out, and they only exist on a Mac.
+  const contactsSection = () => {
+    if (!withContacts) return { skipped: "Left out of this lookup." };
+    if (platform !== "darwin") return { skipped: "Contacts are only available on a Mac." };
+    return section(
+      "people_lookup",
+      current,
+      async () => ({ matches: (await sources.contacts({ query: clean, limit: Math.min(limit, MAX_CONTACTS) })).slice(0, MAX_CONTACTS) }),
+      timeoutMs,
+    );
+  };
+
+  const [whatsapp, email, contacts, notes, tasks] = await Promise.all([
     section(
       "whatsapp_search_contacts",
       current,
@@ -410,10 +438,11 @@ export async function lookupPerson({ query, limit = 5, sources = defaultSources(
       },
       timeoutMs,
     ),
+    contactsSection(),
     section("notes_search", current, () => sources.notesSearch({ query: clean, limit }), timeoutMs),
     section("tasks_search", current, () => sources.tasks("search", { query: clean, limit }), timeoutMs),
   ]);
-  return { query: clean, whatsapp, email, notes, tasks };
+  return { query: clean, whatsapp, email, contacts, notes, tasks };
 }
 
 export function registerPeople(server, options = {}) {
@@ -435,11 +464,13 @@ export function registerPeople(server, options = {}) {
     "people_lookup",
     {
       description:
-        "Finds a person across WhatsApp (contacts and chats, with the exact JID), Gmail (their addresses and recent emails), notes and tasks in one call. " +
+        "Finds a person across WhatsApp (contacts and chats, with the exact JID), Gmail (their addresses and recent emails), this Mac's Contacts " +
+        "(phones, emails, birthday), notes and tasks in one call. " +
         "Use it before writing to someone or preparing a meeting. If several people match, ask which one; never guess a recipient.",
       inputSchema: {
         query: z.string().min(1).max(200).describe("Name, phone number or email address."),
         limit: z.number().int().min(1).max(20).default(5),
+        contacts: z.boolean().default(true).describe("Also look in this Mac's Contacts."),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },

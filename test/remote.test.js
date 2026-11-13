@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { funnelTargets, publicBaseUrl } from "../app/core/funnel.js";
 import { createRemote } from "../app/core/remote.js";
-import { buildRemoteServer, REMOTE_TASK_WRITES, REMOTE_TOOLS } from "../src/remote-tools.js";
+import { readAudit } from "../src/audit.js";
+import { buildRemoteServer, REMOTE_CONTROL_OFF } from "../src/remote-tools.js";
+import { allToolNames } from "../src/toolset.js";
 
 const PORT = 47899;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -15,14 +17,26 @@ let dir;
 let remote;
 let statePath;
 
+let healthy = true;
+const savedEnv = {};
+
 before(async () => {
   dir = await mkdtemp(join(tmpdir(), "smcp-remote-"));
   statePath = join(dir, "remote.json");
-  remote = createRemote({ baseUrl: BASE, buildServer: buildRemoteServer, statePath, port: PORT });
+  // Its own settings and log, so the person's real ones neither decide nor record these calls.
+  for (const [key, value] of Object.entries({ SMCP_CONFIG: join(dir, "config.json"), SMCP_AUDIT: join(dir, "audit.jsonl"), SMCP_SERVER_CONFIG: join(dir, "server.json") })) {
+    savedEnv[key] = process.env[key];
+    process.env[key] = value;
+  }
+  remote = createRemote({ baseUrl: BASE, buildServer: buildRemoteServer, statePath, port: PORT, healthCheck: async () => healthy });
   await remote.start();
 });
 after(async () => {
   await remote.stop();
+  for (const [key, value] of Object.entries(savedEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -120,7 +134,7 @@ test("el nombre del cliente no puede inyectar HTML", async () => {
   assert.ok(!html.includes("<script>alert"));
 });
 
-test("flujo completo: conectar, listar solo herramientas permitidas y llamar una", async () => {
+test("flujo completo: conectar, listar las herramientas y que lo apagado se rechace con una razón clara", async () => {
   const session = await connect("Claude");
   assert.equal(session.location.origin + session.location.pathname, REDIRECT);
   assert.equal(session.location.searchParams.get("state"), "abc");
@@ -134,17 +148,67 @@ test("flujo completo: conectar, listar solo herramientas permitidas y llamar una
 
   const list = await (await mcp(session.access_token, { method: "tools/list" })).json();
   const names = list.result.tools.map((tool) => tool.name);
-  // Task edits are listed, but each call checks the remote task-writes setting first.
-  assert.deepEqual(new Set(names), new Set([...REMOTE_TOOLS, ...REMOTE_TASK_WRITES]));
-  for (const forbidden of ["run_command", "whatsapp_send", "gmail_send", "file_write", "ui_click", "screenshot"]) {
-    assert.ok(!names.includes(forbidden), forbidden);
-  }
+  // Every tool is listed, so a client can be told why one is off instead of not knowing it exists.
+  // Each call checks the remote switch for its kind of risk first.
+  assert.deepEqual(new Set(names), new Set(allToolNames()));
 
   const denied = await (await mcp(session.access_token, { method: "tools/call", params: { name: "run_command", arguments: { command: "echo hola" } } })).json();
-  const deniedText = JSON.stringify(denied);
-  assert.ok(denied.error || denied.result?.isError);
-  assert.ok(!deniedText.includes("hola\\n"));
+  assert.equal(denied.result.isError, true);
+  assert.equal(denied.result.content[0].text, REMOTE_CONTROL_OFF);
+  assert.ok(!JSON.stringify(denied).includes("hola\\n"));
   assert.ok(remote.listClients().some((client) => client.name === "Claude"));
+
+  // The activity log says who asked: the app's name and the start of its id.
+  const [entry] = readAudit({ path: join(dir, "audit.jsonl") });
+  assert.deepEqual({ tool: entry.tool, source: entry.source, outcome: entry.outcome }, { tool: "run_command", source: "remote", outcome: "denied" });
+  assert.equal(entry.client, `Claude · ${session.client.client_id.slice(0, 8)}`);
+});
+
+test("the app can tell a request that got in from one that was turned away", async () => {
+  const before = remote.activity();
+  await mcp("not-a-token", { method: "tools/list" });
+  const rejected = remote.activity();
+  assert.ok(rejected.lastRejectedAt >= (before.lastRejectedAt ?? 0));
+  assert.equal(rejected.lastRequestAt, before.lastRequestAt, "a rejected request is not a received one");
+  const session = await connect("Phone");
+  await mcp(session.access_token, { method: "tools/list" });
+  const accepted = remote.activity();
+  assert.ok(accepted.lastRequestAt >= rejected.lastRejectedAt);
+  assert.equal(accepted.lastClient, "Phone");
+});
+
+test("the health page works without signing in and says nothing about the person", async () => {
+  healthy = true;
+  const ok = await fetch(`${BASE}/health`);
+  assert.equal(ok.status, 200);
+  const body = await ok.json();
+  assert.deepEqual(Object.keys(body).sort(), ["at", "ok", "smcp", "tool"]);
+  assert.deepEqual({ ok: body.ok, smcp: body.smcp, tool: body.tool }, { ok: true, smcp: "running", tool: "ok" });
+  healthy = false;
+  const bad = await fetch(`${BASE}/health`);
+  assert.equal(bad.status, 503);
+  assert.equal((await bad.json()).tool, "failed");
+  healthy = true;
+  assert.ok(remote.activity().lastHealthAt);
+});
+
+test("the health page cannot be hammered", async () => {
+  let last;
+  for (let i = 0; i < 35; i++) last = await fetch(`${BASE}/health`);
+  assert.equal(last.status, 429);
+});
+
+test("signing out every app at once cuts all of them off", async () => {
+  const one = await connect("One");
+  const two = await connect("Two");
+  assert.equal((await mcp(one.access_token, { method: "tools/list" })).status, 200);
+  const count = remote.revokeAll();
+  assert.ok(count >= 2);
+  assert.equal((await mcp(one.access_token, { method: "tools/list" })).status, 401);
+  assert.equal((await mcp(two.access_token, { method: "tools/list" })).status, 401);
+  assert.deepEqual(remote.listClients(), []);
+  const refreshed = await post("/token", { grant_type: "refresh_token", refresh_token: two.refresh_token, client_id: two.client.client_id });
+  assert.notEqual(refreshed.status, 200);
 });
 
 test("los tokens solo se guardan como hash y con permisos privados", async () => {
