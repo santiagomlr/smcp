@@ -3,6 +3,7 @@
 // duplicates a chat. The golden files under fixtures/brain-whatsapp were produced by running
 // those scripts on an invented store; the last test runs them live when they are available.
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -583,6 +584,60 @@ test("text comes back from the store byte for byte, control characters included"
     assert.deepEqual(await queryRows({ sqlite, dir: snapshot.dir, columns: ["max(ts) AS last"], from: "messages" }), [{ last: null }]);
   } finally {
     rmSync(snapshot.dir, { recursive: true, force: true });
+  }
+});
+
+test("the real store is only ever opened read-only, and its copy never is", { skip: storeSkip }, async () => {
+  const dir = box();
+  const storePath = join(dir, "wacli.db");
+  loadSql(storePath, `${SCHEMA}\nINSERT INTO chats VALUES ('a', 'dm', 'Ana', 1);`);
+  const real = createSqlite();
+  const calls = [];
+  const sqlite = (args, options) => {
+    calls.push(args);
+    return real(args, options);
+  };
+  const snapshot = await snapshotStore({ sqlite, storePath, retryBaseMs: 1 });
+  try {
+    await queryRows({ sqlite, dir: snapshot.dir, columns: ["jid"], from: "chats" });
+  } finally {
+    rmSync(snapshot.dir, { recursive: true, force: true });
+  }
+  // macOS's sqlite3 cannot open a copy that keeps a write-ahead log read-only, so the copy is opened
+  // normally; the store itself must never be opened any other way than read-only.
+  const onStore = calls.filter((args) => args.includes(storePath));
+  const onCopy = calls.filter((args) => !args.includes(storePath));
+  assert.ok(onStore.length >= 1 && onCopy.length >= 2);
+  for (const args of onStore) assert.ok(args.includes("-readonly"), args.join(" "));
+  for (const args of onCopy) assert.ok(!args.includes("-readonly"), args.join(" "));
+});
+
+test("while another process holds the store open, what is still in its write-ahead log is read too", { skip: storeSkip }, async () => {
+  const dir = box();
+  const storePath = join(dir, "wacli.db");
+  loadSql(storePath, `${SCHEMA}\nINSERT INTO chats VALUES ('first', 'dm', 'Ana', 1);`);
+  // A stand-in for the live sync: a connection that stays open with a row it has not checkpointed.
+  const holder = spawn("sqlite3", [storePath], { stdio: ["pipe", "pipe", "ignore"] });
+  try {
+    const held = new Promise((resolve, reject) => {
+      holder.stdout.on("data", (chunk) => String(chunk).includes("held") && resolve());
+      holder.on("exit", () => reject(new Error("the holder stopped early")));
+    });
+    holder.stdin.write("PRAGMA wal_autocheckpoint=0;\nINSERT INTO chats VALUES ('in-the-log', 'dm', 'Beto', 2);\nSELECT 'held';\n");
+    await held;
+    assert.ok(existsSync(`${storePath}-wal`), "the row is still in the log");
+    const sqlite = createSqlite();
+    const snapshot = await snapshotStore({ sqlite, storePath, retryBaseMs: 1 });
+    try {
+      const rows = await queryRows({ sqlite, dir: snapshot.dir, columns: ["jid"], from: "chats ORDER BY rowid" });
+      assert.deepEqual(rows, [{ jid: "first" }, { jid: "in-the-log" }]);
+    } finally {
+      rmSync(snapshot.dir, { recursive: true, force: true });
+    }
+  } finally {
+    holder.removeAllListeners("exit");
+    holder.stdin.end(".quit\n");
+    await new Promise((resolve) => holder.on("close", resolve));
   }
 });
 

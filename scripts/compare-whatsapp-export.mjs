@@ -45,7 +45,12 @@ const smcp = join(work, "smcp");
 /** One frozen copy of the store, so both sides read exactly the same messages. */
 const frozen = join(work, "wacli.db");
 const backup = spawnSync(existsSync("/usr/bin/sqlite3") ? "/usr/bin/sqlite3" : "sqlite3", ["-readonly", store, `.backup '${frozen.replace(/'/g, "''")}'`], { encoding: "utf8" });
-if (backup.status !== 0) fail(`Could not copy the WhatsApp store: ${backup.stderr || backup.error?.message}`);
+if (backup.status !== 0) {
+  // macOS's sqlite3 cannot open the store read-only while nothing else has it open; a plain copy of
+  // the file and its write-ahead log holds the same messages.
+  cpSync(store, frozen);
+  for (const suffix of ["-wal", "-shm"]) if (existsSync(store + suffix)) cpSync(store + suffix, frozen + suffix);
+}
 
 /** A copy of the part of the vault both exports use: the notes, the reference scripts and their state. */
 function copyVault(target) {

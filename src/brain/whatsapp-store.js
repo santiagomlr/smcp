@@ -39,10 +39,17 @@ async function sqliteOk(sqlite, dir, args, timeoutMs) {
   return result;
 }
 
-/** A copy is only good if it answers queries: one taken in the middle of a checkpoint can open and then fail to read. */
+/**
+ * A copy is only good if it answers queries: one taken in the middle of a checkpoint can open and then fail to read.
+ *
+ * The copy is ours, so it is opened without `-readonly`, on purpose. The store keeps a write-ahead
+ * log and so does its copy, and macOS's sqlite3 refuses to open such a database read-only when its
+ * shared-memory file is not there yet ("unable to open database file"); other builds create it.
+ * Only the real store is ever opened read-only.
+ */
 function verify(sqlite, dir) {
   const counts = ["messages", "chats", "contacts"].map((table) => `SELECT count(*) FROM ${table};`).join(" ");
-  return sqliteOk(sqlite, dir, ["-readonly", SNAPSHOT_NAME, counts], QUERY_TIMEOUT_MS);
+  return sqliteOk(sqlite, dir, [SNAPSHOT_NAME, counts], QUERY_TIMEOUT_MS);
 }
 
 async function removeCopy(dir) {
@@ -52,7 +59,8 @@ async function removeCopy(dir) {
 /**
  * One attempt. First the online backup through a read-only connection, which also reads what is
  * still in the write-ahead log and takes none of the writer's locks. If that fails, a plain copy
- * of the file and its log. sqlite3 runs inside the temporary folder and writes to a bare file
+ * of the file and its log; on a Mac that is the usual path while nothing else has the store open,
+ * for the reason given above. sqlite3 runs inside the temporary folder and writes to a bare file
  * name, so no path ever has to be quoted for the dot-command.
  */
 async function copyOnce(sqlite, storePath, dir) {
@@ -139,7 +147,8 @@ export async function queryRows({ sqlite, dir, columns, from, pageSize = 2000 })
   let size = Math.max(1, pageSize);
   for (;;) {
     const sql = `SELECT ${select} FROM ${from} LIMIT ${size} OFFSET ${rows.length}`;
-    const result = await sqlite(["-init", EMPTY_INIT, "-readonly", "-list", "-noheader", "-separator", "|", SNAPSHOT_NAME, sql], { cwd: dir, timeoutMs: QUERY_TIMEOUT_MS });
+    // Not read-only: see verify().
+    const result = await sqlite(["-init", EMPTY_INIT, "-list", "-noheader", "-separator", "|", SNAPSHOT_NAME, sql], { cwd: dir, timeoutMs: QUERY_TIMEOUT_MS });
     if (result.code !== 0 || result.timedOut || result.spawnError) throw new Error(`The copy of the WhatsApp store could not be queried: ${failure(result)}`);
     if (result.truncated) {
       if (size === 1) throw new Error("A row in the WhatsApp store is too large to read.");
