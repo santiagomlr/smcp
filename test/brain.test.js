@@ -123,6 +123,7 @@ test("the inbox lists exactly what changed since the mark, and warns about a sou
   await writeFile(join(vault, day), "x");
   // A file some other tool dropped into raw/, and an old one that must not show up.
   await writeFile(join(vault, "raw", "meeting-notes.md"), "x");
+  await writeFile(join(vault, "raw", "Personal", "whatsapp", "_Conversation Index.md"), "x");
   await writeFile(join(vault, "raw", "old.md"), "x");
   await utimes(join(vault, "raw", "old.md"), new Date(now - 30 * 24 * HOUR), new Date(now - 30 * 24 * HOUR));
 
@@ -141,6 +142,7 @@ test("the inbox lists exactly what changed since the mark, and warns about a sou
   assert.ok(other.includes(day), "a file SMCP did not record is still listed, as changed by something else");
   assert.ok(!other.includes(note), "what the journal already lists is not repeated");
   assert.ok(!other.includes("raw/old.md"));
+  assert.ok(!other.includes("raw/Personal/whatsapp/_Conversation Index.md"), "the index is rewritten on every run and is not news");
   const gmail = inbox.sources.find((source) => source.source === "gmail:ana@example.com");
   assert.deepEqual({ status: gmail.status, error: gmail.error, folder: gmail.folder }, { status: "failed", error: "Could not connect to Gmail.", folder: "raw/Work/gmail" });
   assert.match(inbox.warning, /gmail:ana@example\.com \(failed\).*did not run, not that nothing happened/);

@@ -87,7 +87,8 @@ export function brainInbox({ config = readBrainConfig(), dir = brainStateDir(), 
     byPath.set(entry.path, item);
   }
   const changed = [...byPath.values()].sort((a, b) => b.last_change.localeCompare(a.last_change));
-  const other = changedRawFiles(config.vault, from, { skip: new Set(byPath.keys()) });
+  // The chat index is rewritten on every WhatsApp run and says nothing new by itself.
+  const other = changedRawFiles(config.vault, from, { skip: new Set([...byPath.keys(), `${config.whatsapp.folder}/_Conversation Index.md`]) });
   const sources = describeSources(config, readCheckpoints(dir), now);
   const troubled = sources.filter((source) => ["failed", "late", "never"].includes(source.status));
   return {
