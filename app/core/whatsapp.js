@@ -4,6 +4,12 @@ import { storeDir, transcriptsPath, wacliBin } from "../../src/tools/whatsapp.js
 import { run } from "../../src/util.js";
 
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
+const LIVE_FIRST_RETRY_MS = 5_000;
+const LIVE_MAX_RETRY_MS = 5 * 60 * 1000;
+// A run this long counts as healthy, so the next failure retries quickly again.
+const LIVE_HEALTHY_MS = 2 * 60 * 1000;
+const LIVE_STOP_GRACE_MS = 5_000;
+const LIVE_TAIL_CHARS = 2_000;
 
 export function isInstalled(bin = wacliBin()) {
   return bin !== "wacli" && existsSync(bin);
@@ -32,7 +38,7 @@ export async function readWhatsApp() {
   const result = await run(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", "doctor"], {
     timeoutMs: 10_000,
   });
-  return { supported: true, installed: true, ...(parseDoctor(result.stdout) ?? { linked: false, messages: 0, chats: 0 }) };
+  return { supported: true, installed: true, ...(parseDoctor(result.stdout) ?? { linked: false, unreadable: true, messages: 0, chats: 0 }) };
 }
 
 function parseEnvelope(text) {
@@ -57,6 +63,114 @@ export async function syncWhatsApp() {
   });
   const detail = failureDetail(result);
   if (detail !== null) throw new Error(result.timedOut ? "The sync took too long." : detail || "Could not sync.");
+}
+
+/**
+ * Keeps `wacli sync --follow` running so new messages land in the local database as they arrive,
+ * not only when someone asks for a sync. While it runs it owns the store lock, and wacli hands
+ * sends and media downloads from other wacli commands to it. If it exits, it starts again with
+ * growing waits, and it never runs twice. Dependencies are injectable for tests.
+ */
+export function createLiveSync({
+  spawnFn = spawn,
+  bin = wacliBin,
+  store = storeDir,
+  setTimer = setTimeout,
+  clearTimer = clearTimeout,
+  now = Date.now,
+  log = (message) => console.error(message),
+} = {}) {
+  let child = null;
+  let wanted = false;
+  let held = 0;
+  let retryTimer = null;
+  let retryMs = LIVE_FIRST_RETRY_MS;
+  let exited = null;
+
+  const launch = () => {
+    retryTimer = null;
+    if (!wanted || held > 0 || child) return;
+    const startedAt = now();
+    let tail = "";
+    let proc;
+    try {
+      proc = spawnFn(bin(), [`--store=${store()}`, "sync", "--follow", "--max-reconnect=0"], {
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+    } catch (error) {
+      log(`whatsapp live sync: ${error.message}`);
+      return scheduleRetry(0);
+    }
+    child = proc;
+    let resolveExit;
+    exited = new Promise((resolve) => (resolveExit = resolve));
+    proc.stderr?.on("data", (chunk) => {
+      tail = (tail + chunk.toString("utf8")).slice(-LIVE_TAIL_CHARS);
+    });
+    let done = false;
+    const finish = (reason) => {
+      if (done) return;
+      done = true;
+      child = null;
+      resolveExit();
+      if (!wanted || held > 0) return;
+      log(`whatsapp live sync stopped (${reason}): ${tail.trim().split("\n").pop() ?? ""}`);
+      scheduleRetry(now() - startedAt);
+    };
+    proc.on("error", (error) => finish(error.message));
+    proc.on("close", (code, signal) => finish(signal ?? `exit ${code}`));
+  };
+
+  const scheduleRetry = (ranMs) => {
+    if (retryTimer || !wanted || held > 0) return;
+    if (ranMs >= LIVE_HEALTHY_MS) retryMs = LIVE_FIRST_RETRY_MS;
+    const wait = retryMs;
+    retryMs = Math.min(retryMs * 2, LIVE_MAX_RETRY_MS);
+    retryTimer = setTimer(launch, wait);
+    retryTimer?.unref?.();
+  };
+
+  const cancelRetry = () => {
+    if (retryTimer) clearTimer(retryTimer);
+    retryTimer = null;
+  };
+
+  const halt = async () => {
+    cancelRetry();
+    const proc = child;
+    if (!proc) return;
+    const gone = exited;
+    proc.kill("SIGTERM");
+    const timer = setTimer(() => proc.kill("SIGKILL"), LIVE_STOP_GRACE_MS);
+    await gone;
+    clearTimer(timer);
+  };
+
+  return {
+    /** Starts it if it is not running. Calling it again is harmless. */
+    start() {
+      if (!wanted) retryMs = LIVE_FIRST_RETRY_MS;
+      wanted = true;
+      if (!child && !retryTimer) launch();
+    },
+    /** Stops it and keeps it stopped until start() is called again. */
+    async stop() {
+      wanted = false;
+      await halt();
+    },
+    /** Stops it while `task` runs (for example to log out, which needs the lock), then lets it run again if wanted. */
+    async pause(task) {
+      held += 1;
+      try {
+        await halt();
+        return await task();
+      } finally {
+        held -= 1;
+        if (held === 0 && wanted && !child && !retryTimer) launch();
+      }
+    },
+    running: () => child !== null,
+  };
 }
 
 export async function logoutWhatsApp() {

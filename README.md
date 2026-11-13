@@ -88,6 +88,8 @@ The assertion is held by macOS's own `caffeinate`, tied to SMCP's process so it 
 
 **WhatsApp:** `whatsapp_chat_digest` returns a stretch of a chat between two dates, ready to summarize. `whatsapp_send_file` sends a photo or document with the same confirmation window, showing the file's name and size. Voice notes you transcribe are kept so `whatsapp_search_transcripts` can search them later.
 
+While the SMCP app is open and WhatsApp is linked, new messages are saved as they arrive, so your AI always reads current chats without calling `whatsapp_sync` first. If the sync drops (no internet, the computer slept), SMCP starts it again on its own. The **Sync** button and `whatsapp_sync` are only a fallback for when the app is closed.
+
 When you link WhatsApp, you choose what the AI can do: **read your chats** and **write with your approval**. Reading starts on and writing starts off. You can change this in Settings, and the change applies on the next call, including from your phone. Turning writing on never skips the confirmation window. Installations from before this option keep both on.
 
 **Listen to audio** is free and starts off. It turns your voice notes into text with whisper.cpp on your computer, with no accounts or keys. Your AI only receives the text, and the temporary audio is deleted afterwards. The first time, it downloads an open model of about 490 MB and checks that it arrived complete. It needs reading your chats turned on and a version of macOS that can open WhatsApp's audio format. If yours can't, the option doesn't appear.

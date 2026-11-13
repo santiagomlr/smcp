@@ -61,7 +61,7 @@ import { createTaskStore, TASK_OPERATIONS } from "./core/tasks.js";
 import { runSmokeTest } from "./core/smoke.js";
 import { coalesce, retry, whenChanged } from "./core/throttle.js";
 import { createUpdater, isNewer, RELEASES_PAGE } from "./core/updater.js";
-import { logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
+import { createLiveSync, logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
 import { audioSupported, downloadModel } from "./core/whisper.js";
 import { buildRemoteServer } from "../src/remote-tools.js";
 import { isActive as isAwakeActive, readSettings as readAwakeSettings } from "../src/awake.js";
@@ -256,10 +256,30 @@ async function writeSettings(settings) {
 
 const collectState = coalesce(readState);
 
+// New WhatsApp messages are saved as they arrive while WhatsApp is linked, not only when someone asks for a sync.
+const liveSync = createLiveSync();
+
+/** Follows the linked state that every refresh reads, so linking starts it and unlinking stops it. */
+async function readWhatsAppLive() {
+  const whatsapp = await readWhatsApp();
+  if (SMOKE_TEST) return whatsapp;
+  if (whatsapp.linked) liveSync.start();
+  // A diagnostics read that failed says nothing about the link, so it leaves the live sync alone.
+  else if (whatsapp.installed && !whatsapp.unreadable) liveSync.stop();
+  return { ...whatsapp, live: liveSync.running() };
+}
+
+/** While the live sync runs, the database is already current, so a manual sync has nothing to add. */
+async function syncWhatsAppNow() {
+  if (liveSync.running()) return;
+  await syncWhatsApp();
+  liveSync.start();
+}
+
 async function readState() {
   const [tailscale, whatsapp, settings, pcConfig, gmailAccounts, tasks] = await Promise.all([
     readTailscale(),
-    readWhatsApp(),
+    readWhatsAppLive(),
     // The status screens still work with damaged settings; tasks report the error on their own.
     readSettings().catch(() => ({})),
     readPcConfig(),
@@ -672,7 +692,13 @@ async function disconnectWhatsApp() {
     defaultId: 0,
     cancelId: 0,
   });
-  if (response === 1) await logoutWhatsApp();
+  // Logging out needs the store lock, which the live sync holds, so it pauses first and stays off if the logout works.
+  if (response === 1) {
+    await liveSync.pause(async () => {
+      await logoutWhatsApp();
+      await liveSync.stop();
+    });
+  }
 }
 
 async function disconnectGmail(email) {
@@ -1339,7 +1365,7 @@ function registerIpc() {
   handle("update-machine", updateMachine);
   handle("set-client", setClient);
   handle("save-machine", saveMachine);
-  handle("whatsapp-sync", syncWhatsApp);
+  handle("whatsapp-sync", syncWhatsAppNow);
   handle("whatsapp-login", beginLogin);
   handle("whatsapp-login-cancel", () => cancelLogin?.());
   handle("whatsapp-disconnect", disconnectWhatsApp);
@@ -1455,6 +1481,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     quitting = true;
     cancelLogin?.();
+    liveSync.stop();
     remote?.stop();
     tasksHub?.stop();
     peerHub?.stop();
