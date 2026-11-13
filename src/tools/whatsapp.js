@@ -384,7 +384,7 @@ export function registerWhatsApp(server) {
     {
       description:
         "WhatsApp status: whether it is linked, counts and the last full sync. A held lock means the SMCP app is saving new messages continuously. " +
-        "If WhatsApp is linked on another of the person's computers, this computer reads from that one and the answer describes it.",
+        "If WhatsApp is linked on another of the person's computers, the answer comes from that computer.",
       annotations: readOnly,
     },
     () => read(["doctor"], "Diagnostics"),
