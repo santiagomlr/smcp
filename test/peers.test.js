@@ -44,6 +44,7 @@ test("entre computadoras: solo el dueño entra y solo las operaciones conocidas"
       version: "0.1.3",
       platform: "darwin",
       update: { status: "available", latest: "0.1.4", canInstall: true },
+      whatsapp: { linked: false, live: false },
     });
     assert.deepEqual(await callPeer("127.0.0.1", "update", {}, { port: 47879 }), { status: "installing", version: "0.1.4" });
     await callPeer("127.0.0.1", "wake", { mac: "AA:BB:CC:DD:EE:FF" }, { port: 47879 });

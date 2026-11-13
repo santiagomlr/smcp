@@ -35,10 +35,29 @@ export async function readWhatsApp() {
   // The app only ships wacli for the Mac; elsewhere WhatsApp works only if someone installed it themselves.
   if (process.platform === "win32" || (process.platform !== "darwin" && !isInstalled())) return { supported: false };
   if (!isInstalled()) return { supported: true, installed: false };
-  const result = await run(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", "doctor"], {
-    timeoutMs: 10_000,
-  });
-  return { supported: true, installed: true, ...(parseDoctor(result.stdout) ?? { linked: false, unreadable: true, messages: 0, chats: 0 }) };
+  const [result, chats] = await Promise.all([
+    run(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", "doctor"], { timeoutMs: 10_000 }),
+    run(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", "chats", "list", "--limit=20"], { timeoutMs: 10_000 }),
+  ]);
+  const doctor = parseDoctor(result.stdout) ?? { linked: false, unreadable: true, messages: 0, chats: 0 };
+  // The live sync saves messages without touching last_sync_at, so the newest message is the honest date.
+  const newest = newestMessage(chats.stdout);
+  if (newest && !(Date.parse(doctor.lastSync) >= Date.parse(newest))) doctor.lastSync = newest;
+  return { supported: true, installed: true, ...doctor };
+}
+
+/** The newest last_message_ts among the listed chats. Pinned chats come first, so it looks at all of them. */
+export function newestMessage(stdout) {
+  try {
+    const chats = JSON.parse(stdout)?.data;
+    if (!Array.isArray(chats)) return null;
+    const times = chats
+      .map((chat) => chat?.last_message_ts)
+      .filter((ts) => typeof ts === "string" && !ts.startsWith("0001-") && !Number.isNaN(Date.parse(ts)));
+    return times.length ? new Date(Math.max(...times.map((ts) => Date.parse(ts)))).toISOString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseEnvelope(text) {

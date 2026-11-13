@@ -52,7 +52,7 @@ export function startHelper(ops, path = socketPath()) {
   });
 }
 
-class HelperUnavailable extends Error {}
+export class HelperUnavailable extends Error {}
 
 /** One request and one reply over the socket. */
 export function requestHelper(op, params, { path = socketPath(), timeoutMs = 140_000 } = {}) {

@@ -8,6 +8,7 @@ import { confirmGate } from "../confirm-gate.js";
 import { annotateLinks, MALICIOUS_WARNING, securityOn, SUSPICIOUS_WARNING } from "../security/inline.js";
 import { scanPath } from "../security/scanner.js";
 import { viaHelper } from "../helper.js";
+import { createRelay, MEDIA_ELSEWHERE, SEND_ELSEWHERE } from "../whatsapp-relay.js";
 import { errorResult, externalResult, run, textResult } from "../util.js";
 import { modelPath, modelReady, whisperBin } from "../whisper.js";
 
@@ -155,9 +156,20 @@ function parseJson(text) {
 }
 
 /** Dependencies are injectable so tests never touch a real account or open a dialog. */
-export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transcripts = transcriptsPath(), resolvePath, protect = securityOn, scan = scanPath } = {}) {
-  const wacli = (args, timeoutMs = 30_000) =>
-    exec(wacliBin(), [`--store=${storeDir()}`, ...args], { timeoutMs });
+export function createWhatsApp({
+  exec = run,
+  confirm = confirmWithDialog,
+  transcripts = transcriptsPath(),
+  resolvePath,
+  protect = securityOn,
+  scan = scanPath,
+  relay = createRelay({ localDoctor: () => exec(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", "doctor"], { timeoutMs: 10_000 }) }),
+} = {}) {
+  const local = (args, timeoutMs) => exec(wacliBin(), [`--store=${storeDir()}`, ...args], { timeoutMs });
+  // Without a session here, the computer where WhatsApp is linked answers instead of this one's old copy.
+  const wacli = async (args, timeoutMs = 30_000) => (relay ? await relay.run(args, timeoutMs) : null) ?? local(args, timeoutMs);
+  /** Says so before any window opens when WhatsApp lives on another computer. */
+  const elsewhere = async () => Boolean(relay) && !(await relay.linkedHere());
 
   const read = async (args, action) => {
     const result = await wacli(["--read-only", "--json", ...args]);
@@ -189,6 +201,7 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transc
   };
 
   const send = async ({ to, message }) => {
+    if (await elsewhere()) return errorResult(SEND_ELSEWHERE);
     const recipient = to.trim();
     if (!isValidRecipient(recipient)) {
       return errorResult(
@@ -226,6 +239,7 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transc
     if (!bin || !modelReady()) {
       return errorResult("Listening to audio is not ready on this computer yet. Turn it on in SMCP, under Settings.");
     }
+    if (await elsewhere()) return errorResult(MEDIA_ELSEWHERE);
     const message = await lookup(["messages", "show", `--chat=${chat}`, `--id=${id}`]);
     if (!message) return errorResult("That message is not among the saved ones. Try whatsapp_sync.");
     if (message.MediaType !== "audio") return errorResult("That message is not audio.");
@@ -254,6 +268,7 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transc
 
   /** Same checks and the same window as a text message, plus the file's name and size. */
   const sendFile = async ({ to, path, caption = "" }) => {
+    if (await elsewhere()) return errorResult(SEND_ELSEWHERE);
     const recipient = to.trim();
     if (!isValidRecipient(recipient)) {
       return errorResult("`to` must be a JID or a phone number. Use whatsapp_search_contacts or whatsapp_list_chats to get it.");
@@ -320,6 +335,7 @@ export function createWhatsApp({ exec = run, confirm = confirmWithDialog, transc
    */
   const scanFile = async ({ chat, id }) => {
     if (!protect()) return errorResult("The antivirus is turned off in SMCP settings.");
+    if (await elsewhere()) return errorResult(MEDIA_ELSEWHERE);
     const message = await lookup(["messages", "show", `--chat=${chat}`, `--id=${id}`]);
     if (!message) return errorResult("That message is not among the saved ones. Try whatsapp_sync.");
     if (!message.MediaType) return errorResult("That message has no file.");
@@ -367,7 +383,8 @@ export function registerWhatsApp(server) {
     "whatsapp_status",
     {
       description:
-        "WhatsApp status: whether it is linked, local counts and the last full sync. A held lock means the SMCP app is saving new messages continuously.",
+        "WhatsApp status: whether it is linked, counts and the last full sync. A held lock means the SMCP app is saving new messages continuously. " +
+        "If WhatsApp is linked on another of the person's computers, the answer comes from that computer.",
       annotations: readOnly,
     },
     () => read(["doctor"], "Diagnostics"),

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { viaHelper } from "../helper.js";
 import { GROUPS, readPolicy } from "../policy.js";
-import { textResult } from "../util.js";
+import { run, textResult } from "../util.js";
 import { enabledVaults } from "../vaults.js";
 import { createVpn } from "../vpn.js";
 import { awakeCall } from "./awake.js";
@@ -9,6 +9,7 @@ import { nightLightCall } from "./nightlight.js";
 import { securityProbe } from "./security.js";
 import { callApp } from "./tasks.js";
 import { storeDir, wacliBin } from "./whatsapp.js";
+import { createRelay } from "../whatsapp-relay.js";
 
 const PROBE_TIMEOUT_MS = 15_000;
 const LOCAL_ONLY = new Set(["clipboard", "terminal", "apps", "nightlight"]);
@@ -75,8 +76,20 @@ export const DEFAULT_PROBES = {
   },
   async whatsapp() {
     if (!existsSync(wacliBin())) throw new Error("wacli is not installed.");
-    if (!existsSync(storeDir())) throw new Error("WhatsApp is not linked.");
-    return {};
+    const doctor = () => run(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", "doctor"], { timeoutMs: 8_000 });
+    const relay = createRelay({ localDoctor: doctor });
+    if (existsSync(storeDir()) && (await relay.linkedHere())) return {};
+    // Not linked here: it still works if another of the person's computers has it and answers.
+    const remote = await relay.run(["--read-only", "--json", "doctor"], 8_000);
+    const data = remote && remote.code === 0 ? JSON.parse(remote.stdout || "null")?.data : null;
+    if (data?.authenticated) return { onAnotherComputer: true };
+    let reason = null;
+    try {
+      reason = JSON.parse(remote?.stderr || "null")?.error ?? null;
+    } catch {
+      // Not JSON: fall back to the plain reason.
+    }
+    throw new Error(reason || "WhatsApp is not linked.");
   },
 };
 
