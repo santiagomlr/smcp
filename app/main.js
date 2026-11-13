@@ -52,7 +52,7 @@ import { calendarEvents, calendarStatus, eventKit, requestCalendar } from "./cor
 import { disableFunnel, enableFunnel, isFunnelOn, readBaseUrl } from "./core/funnel.js";
 import { createAccountStore, createGmail } from "./core/gmail.js";
 import { linuxSshCommand, magicPacket, readPcConfig, readTailscale, sendWake, sshCommandFile, sshTarget } from "./core/machines.js";
-import { callPeer, createPeerHub, PEER_LOCAL_PORT, PEER_PORT, peerInfo } from "./core/peers.js";
+import { callPeer, createPeerHub, PEER_LOCAL_PORT, PEER_PORT, peerInfo, whatsappHost } from "./core/peers.js";
 import { createAwake } from "./core/awake.js";
 import { createNightLight } from "./core/nightlight.js";
 import { createRemote, REMOTE_PORT } from "./core/remote.js";
@@ -77,7 +77,9 @@ import { listVaultChoices, setVault, vaultLocation } from "../src/vaults.js";
 import { localAppleNotes } from "../src/tools/applenotes.js";
 import { localJxa, localScreenshot, localScreenText } from "../src/tools/apps.js";
 import { formatDay, formatLocal } from "../src/tools/calendar.js";
-import { localConfirm } from "../src/tools/whatsapp.js";
+import { localConfirm, storeDir, wacliBin } from "../src/tools/whatsapp.js";
+import { relayableArgs } from "../src/whatsapp-relay.js";
+import { run as runCommand } from "../src/util.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -266,7 +268,44 @@ async function readWhatsAppLive() {
   if (whatsapp.linked) liveSync.start();
   // A diagnostics read that failed says nothing about the link, so it leaves the live sync alone.
   else if (whatsapp.installed && !whatsapp.unreadable) liveSync.stop();
-  return { ...whatsapp, live: liveSync.running() };
+  // Not linked here, but linked on another of the person's computers: that one answers for this one.
+  const elsewhere = whatsapp.linked ? null : (whatsappHost(lastState?.tailscale.machines ?? [], peers)?.name ?? null);
+  return { ...whatsapp, live: liveSync.running(), elsewhere };
+}
+
+const RELAY_TIMEOUT_MS = 60_000;
+const SYNC_TIMEOUT_MS = 250_000;
+
+/**
+ * Another of the person's computers asks this one for WhatsApp. Only checked read-only commands run,
+ * against this computer's own store, and only while this computer lets AI read WhatsApp.
+ */
+async function serveWhatsAppToPeer({ args } = {}) {
+  const policy = readPolicy();
+  if (policy.paused) throw new Error("SMCP is paused on the computer with WhatsApp.");
+  if (policy.disabled?.whatsapp || !policy.whatsapp?.read) throw new Error("Reading WhatsApp is turned off on the computer with WhatsApp.");
+  if (!lastState?.whatsapp?.linked) throw new Error("WhatsApp is not linked on that computer anymore.");
+  if (Array.isArray(args) && args.length === 1 && args[0] === "sync") {
+    await syncWhatsAppNow();
+    return { code: 0, stdout: JSON.stringify({ success: true, data: { synced: true, live: liveSync.running() } }), stderr: "" };
+  }
+  const command = relayableArgs(args);
+  if (!command) throw new Error("That WhatsApp command cannot be asked for from another computer.");
+  const result = await runCommand(wacliBin(), [`--store=${storeDir()}`, "--read-only", "--json", ...command], { timeoutMs: RELAY_TIMEOUT_MS });
+  return { code: result.code, stdout: result.stdout, stderr: result.stderr, timedOut: Boolean(result.timedOut), truncated: Boolean(result.truncated) };
+}
+
+/** This computer has no WhatsApp session, so it asks the one that has it. */
+async function relayWhatsApp({ args, timeoutMs } = {}) {
+  const host = whatsappHost(lastState?.tailscale.machines ?? [], peers);
+  if (!host) {
+    throw new Error(
+      "WhatsApp is not linked on this computer, and none of your other computers with WhatsApp linked is on with SMCP open right now.",
+    );
+  }
+  const sync = Array.isArray(args) && args[0] === "sync";
+  const wait = sync ? SYNC_TIMEOUT_MS : Math.min(Number(timeoutMs) || RELAY_TIMEOUT_MS, RELAY_TIMEOUT_MS);
+  return callPeer(host.dns, "whatsapp", { args }, { timeoutMs: wait + 5_000 });
 }
 
 /** While the live sync runs, the database is already current, so a manual sync has nothing to add. */
@@ -415,7 +454,8 @@ async function startPeerHub() {
   const hub = createPeerHub({
     owner,
     handlers: {
-      info: () => peerInfo({ version: app.getVersion(), platform: process.platform, update: updater.state() }),
+      info: () => peerInfo({ version: app.getVersion(), platform: process.platform, update: updater.state(), whatsapp: lastState?.whatsapp }),
+      whatsapp: serveWhatsAppToPeer,
       update: updateAtPeerRequest,
       wake: async ({ mac }) => ({ sent: (await sendWake({ mac })).sent }),
     },
@@ -905,6 +945,8 @@ function startActionHelper() {
       if (!tool) throw new Error("Unknown operation.");
       return allowed(tool.name, tool.write ? SENDS : READS, () => runTask(op, args))();
     },
+    // The tool already passed this computer's permission check; the computer with WhatsApp checks its own too.
+    whatsappRelay: whenRunning(relayWhatsApp),
     gmailAccounts: allowed("gmail_list_accounts", READS, () => gmail.listAccounts()),
     gmailSearch: allowed("gmail_search", READS, (params) => gmail.search(params)),
     gmailRead: allowed("gmail_read", READS, (params) => gmail.read(params)),

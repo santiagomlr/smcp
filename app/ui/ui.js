@@ -323,18 +323,22 @@ function renderWhatsApp() {
   const { whatsapp } = state;
   $("whatsapp-section").hidden = !whatsapp.supported;
   if (!whatsapp.supported) return;
-  setStop("stop-whatsapp", whatsapp.linked);
+  // Linked on another computer counts as working here: SMCP asks that one for the chats.
+  setStop("stop-whatsapp", whatsapp.linked || Boolean(whatsapp.elsewhere));
   $("wa-title").textContent = "WhatsApp";
   $("wa-detail").textContent = !whatsapp.installed
     ? tr("Not available on this install")
     : whatsapp.linked
       ? whatsappStatus(whatsapp)
-      : tr("Not linked");
+      : whatsapp.elsewhere
+        ? tr("Linked on {computer}. This computer reads it from there.", { computer: whatsapp.elsewhere })
+        : tr("Not linked");
   // New messages arrive on their own while the live sync runs, so the button is only a fallback.
   $("wa-sync").hidden = !whatsapp.linked || whatsapp.live;
   $("wa-sync").disabled = syncing;
   $("wa-disconnect").hidden = !whatsapp.linked;
-  $("wa-link").hidden = !whatsapp.installed || whatsapp.linked;
+  // Linking here too would make a second copy that drifts apart, so it is offered only when no computer has it.
+  $("wa-link").hidden = !whatsapp.installed || whatsapp.linked || Boolean(whatsapp.elsewhere);
   $("wa-link").disabled = loggingIn;
 }
 

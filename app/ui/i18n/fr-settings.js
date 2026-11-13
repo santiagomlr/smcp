@@ -77,6 +77,7 @@ Object.assign((globalThis.SMCP_FR ??= {}), {
   "{count} messages · {status}": "{count} messages · {status}",
   "syncing…": "synchronisation…",
   "syncing live": "synchronisation en direct",
+  "Linked on {computer}. This computer reads it from there.": "Lié sur {computer}. Cet ordinateur le lit depuis là-bas.",
   "Used {date}": "Utilisé {date}",
   "{count} apps connected": "{count} apps connectées",
   "Version {version}": "Version {version}",

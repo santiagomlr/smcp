@@ -5,7 +5,7 @@ import { identifyFromServe } from "./tasks-hub.js";
 
 export const PEER_PORT = 47824;
 export const PEER_LOCAL_PORT = 47825;
-export const PEER_OPERATIONS = ["info", "update", "wake"];
+export const PEER_OPERATIONS = ["info", "update", "wake", "whatsapp"];
 const MAX_BODY_BYTES = 64 * 1024;
 
 /**
@@ -75,10 +75,24 @@ export async function callPeer(host, op, args = {}, { port = PEER_PORT, timeoutM
 }
 
 /** What a computer tells the others about itself. Only plain facts, never paths or accounts. */
-export function peerInfo({ version, platform, update }) {
+export function peerInfo({ version, platform, update, whatsapp = null }) {
   return {
     version,
     platform,
     update: { status: update.status, latest: update.latest, canInstall: Boolean(update.canInstall) },
+    // Whether WhatsApp is linked here, so the others know whom to ask. Never the number or the chats.
+    whatsapp: { linked: Boolean(whatsapp?.linked), live: Boolean(whatsapp?.live) },
   };
+}
+
+/**
+ * The computer the others should ask for WhatsApp: online, with SMCP answering, and linked.
+ * One that keeps it syncing live wins over one that does not.
+ */
+export function whatsappHost(machines, peers) {
+  const candidates = machines
+    .filter((machine) => !machine.self && machine.online && machine.dns && peers.get(machine.name)?.whatsapp?.linked)
+    .map((machine) => ({ machine, live: Boolean(peers.get(machine.name).whatsapp.live) }));
+  candidates.sort((a, b) => Number(b.live) - Number(a.live));
+  return candidates[0]?.machine ?? null;
 }
