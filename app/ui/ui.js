@@ -313,8 +313,8 @@ $("wa-access-rows").replaceChildren(
   }),
 );
 
-function whatsappStatus({ messages, lastSync }) {
-  const status = syncing ? tr("syncing…") : formatDate(lastSync);
+function whatsappStatus({ messages, lastSync, live }) {
+  const status = syncing ? tr("syncing…") : live ? tr("syncing live") : formatDate(lastSync);
   if (messages === 1) return tr("1 message · {status}", { status });
   return tr("{count} messages · {status}", { count: messages.toLocaleString(SMCP_I18N.locale()), status });
 }
@@ -330,7 +330,8 @@ function renderWhatsApp() {
     : whatsapp.linked
       ? whatsappStatus(whatsapp)
       : tr("Not linked");
-  $("wa-sync").hidden = !whatsapp.linked;
+  // New messages arrive on their own while the live sync runs, so the button is only a fallback.
+  $("wa-sync").hidden = !whatsapp.linked || whatsapp.live;
   $("wa-sync").disabled = syncing;
   $("wa-disconnect").hidden = !whatsapp.linked;
   $("wa-link").hidden = !whatsapp.installed || whatsapp.linked;

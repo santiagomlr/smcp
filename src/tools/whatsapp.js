@@ -136,6 +136,11 @@ function wacliFailure(result, action) {
   return `${action} failed: ${detail}`;
 }
 
+/** The store lock is held, which in SMCP means the app's continuous sync is running. */
+export function isLiveSyncRunning(result) {
+  return !succeeded(result) && /store is locked/.test(`${result.stderr ?? ""}\n${result.stdout ?? ""}`);
+}
+
 /** wacli's JSON envelope can report failure, so the exit code alone is not enough. */
 function succeeded(result) {
   return result.code === 0 && !result.timedOut && parseJson(result.stdout)?.success !== false;
@@ -361,7 +366,8 @@ export function registerWhatsApp(server) {
   server.registerTool(
     "whatsapp_status",
     {
-      description: "WhatsApp status: whether it is linked, last sync, and local counts.",
+      description:
+        "WhatsApp status: whether it is linked, local counts and the last full sync. A held lock means the SMCP app is saving new messages continuously.",
       annotations: readOnly,
     },
     () => read(["doctor"], "Diagnostics"),
@@ -457,11 +463,16 @@ export function registerWhatsApp(server) {
   server.registerTool(
     "whatsapp_sync",
     {
-      description: "Brings new WhatsApp messages into the local database and stops. It can take a couple of minutes.",
+      description:
+        "Brings new WhatsApp messages into the local database. Usually not needed: while the SMCP app is open, messages are saved continuously as they arrive. " +
+        "While that runs, whatsapp_status shows the lock held and this tool returns at once. Otherwise it can take a couple of minutes.",
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
     async () => {
       const result = await wacli(["--json", "sync", "--once", "--idle-exit=30s"], 240_000);
+      if (isLiveSyncRunning(result)) {
+        return textResult({ synced: true, continuous: true, note: "The SMCP app is already saving messages as they arrive, so the local database is current." });
+      }
       if (!succeeded(result)) return errorResult(wacliFailure(result, "Sync"));
       return textResult({ synced: true, truncated_output: result.truncated });
     },

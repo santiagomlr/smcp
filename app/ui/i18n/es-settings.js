@@ -76,6 +76,7 @@ Object.assign((globalThis.SMCP_ES ??= {}), {
   "1 message · {status}": "1 mensaje · {status}",
   "{count} messages · {status}": "{count} mensajes · {status}",
   "syncing…": "sincronizando…",
+  "syncing live": "sincronizando en vivo",
   "Used {date}": "Usado {date}",
   "{count} apps connected": "{count} apps conectadas",
   "Version {version}": "Versión {version}",
