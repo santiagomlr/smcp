@@ -48,6 +48,9 @@ import {
   removeFromDesktop,
   serverEntry,
 } from "./core/clients.js";
+import { APPROVAL_LOCAL_PORT, APPROVAL_PORT, createApprovalPage } from "./core/approval-page.js";
+import { createApprovals } from "./core/approvals.js";
+import { createBrainExports } from "./core/brain.js";
 import { createCalendarOps } from "./core/calendar-ops.js";
 import { calendarEvents, calendarStatus, eventKit, requestCalendar } from "./core/calendar.js";
 import { disableFunnel, enableFunnel, isFunnelOn, readBaseUrl } from "./core/funnel.js";
@@ -64,7 +67,11 @@ import { coalesce, retry, whenChanged } from "./core/throttle.js";
 import { createUpdater, isNewer, RELEASES_PAGE } from "./core/updater.js";
 import { createLiveSync, logoutWhatsApp, readWhatsApp, startLogin, syncWhatsApp } from "./core/whatsapp.js";
 import { audioSupported, downloadModel } from "./core/whisper.js";
-import { buildRemoteServer } from "../src/remote-tools.js";
+import { readBrainConfig, writeBrainConfig } from "../src/brain/config.js";
+import { isAway } from "../src/origin.js";
+import { buildAwayServer, buildRemoteServer } from "../src/remote-tools.js";
+import { readServerConfig, ROUTED_AREAS, writeServerConfig } from "../src/server-route.js";
+import { callToolInProcess } from "../src/tool-runner.js";
 import { isActive as isAwakeActive, readSettings as readAwakeSettings } from "../src/awake.js";
 import { clearAudit, readAudit } from "../src/audit.js";
 import { aboutLocation, aboutStatus, startAbout } from "../src/context.js";
@@ -72,7 +79,7 @@ import { isLanguage } from "../src/languages.js";
 import { localContacts } from "../src/contacts.js";
 import { EVENTS } from "../src/eventkit.js";
 import { startHelper } from "../src/helper.js";
-import { denialFor, GROUPS, readPolicy, WHATSAPP_ABILITIES, writePolicy } from "../src/policy.js";
+import { denialFor, GROUPS, readPolicy, REMOTE_SWITCHES, WHATSAPP_ABILITIES, writePolicy } from "../src/policy.js";
 import { createVpn } from "../src/vpn.js";
 import { modelReady } from "../src/whisper.js";
 import { listVaultChoices, setVault, vaultLocation } from "../src/vaults.js";
@@ -113,8 +120,25 @@ let cancelLogin = null;
 let lastState = null;
 const startedInBackground = process.argv.includes("--background") || app.getLoginItemSettings().wasOpenedAtLogin;
 
-/** The same dialog as ever, worded in the app's language. The AI supplies only the body. */
+/** What was asked from outside this computer and waits for the person's answer on their own device. */
+const approvals = createApprovals({
+  onChange: () => {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send("state-changed");
+  },
+});
+let approvalPage = null;
+let approvalUrl = null;
+
+/**
+ * The same dialog as ever, worded in the app's language. The AI supplies only the body.
+ * A request that began outside this computer cannot use a window nobody is looking at: it waits on the
+ * approval page instead, and fails at once when that page is not running, so nothing waits in vain.
+ */
 function confirmInApp(body, title = "SMCP: send WhatsApp", button = "Send") {
+  if (isAway()) {
+    if (!approvalUrl) throw new Error("The approval page is not running on the computer, so this could not be approved. It needs Tailscale. Nothing was done.");
+    return approvals.confirm({ title: tr(title), action: tr(button), body });
+  }
   return localConfirm(body, tr(title), { cancel: tr("Cancel"), send: tr(button) });
 }
 
@@ -132,6 +156,19 @@ const gmail = createGmail({
 let localTasks = null;
 let tasksHub = null;
 let peerHub = null;
+
+/** The raw exports to the vault. A source that starts failing tells the person once, not on every run. */
+const brainExports = createBrainExports({
+  gmail,
+  storePath: () => join(storeDir(), "wacli.db"),
+  onChange: () => {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send("state-changed");
+  },
+  onFailure: (source, message) => {
+    if (!Notification.isSupported()) return;
+    new Notification({ title: tr("SMCP could not export {source} to your notes", { source }), body: message }).show();
+  },
+});
 /** Warms the screen like f.lux. Every window hears about changes so its sliders stay in step. */
 const nightLight = createNightLight({
   supported: IS_MAC,
@@ -348,7 +385,7 @@ async function readState() {
       alias: settings.machines?.[machine.name]?.alias ?? "",
       user: settings.machines?.[machine.name]?.user ?? "",
       canWake: machine.os === "windows" && !machine.online && Boolean(pcConfig.mac),
-      smcp: smcp ? { version: smcp.version, latest: outdated ? newest : null } : null,
+      smcp: smcp ? { version: smcp.version, latest: outdated ? newest : null, tools: Boolean(smcp.tools) } : null,
       outdated,
       // Only the Mac build installs itself; a PC with an old version gets the notice but no button.
       canUpdate: outdated && smcp.platform === "darwin",
@@ -367,9 +404,16 @@ async function readState() {
       supported: IS_MAC && tailscale.installed,
       enabled: Boolean(remote?.running()),
       url: remoteBaseUrl ? `${remoteBaseUrl}/mcp` : null,
+      healthUrl: remoteBaseUrl ? `${remoteBaseUrl}/health` : null,
       pairing: remote?.activePairing() ?? null,
       clients: (remote?.listClients() ?? []).map((client) => ({ ...client, name: tr(client.name) })),
+      activity: remote?.activity() ?? null,
+      approvalsUrl: approvalUrl,
+      waiting: approvals.pending().length,
     },
+    // Which computer is the person's server, and whether this one lets the others use it.
+    server: { chosen: readServerConfig(), areas: ROUTED_AREAS },
+    brain: IS_MAC ? brainExports.status() : null,
     openAtLogin: app.getLoginItemSettings().openAtLogin,
     onboarded: settings.onboarded === true,
     permissions: readPermissions(),
@@ -447,6 +491,16 @@ async function updateAtPeerRequest() {
   return { status: "installing", version: snapshot.latest };
 }
 
+/**
+ * Another of the person's computers asks this one, their server, to run a tool. It goes through the
+ * same server as the remote connector: this computer's own switches, limits and approvals decide.
+ */
+async function runPeerTool({ name, args, origin, from } = {}) {
+  const client = String(from ?? "").replace(/[^\w .-]/g, "").slice(0, 40) || "another computer";
+  const server = buildAwayServer({ source: "peer", client, approvals, approvalUrl: () => approvalUrl, relayedRemote: origin === "remote" });
+  return callToolInProcess(server, name, args, { timeoutMs: 170_000 });
+}
+
 async function startPeerHub() {
   if (peerHub) return;
   if (!(await readTailscale()).installed) return;
@@ -455,8 +509,10 @@ async function startPeerHub() {
   const hub = createPeerHub({
     owner,
     handlers: {
-      info: () => peerInfo({ version: app.getVersion(), platform: process.platform, update: updater.state(), whatsapp: lastState?.whatsapp }),
+      info: () =>
+        peerInfo({ version: app.getVersion(), platform: process.platform, update: updater.state(), whatsapp: lastState?.whatsapp, tools: readPolicy().peers.tools }),
       whatsapp: serveWhatsAppToPeer,
+      tool: runPeerTool,
       update: updateAtPeerRequest,
       wake: async ({ mac }) => ({ sent: (await sendWake({ mac })).sent }),
     },
@@ -614,10 +670,101 @@ async function resumeTasksHub() {
 
 /* Remote access */
 
+/** The cheapest full check: build the connector's server and run its lightest tool, as a remote call would. */
+async function remoteHealthCheck() {
+  const result = await callToolInProcess(buildAwayServer({ source: "remote", client: "health check" }), "smcp_ping", {}, { timeoutMs: 10_000 });
+  return !result?.isError;
+}
+
 async function ensureRemote() {
   remoteBaseUrl ??= await readBaseUrl();
-  remote ??= createRemote({ baseUrl: remoteBaseUrl, buildServer: buildRemoteServer });
+  remote ??= createRemote({
+    baseUrl: remoteBaseUrl,
+    buildServer: (context) => buildRemoteServer({ ...context, approvals, approvalUrl: () => approvalUrl }),
+    healthCheck: remoteHealthCheck,
+  });
   return remote;
+}
+
+/**
+ * The approval page runs while something outside this computer could need it: remote access is on, or
+ * the person's other computers may use this one. It is shared only inside their Tailscale network.
+ */
+async function syncApprovalPage() {
+  const needed = IS_MAC && (Boolean(remote?.running()) || readPolicy().peers.tools);
+  if (!needed) {
+    if (!approvalPage) return;
+    await approvalPage.stop();
+    approvalPage = null;
+    approvalUrl = null;
+    await disableServe(APPROVAL_PORT, { scheme: "https" }).catch(() => {});
+    return;
+  }
+  if (approvalPage) return;
+  const owner = await tailscaleLogin();
+  if (!owner) throw new Error(tr("Sign in to Tailscale to turn on remote access."));
+  const host = new URL(await readBaseUrl()).host;
+  const page = createApprovalPage({ approvals, owner, tr, lang: () => SMCP_I18N.locale() });
+  await page.start();
+  let scheme = "https";
+  try {
+    await enableServe(APPROVAL_PORT, APPROVAL_LOCAL_PORT, { scheme });
+  } catch {
+    // A tailnet without HTTPS certificates still serves it plainly; the tunnel itself is encrypted.
+    scheme = "http";
+    try {
+      await enableServe(APPROVAL_PORT, APPROVAL_LOCAL_PORT, { scheme });
+    } catch (error) {
+      await page.stop();
+      throw error;
+    }
+  }
+  approvalPage = page;
+  approvalUrl = `${scheme}://${host}:${APPROVAL_PORT}/`;
+}
+
+const syncApprovalPageQuietly = () => syncApprovalPage().catch((error) => console.error("approvals:", error.message));
+
+/**
+ * One button that ends everything reachable from outside: the public URL goes off, every remote switch
+ * goes back to off, every connected app is signed out, and anything waiting for approval is rejected.
+ */
+async function remotePanic() {
+  const { response } = await dialog.showMessageBox(win, {
+    type: "warning",
+    message: tr("Turn off all remote access?"),
+    detail: tr("The private URL stops working, every remote permission goes back to off, every connected app is signed out and anything waiting for your approval is rejected. Your other computers stop being able to use this one too."),
+    buttons: [tr("Cancel"), tr("Turn everything off")],
+    defaultId: 0,
+    cancelId: 0,
+  });
+  if (response !== 1) return { done: false };
+  const rejected = approvals.rejectAll();
+  const policy = readPolicy();
+  for (const name of REMOTE_SWITCHES) policy.remote[name] = false;
+  policy.peers.tools = false;
+  writePolicy(policy);
+  let signedOut = 0;
+  try {
+    signedOut = (await ensureRemote()).revokeAll();
+  } catch {
+    // Without Tailscale there is no connector to sign anyone out of.
+  }
+  await setRemote(false).catch((error) => console.error("remote:", error.message));
+  await syncApprovalPageQuietly();
+  return { done: true, rejected, signedOut };
+}
+
+/** What was done from outside this computer today, newest first, and what is waiting. */
+function remoteActivity() {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  return {
+    activity: remote?.activity() ?? null,
+    today: readAudit({ limit: 500, away: true, since: midnight.getTime() }),
+    waiting: approvals.pending(),
+    approvalsUrl: approvalUrl,
+  };
 }
 
 async function setRemote(enabled) {
@@ -638,6 +785,7 @@ async function setRemote(enabled) {
   }
   settings.remote = Boolean(enabled);
   await writeSettings(settings);
+  await syncApprovalPageQuietly();
 }
 
 async function resumeRemote() {
@@ -645,6 +793,7 @@ async function resumeRemote() {
   const server = await ensureRemote();
   await server.start();
   if (!(await isFunnelOn(REMOTE_PORT))) await enableFunnel(REMOTE_PORT);
+  await syncApprovalPageQuietly();
   await collectState();
 }
 
@@ -677,8 +826,48 @@ function updatePolicy(patch) {
   for (const ability of WHATSAPP_ABILITIES) {
     if (typeof patch.whatsapp?.[ability] === "boolean") policy.whatsapp[ability] = patch.whatsapp[ability];
   }
-  if (typeof patch.remote?.taskWrites === "boolean") policy.remote.taskWrites = patch.remote.taskWrites;
+  for (const name of REMOTE_SWITCHES) {
+    if (typeof patch.remote?.[name] === "boolean") policy.remote[name] = patch.remote[name];
+  }
+  if (typeof patch.peers?.tools === "boolean") policy.peers.tools = patch.peers.tools;
+  if (Array.isArray(patch.calendar?.autoWrite)) policy.calendar.autoWrite = patch.calendar.autoWrite;
   writePolicy(policy);
+  if (patch.peers) syncApprovalPageQuietly();
+}
+
+/**
+ * Chooses the person's server computer and which areas run there, or `null` to work on this one alone.
+ * Only a computer of theirs that runs SMCP and lets the others use it can be chosen.
+ */
+function setServer(choice) {
+  if (!choice?.host) return writeServerConfig(null);
+  const machine = lastState?.tailscale.machines.find((item) => item.dns === choice.host && !item.self);
+  if (!machine) throw new Error(tr("That computer no longer appears in Tailscale."));
+  if (!peers.has(machine.name)) throw new Error(tr("That computer is not running SMCP right now, so it cannot be your server."));
+  return writeServerConfig({ host: machine.dns, name: machine.alias || machine.name, areas: choice.areas ?? {} });
+}
+
+/** Saves the raw export settings. The vault must be a folder that already has raw/ inside. */
+function setBrain(patch) {
+  const current = readBrainConfig();
+  const next = {
+    ...current,
+    ...(typeof patch?.vault === "string" || patch?.vault === null ? { vault: patch.vault } : {}),
+    whatsapp: { ...current.whatsapp, ...(patch?.whatsapp ?? {}) },
+    gmail: { ...current.gmail, ...(patch?.gmail ?? {}) },
+  };
+  if (next.vault && !existsSync(join(next.vault, "raw"))) throw new Error(tr("That folder has no raw folder inside, so it does not look like your notes vault."));
+  return writeBrainConfig(next);
+}
+
+async function chooseBrainVault() {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: tr("Choose the vault that receives the raw exports"),
+    buttonLabel: tr("Choose"),
+    properties: ["openDirectory"],
+  });
+  if (canceled || !filePaths[0]) return null;
+  return setBrain({ vault: filePaths[0] });
 }
 
 let audioDownload = null;
@@ -877,15 +1066,17 @@ function allowed(tool, annotations, fn) {
   };
 }
 
+const text = (value, max) => (typeof value === "string" ? value.slice(0, max) : undefined);
+
 /**
- * Calendar and Reminders. Events ask in a window, except in the calendars the person chose for
- * writing without it.
+ * Calendar and Reminders. Events ask in a window (or, from outside this computer, on the approval
+ * page), except in the calendars the person chose for writing without it.
  */
 const CALENDAR_OPS = createCalendarOps({
   eventKit,
   confirm: confirmInApp,
   tr,
-  autoCalendars: () => readPolicy().calendar?.autoWrite ?? [],
+  autoCalendars: () => readPolicy().calendar.autoWrite,
 });
 
 const APPLE_NOTES_OPS = { search: "applenotes_search", recent: "applenotes_recent", read: "applenotes_read" };
@@ -907,6 +1098,8 @@ function startActionHelper() {
     },
     // The tool already passed this computer's permission check; the computer with WhatsApp checks its own too.
     whatsappRelay: whenRunning(relayWhatsApp),
+    approvalStatus: whenRunning(({ id, waitSeconds } = {}) => approvals.describeStatus(id, { waitSeconds, url: approvalUrl })),
+    brainExport: allowed("brain_export_now", { readOnlyHint: false, destructiveHint: false }, (params) => brainExports.runNow({ source: text(params?.source, 200) })),
     gmailAccounts: allowed("gmail_list_accounts", READS, () => gmail.listAccounts()),
     gmailSearch: allowed("gmail_search", READS, (params) => gmail.search(params)),
     gmailRead: allowed("gmail_read", READS, (params) => gmail.read(params)),
@@ -1387,6 +1580,13 @@ function registerIpc() {
   handle("remote-code", newRemoteCode);
   handle("remote-copy", copyRemoteUrl);
   handle("remote-revoke", (id) => remote?.revokeClient(String(id)));
+  handle("remote-panic", remotePanic);
+  handle("remote-activity", remoteActivity);
+  handle("server-set", setServer);
+  handle("brain-set", setBrain);
+  handle("brain-choose-vault", chooseBrainVault);
+  handle("brain-run", (source) => brainExports.runNow({ source: typeof source === "string" ? source : undefined }));
+  handle("calendar-list", () => (IS_MAC ? eventKit.calendars(EVENTS) : []));
   handle("panel-resize", resizePanel);
   handle("open-main", (tab) => {
     panel?.hide();
@@ -1495,6 +1695,8 @@ if (!app.requestSingleInstanceLock()) {
     quitting = true;
     cancelLogin?.();
     liveSync.stop();
+    brainExports.stop();
+    approvalPage?.stop();
     remote?.stop();
     tasksHub?.stop();
     peerHub?.stop();
@@ -1520,6 +1722,9 @@ if (!app.requestSingleInstanceLock()) {
     retry(resumeRemote).catch((error) => console.error("remote:", error.message));
     retry(resumeTasksHub).catch((error) => console.error("tasks hub:", error.message));
     retry(startPeerHub).catch((error) => console.error("peers:", error.message));
+    retry(syncApprovalPage).catch((error) => console.error("approvals:", error.message));
+    // The exports need the Mac's WhatsApp store and Gmail accounts; elsewhere there is nothing to pull.
+    if (IS_MAC && !SMOKE_TEST) brainExports.start();
     if (SMOKE_TEST) return smokeTest();
     startUpdates();
     if (startedInBackground) app.dock?.hide();
