@@ -1210,10 +1210,16 @@ function createPanel() {
     panelHiddenAt = Date.now();
     panel.hide();
   });
+  // Quitting closes every window while the tray icon can still be clicked; forget the panel so nothing touches it.
+  panel.on("closed", () => {
+    panel = null;
+  });
   panel.loadFile(join(HERE, "ui", "tray.html"));
 }
 
 function togglePanel() {
+  if (quitting) return;
+  if (!panel || panel.isDestroyed()) createPanel();
   if (panel.isVisible()) {
     panel.hide();
     return;
@@ -1228,6 +1234,7 @@ function togglePanel() {
 }
 
 function resizePanel(height) {
+  if (!panel || panel.isDestroyed()) return;
   const clamped = Math.min(Math.max(Math.ceil(Number(height) || 0), 160), screen.getPrimaryDisplay().workAreaSize.height - 16);
   const { width } = panel.getBounds();
   panel.setSize(width, clamped, false);
