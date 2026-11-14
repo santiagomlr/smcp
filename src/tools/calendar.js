@@ -4,6 +4,8 @@ import { errorResult, externalResult, textResult } from "../util.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RANGE_DAYS = 92;
+/** Long enough for the person to read the confirmation window and answer it. */
+const CONFIRM_TIMEOUT_MS = 200_000;
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -70,9 +72,62 @@ export function presentEvent(event) {
     start: event.allDay ? formatDay(event.start) : formatLocal(event.start),
     end: event.allDay ? formatDay(event.end - 1) : formatLocal(event.end),
     all_day: event.allDay,
+    ...(event.calendarId ? { calendar_id: event.calendarId } : {}),
+    ...(event.recurring ? { recurring: true } : {}),
     ...(event.location ? { location: event.location } : {}),
     ...(event.notes ? { notes: event.notes } : {}),
   };
+}
+
+const showTime = (time, allDay, { end = false } = {}) => (allDay ? formatDay(end ? time - 1 : time) : formatLocal(time));
+
+/** What a write returns, with its times, its event and the events already in that slot made readable. */
+export function presentWrite({ calendarId, event, conflicts, ...rest }) {
+  return {
+    ...rest,
+    ...(calendarId ? { calendar_id: calendarId } : {}),
+    ...(event ? { event: presentEvent(event) } : {}),
+    ...(conflicts ? { conflicts: conflicts.map((item) => ({ ...item, start: formatLocal(item.start), end: formatLocal(item.end) })) } : {}),
+  };
+}
+
+/** One line of the history of unattended writes; `before` holds what to put back to undo it. */
+export function presentHistory({ eventId, calendarId, allDay, start, end, before, ...rest }) {
+  const times = (item, wholeDay) => ({
+    ...(Number.isFinite(item.start) ? { start: showTime(item.start, wholeDay) } : {}),
+    ...(Number.isFinite(item.end) ? { end: showTime(item.end, wholeDay, { end: true }) } : {}),
+  });
+  const previous = () => {
+    const { eventId: oldId, calendarId: oldCalendar, allDay: oldAllDay, start: oldStart, end: oldEnd, id, ...other } = before;
+    const wholeDay = oldAllDay ?? allDay;
+    return {
+      ...other,
+      ...(id ?? oldId ? { event_id: id ?? oldId } : {}),
+      ...(oldCalendar ? { calendar_id: oldCalendar } : {}),
+      ...times({ start: oldStart, end: oldEnd }, wholeDay),
+      ...(oldAllDay === undefined ? {} : { all_day: oldAllDay }),
+    };
+  };
+  return {
+    ...rest,
+    event_id: eventId ?? null,
+    calendar_id: calendarId ?? null,
+    ...times({ start, end }, allDay),
+    all_day: allDay === true,
+    ...(before && typeof before === "object" ? { before: previous() } : {}),
+  };
+}
+
+/** `start`, `end` and `allDay` for EventKit, from the dates the AI sent. All-day events end at the last instant of the last day. */
+function eventTimes({ start, end }, { fill }) {
+  const allDay = start ? DATE_ONLY.test(start.trim()) : undefined;
+  const startTime = start ? parseWhen(start) : undefined;
+  let endTime;
+  // Without a start, a bare end date means "through that day".
+  if (end) endTime = allDay ?? DATE_ONLY.test(end.trim()) ? parseWhen(end, { endOfDay: true }) - 1000 : parseWhen(end);
+  else if (fill) endTime = allDay ? startTime + DAY_MS - 1000 : startTime + 60 * 60 * 1000;
+  if (startTime !== undefined && endTime !== undefined && endTime <= startTime) throw new Error("The end must be after the start.");
+  return { start: startTime, end: endTime, allDay };
 }
 
 function atClock(day, clock) {
@@ -145,11 +200,27 @@ export function registerCalendar(server, { call = callApp } = {}) {
     }
   };
   const when = z.string().max(40);
+  const source = z
+    .object({
+      kind: z.string().min(1).max(40).describe("Where the plan was confirmed: whatsapp, email, call…"),
+      ref: z.string().max(200).optional().describe("The chat, thread or person."),
+      date: z.string().max(40).optional().describe("When it was confirmed."),
+      quote: z.string().max(300).optional().describe("The few words that confirm it."),
+    })
+    .optional();
+  const eventId = z.string().min(1).max(300).describe("Event id from calendar_list_events.");
+  const occurrence = when.optional().describe("For a repeating event, the `start` of the repeat to act on, as calendar_list_events shows it. Without it, the first one.");
+  const span = z.enum(["this", "future"]).default("this").describe("For a repeating event: only this one, or this and the ones after it.");
+  const target = ({ id, occurrence_start, span: reach }) => ({ id, occurrence: occurrence_start ? parseWhen(occurrence_start) : undefined, span: reach });
   const calendarIds = z.array(z.string().max(200)).max(50).optional().describe("Calendar ids from calendar_list_calendars. Without it, every calendar.");
 
   server.registerTool(
     "calendar_list_calendars",
-    { description: "Lists the calendars on this Mac (iCloud, Google, Exchange…), with their ids and whether they can be written.", annotations: reads },
+    {
+      description:
+        "Lists the calendars on this Mac (iCloud, Google, Exchange…), with their ids and whether they can be written. `unattended` marks the ones the person chose for writing without the confirmation window.",
+      annotations: reads,
+    },
     safe(() => call("calendars", {}), textResult),
   );
 
@@ -206,7 +277,9 @@ export function registerCalendar(server, { call = callApp } = {}) {
     "calendar_create_event",
     {
       description:
-        "Adds an event to a calendar. Opens a macOS window and adds it only if the person presses Add. Without `calendar`, uses the default calendar.",
+        "Adds an event to a calendar and reports, in `conflicts`, the events already in that time slot. Opens a confirmation and adds it only if the person accepts, " +
+        "unless the calendar is one the person chose for unattended writing (see calendar_list_calendars): there it is added at once, `source` is required, " +
+        "and the same call twice creates it once. Without `calendar`, uses the default calendar.",
       inputSchema: {
         title: z.string().min(1).max(200),
         start: when.describe("ISO date and time, or YYYY-MM-DD for an all-day event."),
@@ -214,21 +287,82 @@ export function registerCalendar(server, { call = callApp } = {}) {
         calendar: z.string().max(200).optional().describe("Calendar id from calendar_list_calendars."),
         location: z.string().max(300).optional(),
         notes: z.string().max(2000).optional(),
+        source: source.describe("Where the plan was confirmed. Required for unattended calendars; it is written in the event's notes."),
+        key: z.string().max(200).optional().describe("A stable id for this plan, such as the message id. The same key never creates a second event."),
+        check_only: z.boolean().default(false).describe("Only report the events already in that slot; adds nothing."),
+        recreate: z.boolean().default(false).describe("Adds the event again after the person removed it from the calendar by hand. Only when they ask for it back."),
       },
       annotations: writes,
     },
-    safe(async ({ title, start, end, calendar, location, notes }) => {
-      const allDay = DATE_ONLY.test(start.trim());
-      const startTime = parseWhen(start);
-      const endTime = end ? parseWhen(end, { endOfDay: allDay }) : allDay ? startTime + DAY_MS : startTime + 60 * 60 * 1000;
-      if (endTime <= startTime) throw new Error("The end must be after the start.");
-      // All-day events end at midnight, but EventKit wants the last instant of the last day.
-      return call(
-        "createEvent",
-        { title, start: startTime, end: allDay ? endTime - 1000 : endTime, allDay, calendar, location, notes },
-        { timeoutMs: 200_000 },
-      );
-    }, textResult),
+    safe(async ({ title, start, end, calendar, location, notes, source: origin, key, check_only, recreate }) =>
+      presentWrite(
+        await call(
+          "createEvent",
+          { title, ...eventTimes({ start, end }, { fill: true }), calendar, location, notes, source: origin, key, checkOnly: check_only === true, recreate: recreate === true },
+          { timeoutMs: CONFIRM_TIMEOUT_MS },
+        ),
+      ),
+    ),
+  );
+
+  server.registerTool(
+    "calendar_update_event",
+    {
+      description:
+        "Changes an event: only the fields given. A new `start` alone keeps its length; an empty `location` or `notes` clears it; `calendar` moves it. " +
+        "Reports in `conflicts` the events already in the new slot. Opens a confirmation, unless the event stays inside calendars the person chose for unattended writing.",
+      inputSchema: {
+        id: eventId,
+        occurrence_start: occurrence,
+        title: z.string().min(1).max(200).optional(),
+        start: when.optional().describe("ISO date and time, or YYYY-MM-DD to make it an all-day event."),
+        end: when.optional(),
+        calendar: z.string().max(200).optional().describe("Calendar id to move it to, from calendar_list_calendars."),
+        location: z.string().max(300).optional(),
+        notes: z.string().max(2000).optional(),
+        span,
+        source: source.describe("Where the change was confirmed. In unattended calendars it is added to the event's notes."),
+      },
+      annotations: writes,
+    },
+    safe(async ({ title, start, end, calendar, location, notes, source: origin, ...which }) =>
+      presentWrite(
+        await call(
+          "updateEvent",
+          { ...target(which), title, ...eventTimes({ start, end }, { fill: false }), calendar, location, notes, source: origin },
+          { timeoutMs: CONFIRM_TIMEOUT_MS },
+        ),
+      ),
+    ),
+  );
+
+  server.registerTool(
+    "calendar_delete_event",
+    {
+      description:
+        "Deletes an event. Opens a confirmation, unless it is in a calendar the person chose for unattended writing; those deletions stay in calendar_auto_history.",
+      inputSchema: { id: eventId, occurrence_start: occurrence, span },
+      annotations: writes,
+    },
+    safe(async (which) => presentWrite(await call("deleteEvent", target(which), { timeoutMs: CONFIRM_TIMEOUT_MS }))),
+  );
+
+  server.registerTool(
+    "calendar_auto_history",
+    {
+      description:
+        "Lists what SMCP wrote to calendars without the confirmation window, newest first: events created, changed and deleted, with where each plan came from. " +
+        "`before` holds the earlier values; to undo, put them back with calendar_update_event, calendar_delete_event or calendar_create_event.",
+      inputSchema: {
+        limit: z.number().int().min(1).max(200).default(50),
+        since: when.optional().describe("Only what happened from this date on."),
+      },
+      annotations: reads,
+    },
+    safe(async ({ limit, since }) => {
+      const entries = await call("autoHistory", { limit, since: since ? parseWhen(since) : undefined });
+      return { total: entries.length, entries: entries.map(presentHistory) };
+    }),
   );
 
   server.registerTool(
@@ -276,6 +410,36 @@ export function registerCalendar(server, { call = callApp } = {}) {
   );
 
   server.registerTool(
+    "reminders_update",
+    {
+      description: "Changes an Apple Reminder: only the fields given. `completed: false` re-opens one that was done.",
+      inputSchema: {
+        id: z.string().min(1).max(300).describe("Reminder id from reminders_list."),
+        title: z.string().min(1).max(300).optional(),
+        list: z.string().max(200).optional().describe("List id to move it to, from reminders_list_lists."),
+        due: when.optional().describe("YYYY-MM-DD, or an ISO date and time for an alert at that time."),
+        clear_due: z.boolean().default(false).describe("Takes the due date away."),
+        notes: z.string().max(5000).optional().describe("An empty text clears them."),
+        completed: z.boolean().optional(),
+      },
+      annotations: writes,
+    },
+    safe(async ({ id, title, list, due, clear_due, notes, completed }) => {
+      if (due && clear_due) throw new Error("Pass `due` or `clear_due`, not both.");
+      const reminder = await call("updateReminder", {
+        id,
+        title,
+        list,
+        notes,
+        completed,
+        due: clear_due ? null : due ? parseWhen(due) : undefined,
+        dueHasTime: Boolean(due) && !DATE_ONLY.test(due.trim()),
+      });
+      return reminder?.id ? presentReminder(reminder) : reminder;
+    }),
+  );
+
+  server.registerTool(
     "reminders_complete",
     {
       description: "Marks an Apple Reminder as done.",
@@ -283,5 +447,15 @@ export function registerCalendar(server, { call = callApp } = {}) {
       annotations: writes,
     },
     safe(({ id }) => call("completeReminder", { id }), textResult),
+  );
+
+  server.registerTool(
+    "reminders_delete",
+    {
+      description: "Deletes an Apple Reminder for good. To mark it as done instead, use reminders_complete.",
+      inputSchema: { id: z.string().min(1).max(300).describe("Reminder id from reminders_list.") },
+      annotations: writes,
+    },
+    safe(({ id }) => call("deleteReminder", { id })),
   );
 }

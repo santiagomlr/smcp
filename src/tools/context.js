@@ -15,8 +15,6 @@ export function registerContext(server, { remote = false } = {}) {
     async () => textResult(buildContext({ remote })),
   );
 
-  if (remote) return;
-
   server.registerTool(
     "smcp_remember",
     {

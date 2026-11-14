@@ -144,8 +144,10 @@ test("el acceso remoto respeta la misma elección", async () => {
     const denied = await client.callTool({ name: "whatsapp_read_messages", arguments: { chat: JID } });
     assert.equal(denied.isError, true);
     assert.match(denied.content[0].text, /Reading WhatsApp chats/);
-    const { tools } = await client.listTools();
-    assert.ok(!tools.some((tool) => tool.name === "whatsapp_send"));
+    // Sending is listed, but from outside it is off until the person turns it on.
+    const send = await client.callTool({ name: "whatsapp_send", arguments: { to: JID, message: "hola" } });
+    assert.equal(send.isError, true);
+    assert.match(send.content[0].text, /Sending messages and email from outside the computer is turned off/);
   } finally {
     await client.close();
     for (const [key, value] of [["SMCP_CONFIG", previous.config], ["WACLI_BIN", previous.bin]]) {

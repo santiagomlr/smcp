@@ -1,0 +1,492 @@
+{
+  "now": "2026-11-13T16:13:11.336Z",
+  "stats": {
+    "chats_scanned": 35,
+    "chats_with_new": 11,
+    "messages": 15,
+    "skipped_chats": 4,
+    "identidades_unidas": 2,
+    "identidades_ambiguas": 0,
+    "store_ultimo_mensaje": "2026-11-12T16:35:00Z",
+    "store_horas_sin_mensajes": 23.6
+  },
+  "ambiguous": [],
+  "report": {
+    "chats_touched": 10,
+    "messages_written": 11,
+    "notes_created": 1,
+    "skipped_chats": 1,
+    "quarantined_appends": 1,
+    "duplicates_skipped": 1,
+    "detail": [
+      {
+        "chat": "notas.md de Marta",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Personales/notas.md de Marta dtj3wx.md",
+        "quarantined": false
+      },
+      {
+        "chat": "Repe Tido",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Personales/Repe Tido 1alzdhw.md",
+        "quarantined": false
+      },
+      {
+        "chat": "Carla Sistema",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/_descartados/Carla Sistema arriba.md",
+        "quarantined": true
+      },
+      {
+        "chat": "Gemelo Ejemplo",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Personales/Gemelo Ejemplo k7ne40.md",
+        "quarantined": false
+      },
+      {
+        "chat": "Bruno Ejemplo",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Personales/Bruno Ejemplo w6j7cz.md",
+        "quarantined": false
+      },
+      {
+        "chat": ".punto inicial",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Personales/.punto inicial kke10j.md",
+        "quarantined": false
+      },
+      {
+        "chat": "Cena hoy",
+        "kind": "group",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Grupos/Cena hoy 1hxuy0s.md",
+        "quarantined": false
+      },
+      {
+        "chat": "Nuevo Contacto",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Personales/Nuevo Contacto 1vw6oc9.md",
+        "quarantined": false
+      },
+      {
+        "chat": "Beto Alias",
+        "kind": "personal",
+        "new": 1,
+        "note": "raw/Personal/whatsapp/Personales/Beto de antes zz9.md",
+        "quarantined": false
+      },
+      {
+        "chat": "Ana Prueba Renombrada",
+        "kind": "personal",
+        "new": 2,
+        "note": "raw/Personal/whatsapp/Personales/Ana Prueba 1s7g8lt.md",
+        "quarantined": false
+      }
+    ]
+  },
+  "chats": {
+    "5215550000002@s.whatsapp.net": {
+      "name": "Beto Alias",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Beto de antes zz9.md",
+      "last_ts": "2026-11-03T15:00:00Z",
+      "last_date_header": "2026-11-03",
+      "message_count": 767,
+      "seen_ids": [
+        "M0060",
+        "B-VISTO-1",
+        "M0058",
+        "B-VISTO-0",
+        "M0059",
+        "M0123"
+      ],
+      "seeded_from_plugin": true
+    },
+    "5215550000003@s.whatsapp.net": {
+      "name": "Carla Sistema",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/_descartados/Carla Sistema arriba.md",
+      "last_ts": "2026-11-12T16:25:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 3,
+      "seen_ids": [
+        "M0061",
+        "M0129"
+      ]
+    },
+    "99000000000021@lid": {
+      "name": "Bruno Ejemplo",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Bruno Ejemplo w6j7cz.md",
+      "last_ts": "2026-11-12T16:15:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 4,
+      "seen_ids": [
+        "M0067",
+        "M0066",
+        "M0127"
+      ],
+      "seeded_from_plugin": true
+    },
+    "99000000000031@lid": {
+      "name": "Gemelo Ejemplo",
+      "kind": "personal",
+      "note_path": "",
+      "last_ts": "2026-09-04T16:00:00Z",
+      "last_date_header": "2026-09-04",
+      "message_count": 3,
+      "seen_ids": []
+    },
+    "99000000000032@lid": {
+      "name": "gemelo  EJEMPLO",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Gemelo Ejemplo 13fk35f.md",
+      "last_ts": "2026-09-04T16:00:00Z",
+      "last_date_header": "2026-09-04",
+      "message_count": 5,
+      "seen_ids": []
+    },
+    "99000000000041@lid": {
+      "name": "Elena Doble",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Elena Doble 10zjlrt.md",
+      "last_ts": "2026-11-08T16:30:00Z",
+      "last_date_header": "2026-11-08",
+      "message_count": 3,
+      "seen_ids": [
+        "M0070"
+      ]
+    },
+    "120363000000000051@g.us": {
+      "name": "Cena hoy",
+      "kind": "group",
+      "note_path": "raw/Personal/whatsapp/Grupos/Cena hoy 1hd6tl3.md",
+      "last_ts": "2026-11-11T02:00:00Z",
+      "last_date_header": "2026-11-10",
+      "message_count": 2,
+      "seen_ids": [
+        "M0076"
+      ]
+    },
+    "99000000000081@lid": {
+      "name": "Paula Par",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Paula Par 1i7mh2d.md",
+      "last_ts": "2026-11-09T15:02:00Z",
+      "last_date_header": "2026-11-09",
+      "message_count": 6,
+      "seen_ids": [
+        "M0073",
+        "M0074",
+        "M0075"
+      ]
+    },
+    "99000000000088@lid": {
+      "name": "Vieja Amistad",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Vieja Amistad 2b1fkm.md",
+      "last_ts": "2026-01-17T16:00:00+00:00",
+      "last_date_header": "2026-01-17",
+      "message_count": 41,
+      "seen_ids": []
+    },
+    "120363000000000059@g.us": {
+      "name": "Grupo Vacío",
+      "kind": "group",
+      "note_path": "",
+      "last_ts": "",
+      "last_date_header": "",
+      "message_count": 0,
+      "seen_ids": []
+    },
+    "5215550000007@s.whatsapp.net": {
+      "name": "+5215550000007",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Sin comillas.md",
+      "last_ts": "2026-11-07T18:15:00Z",
+      "last_date_header": "2026-11-07",
+      "message_count": 2,
+      "seen_ids": [
+        "M0065"
+      ]
+    },
+    "99000000000090@lid": {
+      "name": "Sin Campos"
+    },
+    "5215550000098@s.whatsapp.net": {
+      "name": ".punto inicial",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/.punto inicial kke10j.md",
+      "last_ts": "2026-11-12T16:10:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 2,
+      "seen_ids": [
+        "M0100",
+        "M0126"
+      ]
+    },
+    "5215550000096@s.whatsapp.net": {
+      "name": "notas.md de Marta",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/notas.md de Marta dtj3wx.md",
+      "last_ts": "2026-11-12T16:35:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 2,
+      "seen_ids": [
+        "M0098",
+        "M0131"
+      ]
+    },
+    "5215550000097@s.whatsapp.net": {
+      "name": "El \"Jefe\" \\ Oficina",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/El Jefe Oficina 1yi4wuk.md",
+      "last_ts": "2026-11-11T15:10:00Z",
+      "last_date_header": "2026-11-11",
+      "message_count": 1,
+      "seen_ids": [
+        "M0099"
+      ]
+    },
+    "sinnumero@lid": {
+      "name": "sinnumero@lid",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/sinnumero@lid 1tgkqp8.md",
+      "last_ts": "2026-11-11T15:02:00Z",
+      "last_date_header": "2026-11-11",
+      "message_count": 1,
+      "seen_ids": [
+        "M0097"
+      ]
+    },
+    "99000000000062@lid": {
+      "name": "+99000000000062",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/+99000000000062 4luox6.md",
+      "last_ts": "2026-11-11T15:01:00Z",
+      "last_date_header": "2026-11-11",
+      "message_count": 1,
+      "seen_ids": [
+        "M0096"
+      ]
+    },
+    "5215550000061@s.whatsapp.net": {
+      "name": "+5215550000061",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/+5215550000061 ji2h1b.md",
+      "last_ts": "2026-11-11T15:00:00Z",
+      "last_date_header": "2026-11-11",
+      "message_count": 1,
+      "seen_ids": [
+        "M0095"
+      ]
+    },
+    "120363000000000054@g.us": {
+      "name": "Proyecto: \"Súper/Largo\" <2026> #1 [beta]* ¿listo? | equipo de pruebas y más pruebas 🎉🎊🎉 con cola que se corta aquí mismo",
+      "kind": "group",
+      "note_path": "raw/Personal/whatsapp/Grupos/Proyecto Súper Largo 2026 1 beta ¿listo equipo de pruebas y más pruebas 🎉🎊🎉 con  v1i6mm.md",
+      "last_ts": "2026-11-11T03:30:00Z",
+      "last_date_header": "2026-11-10",
+      "message_count": 1,
+      "seen_ids": [
+        "M0094"
+      ]
+    },
+    "120363000000000053@g.us": {
+      "name": "120363000000000053",
+      "kind": "group",
+      "note_path": "raw/Personal/whatsapp/Grupos/120363000000000053 l844ch.md",
+      "last_ts": "2026-11-11T03:00:00Z",
+      "last_date_header": "2026-11-10",
+      "message_count": 1,
+      "seen_ids": [
+        "M0093"
+      ]
+    },
+    "120363000000000052@g.us": {
+      "name": "Cena hoy",
+      "kind": "group",
+      "note_path": "raw/Personal/whatsapp/Grupos/Cena hoy 1hxuy0s.md",
+      "last_ts": "2026-11-12T16:05:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 17,
+      "seen_ids": [
+        "M0088",
+        "M0084",
+        "M0086",
+        "M0090",
+        "M0085",
+        "M0092",
+        "M0079",
+        "M0081",
+        "M0089",
+        "M0077",
+        "M0091",
+        "M0083",
+        "M0080",
+        "M0082",
+        "M0087",
+        "M0078",
+        "M0125"
+      ]
+    },
+    "5215550000041@s.whatsapp.net": {
+      "name": "Elena Doble",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Elena Doble xwn0md.md",
+      "last_ts": "2026-11-08T16:00:00Z",
+      "last_date_header": "2026-11-08",
+      "message_count": 1,
+      "seen_ids": [
+        "M0069"
+      ]
+    },
+    "5215550000031@s.whatsapp.net": {
+      "name": "Gemelo Ejemplo",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Gemelo Ejemplo k7ne40.md",
+      "last_ts": "2026-11-12T16:20:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 2,
+      "seen_ids": [
+        "M0068",
+        "M0128"
+      ]
+    },
+    "5215550000006@s.whatsapp.net": {
+      "name": "+5215550000006",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/+5215550000006 z3mw3a.md",
+      "last_ts": "2026-11-07T18:10:00Z",
+      "last_date_header": "2026-11-07",
+      "message_count": 1,
+      "seen_ids": [
+        "M0064"
+      ]
+    },
+    "5215550000005@s.whatsapp.net": {
+      "name": "dani 🌮",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/dani 🌮 1vtxfth.md",
+      "last_ts": "2026-11-07T18:05:00Z",
+      "last_date_header": "2026-11-07",
+      "message_count": 1,
+      "seen_ids": [
+        "M0063"
+      ]
+    },
+    "5215550000004@s.whatsapp.net": {
+      "name": "Dulces Ejemplo SA",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Dulces Ejemplo SA 1n6jk8w.md",
+      "last_ts": "2026-11-07T18:00:00Z",
+      "last_date_header": "2026-11-07",
+      "message_count": 1,
+      "seen_ids": [
+        "M0062"
+      ]
+    },
+    "5215550000101@s.whatsapp.net": {
+      "name": "Repe Tido",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Repe Tido 1alzdhw.md",
+      "last_ts": "2026-11-12T16:30:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 1,
+      "seen_ids": [
+        "M0115",
+        "M0116",
+        "M0130"
+      ]
+    },
+    "5215550000092@s.whatsapp.net": {
+      "name": "Viejo Mixto",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Viejo Mixto hg0b4l.md",
+      "last_ts": "2026-11-03T16:00:00Z",
+      "last_date_header": "2026-11-03",
+      "message_count": 2,
+      "seen_ids": [
+        "M0109",
+        "M0110"
+      ]
+    },
+    "5215550000001@s.whatsapp.net": {
+      "name": "Ana Prueba Renombrada",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Ana Prueba 1s7g8lt.md",
+      "last_ts": "2026-10-27T15:00:00Z",
+      "last_date_header": "2026-10-27",
+      "message_count": 47,
+      "seen_ids": [
+        "M0011",
+        "M0012",
+        "M0014",
+        "M0004",
+        "M0015",
+        "M0007",
+        "M0036",
+        "M0033",
+        "M0022",
+        "id con espacios",
+        "M0021",
+        "M0023",
+        "M0041",
+        "a-llegó-después",
+        "M0006",
+        "M0032",
+        "M0040",
+        "M0003",
+        "M0052",
+        "M0010",
+        "M0009",
+        "M0018",
+        "M0019",
+        "M0031",
+        "z-llegó-primero",
+        "M0050",
+        "M0013",
+        "M0008",
+        "M0016",
+        "M0001",
+        "M0020",
+        "M0035",
+        "M0042",
+        "M0038",
+        "M0037",
+        "M0049",
+        "M0030",
+        "M0053",
+        "M0005",
+        "M0034",
+        "M0039",
+        "M0017",
+        "M0002",
+        "M0119",
+        "M0121"
+      ]
+    },
+    "5215550000100@s.whatsapp.net": {
+      "name": "Nuevo Contacto",
+      "kind": "personal",
+      "note_path": "raw/Personal/whatsapp/Personales/Nuevo Contacto 1vw6oc9.md",
+      "last_ts": "2026-11-12T16:00:00Z",
+      "last_date_header": "2026-11-12",
+      "message_count": 1,
+      "seen_ids": [
+        "M0124"
+      ]
+    }
+  },
+  "aliases": {
+    "5215550000081@s.whatsapp.net": "99000000000081@lid",
+    "5215550000021@s.whatsapp.net": "99000000000021@lid"
+  }
+}

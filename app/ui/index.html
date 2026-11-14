@@ -90,7 +90,7 @@
                   <li>When asked, enter the code. It works once and lasts 10 minutes.</li>
                 </ol>
                 <ul id="remote-clients" class="rows"></ul>
-                <p class="hint">Remote access can only read WhatsApp, Gmail, notes and files. This computer must be on, awake and running SMCP.</p>
+                <p class="hint">Remote access can read WhatsApp, Gmail, notes and files. Writing, the terminal and sending are off until you turn them on in Settings. This computer must be on, awake and running SMCP.</p>
               </div>
             </div>
           </div>
@@ -148,8 +148,29 @@
           <ul class="rows">
             <li><label for="policy-paused">Pause SMCP<small>Claude won't be able to use any tools.</small></label><input id="policy-paused" class="switch" type="checkbox" role="switch" /></li>
             <li><label for="policy-readonly">Read-only<small>Blocks sending, writing, commands and clicks.</small></label><input id="policy-readonly" class="switch" type="checkbox" role="switch" /></li>
-            <li><label for="policy-remote-tasks">Edit tasks from other devices<small>Lets your phone, the web and scheduled routines create, change and complete tasks.</small></label><input id="policy-remote-tasks" class="switch" type="checkbox" role="switch" /></li>
           </ul>
+        </section>
+
+        <section id="remote-settings" aria-labelledby="h-remote-settings">
+          <h2 id="h-remote-settings">Remote access</h2>
+          <p class="hint">What your phone, the web and scheduled routines may do beyond reading. Everything here starts off.</p>
+          <p id="remote-waiting" class="notice" role="status" hidden></p>
+          <ul class="rows">
+            <li><label for="policy-remote-tasks">Edit tasks from other devices<small>Lets your phone, the web and scheduled routines create, change and complete tasks.</small></label><input id="policy-remote-tasks" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="policy-remote-write">Write notes, calendar and reminders<small>Lets your phone, the web and routines create and change notes, events, reminders and email drafts. A calendar you did not choose for writing without the window still asks for your approval.</small></label><input id="policy-remote-write" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="policy-remote-control">Terminal, files and control of this computer<small>Runs commands, writes any file, sees the screen, clicks and types. Whoever holds a connected app can then do anything you can on this computer.</small></label><input id="policy-remote-control" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="policy-remote-send">Send messages and email<small>Each one waits until you approve it on the approval page, from one of your own devices.</small></label><input id="policy-remote-send" class="switch" type="checkbox" role="switch" /></li>
+            <li><span>Approval page<small id="approvals-url" class="address"></small></span><button id="approvals-copy" type="button">Copy</button></li>
+            <li id="health-row"><span>Health check<small>Open this address in your phone's browser. It answers ok when the whole path works: the private URL, SMCP and a tool.</small><small id="health-url" class="address"></small></span><button id="health-copy" type="button">Copy</button></li>
+            <li><span>Last remote request<small id="remote-last"></small><small id="remote-rejected" class="warn" hidden></small></span></li>
+            <li class="stacked"><button id="remote-panic" type="button" class="danger" aria-describedby="remote-panic-note">Turn off all remote access</button><small id="remote-panic-note">Turns off the private URL and every switch here, signs out every connected app and rejects what is waiting.</small></li>
+          </ul>
+        </section>
+
+        <section id="away-section" aria-labelledby="h-away">
+          <h2 id="h-away">Done from outside today</h2>
+          <ol id="away-activity" class="activity" aria-labelledby="h-away"></ol>
+          <p id="away-empty" class="hint" hidden>Nothing was done from outside this computer today.</p>
         </section>
 
         <section id="nightlight-section" aria-labelledby="h-nightlight">
@@ -204,9 +225,16 @@
           </ul>
         </section>
 
+        <section id="calendar-auto-section" aria-labelledby="h-calendar-auto" hidden>
+          <h2 id="h-calendar-auto">Calendar without the window</h2>
+          <p id="calendar-auto-hint" class="hint" role="status">In the calendars you turn on here, your AI can add, move and delete events without the confirmation window, and each event says where it came from. Use a calendar made for this. Every other calendar still asks you.</p>
+          <ul id="calendar-auto-rows" class="rows"></ul>
+          <div class="inline-action"><button id="calendar-auto-refresh" type="button">Refresh</button></div>
+        </section>
+
         <section aria-labelledby="h-activity">
           <h2 id="h-activity">Recent activity</h2>
-          <p class="hint">Which tools your AI used, when and from where. It never saves what they read or sent.</p>
+          <p class="hint">Which tools your AI used, when and from where. It never saves what they read or sent. The one exception is a terminal command asked from outside this computer, which is kept whole.</p>
           <ol id="activity" class="activity"></ol>
           <ul class="rows">
             <li><span>Activity log<small id="activity-status"></small></span><button id="activity-clear" type="button">Clear</button></li>
@@ -225,6 +253,41 @@
             <li><label for="tasks-host">Save on<small>Your other computers use this same list.</small></label><select id="tasks-host"></select></li>
             <li id="tasks-hub-row"><label for="tasks-hub">Share with my computers<small>Only with devices on your Tailscale account.</small></label><input id="tasks-hub" class="switch" type="checkbox" role="switch" /></li>
           </ul>
+        </section>
+
+        <section id="server-section" aria-labelledby="h-server" hidden>
+          <h2 id="h-server">Your server computer</h2>
+          <div id="server-choice">
+            <ul class="rows">
+              <li><label for="server-host">Server</label><select id="server-host" class="wide"></select></li>
+              <li hidden><label for="server-area-terminal">Terminal, files and apps</label><input id="server-area-terminal" class="switch" type="checkbox" role="switch" /></li>
+              <li hidden><label for="server-area-notes">Notes</label><input id="server-area-notes" class="switch" type="checkbox" role="switch" /></li>
+              <li hidden><label for="server-area-calendar">Calendar and reminders</label><input id="server-area-calendar" class="switch" type="checkbox" role="switch" /></li>
+              <li hidden><label for="server-area-gmail">Gmail</label><input id="server-area-gmail" class="switch" type="checkbox" role="switch" /></li>
+              <li hidden><label for="server-area-brief">Your day, people and follow-ups</label><input id="server-area-brief" class="switch" type="checkbox" role="switch" /></li>
+            </ul>
+            <p class="hint">Tools in the areas you turn on run on that computer instead of this one. If it does not answer, your AI is told so; nothing runs here in its place.</p>
+          </div>
+          <ul class="rows">
+            <li><label for="peers-tools">Let my other computers use this one<small>For the computer that stays on. Only devices on your Tailscale account. This computer's own switches and approvals still decide what they can do.</small></label><input id="peers-tools" class="switch" type="checkbox" role="switch" /></li>
+          </ul>
+        </section>
+
+        <section id="brain-section" aria-labelledby="h-brain" hidden>
+          <h2 id="h-brain">Brain: raw exports</h2>
+          <p class="hint">SMCP writes what is new in WhatsApp and Gmail into your notes vault on a schedule, inside its raw folder. Your AI reads it there. SMCP never changes anything else in the vault.</p>
+          <ul class="rows">
+            <li><span>Vault<small id="brain-vault" class="address"></small></span><button id="brain-choose" type="button">Choose folder</button></li>
+            <li><label for="brain-wa-enabled">Export WhatsApp</label><input id="brain-wa-enabled" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="brain-wa-name">Your name in the notes</label><input id="brain-wa-name" class="nl-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" /></li>
+            <li><label for="brain-wa-every">Every</label><select id="brain-wa-every"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="180">3 hours</option></select></li>
+            <li><label for="brain-gmail-enabled">Export Gmail</label><input id="brain-gmail-enabled" class="switch" type="checkbox" role="switch" /></li>
+            <li><label for="brain-gmail-every">Every</label><select id="brain-gmail-every"><option value="30">30 minutes</option><option value="60">1 hour</option><option value="180">3 hours</option><option value="360">6 hours</option></select></li>
+          </ul>
+          <ul id="brain-accounts" class="rows"></ul>
+          <p id="brain-accounts-hint" class="hint">An account with an empty folder is not exported.</p>
+          <ul id="brain-status" class="rows brain-status"></ul>
+          <div class="inline-action"><button id="brain-run" type="button">Export now</button><span id="brain-run-result" class="hint" role="status"></span></div>
         </section>
 
         <section id="mac-perms" aria-labelledby="h-mac">

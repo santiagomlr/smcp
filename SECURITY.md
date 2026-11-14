@@ -11,6 +11,7 @@ Auditoría del 14 de noviembre de 2026 contra 20 vectores de ataque comunes en a
 | 47821 (127.0.0.1) | MCP remoto con OAuth (`app/core/remote.js`) | Internet, por Tailscale Funnel | OAuth 2.1 con PKCE y código de emparejamiento de un solo uso |
 | 47823 (127.0.0.1) → 47822 tailnet | Hub de tareas (`app/core/tasks-hub.js`) | Tu tailnet, por Tailscale Serve | Cabecera `Tailscale-User-Login` |
 | 47825 (127.0.0.1) → 47824 tailnet | Hub entre computadoras (`app/core/peers.js`) | Tu tailnet, por Tailscale Serve | Cabecera `Tailscale-User-Login` |
+| 47827 (127.0.0.1) → 47826 tailnet | Página de aprobación (`app/core/approval-page.js`), desde la 0.2 | Tu tailnet, por Tailscale Serve con HTTPS | Cabecera `Tailscale-User-Login`, y solo responde bajo su propia dirección |
 | `~/.smcp/smcp.sock` | Ayudante local (`src/helper.js`) | Tu usuario | Permisos `0600` |
 
 ## Hallazgos, por severidad
@@ -55,6 +56,11 @@ if (fromBrowser(req)) return send(403, { error: "Requests from web pages are not
 **Test:** `test/security-audit.test.js`, pruebas `SEC-1`. Simulan la petición que manda una página con DNS rebinding, con `Origin`, `Sec-Fetch-Site` y la cabecera falsificada, y comprueban que la respuesta es `403` y que el handler nunca corre.
 
 **Riesgo residual [NEEDS MANUAL REVIEW]:** otro usuario del sistema operativo en la misma Mac puede hablar con `127.0.0.1` y falsificar la cabecera. Esto solo importa en Macs compartidas. Para cerrarlo del todo, Serve tendría que apuntar a un socket Unix con `0600` en vez de a un puerto TCP.
+
+**Desde la 0.2, dos superficies nuevas quedan bajo este mismo hallazgo:**
+
+- **La operación `tool` del hub entre computadoras** (una computadora tuya corre una herramienta en tu servidor) pasa por `createPeerHub`, así que hereda el rechazo de `fromBrowser`.
+- **La página de aprobación** sí la abre un navegador, así que no puede rechazar a los navegadores. Su defensa es otra: una página con DNS rebinding puede falsificar la cabecera de login, pero no puede cambiar el `Host` que manda su navegador, que sigue siendo el dominio del atacante. La página solo responde cuando el `Host` es la dirección que comparte Tailscale o el loopback de la propia computadora (`knownHost` en `app/core/approval-page.js`). Además, cada botón lleva un secreto que otro sitio no puede leer, el `POST` tiene que venir de la misma página y no se puede enmarcar. Pruebas: `test/approvals.test.js`. El riesgo residual es el mismo de arriba: otro usuario del sistema operativo en la misma Mac.
 
 ### SEC-2: phishing de consentimiento en el emparejamiento
 

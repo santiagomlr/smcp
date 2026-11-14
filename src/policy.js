@@ -50,9 +50,27 @@ const DEFAULTS = {
   },
   // Writing is something a person opts into when linking. Even then, every message still needs the confirmation window.
   whatsapp: { read: true, send: false, audio: false },
-  // Lets phone, web and scheduled routines edit tasks. Off until a person turns it on.
-  remote: { taskWrites: false },
+  // What phone, web and scheduled routines may do beyond reading. Each is off until a person turns it on.
+  remote: { taskWrites: false, write: false, control: false, send: false },
+  // Lets the person's other computers run tools here, when this one is their server.
+  peers: { tools: false },
+  // Calendars where events may be added, moved and deleted without the confirmation window.
+  calendar: { autoWrite: [] },
 };
+
+/** The risks a remote client can be allowed, beyond reading. Anything other than an explicit true is off. */
+export const REMOTE_SWITCHES = ["taskWrites", "write", "control", "send"];
+
+function normalizeRemote(saved) {
+  return Object.fromEntries(REMOTE_SWITCHES.map((name) => [name, saved?.[name] === true]));
+}
+
+const MAX_AUTO_CALENDARS = 20;
+
+function normalizeCalendar(saved) {
+  const ids = Array.isArray(saved?.autoWrite) ? saved.autoWrite : [];
+  return { autoWrite: [...new Set(ids.filter((id) => typeof id === "string" && id && id.length <= 200))].slice(0, MAX_AUTO_CALENDARS) };
+}
 
 /** Installations saved before this choice existed keep what they could already do. */
 const WHATSAPP_BEFORE_CHOICE = { read: true, send: true, audio: false };
@@ -120,7 +138,9 @@ export function readPolicy(path = configPath()) {
       readOnly: saved.readOnly === true,
       disabled: Object.fromEntries(GROUPS.map((group) => [group, (saved.disabled?.[group] ?? DEFAULTS.disabled[group]) === true])),
       whatsapp: normalizeWhatsApp(saved.whatsapp),
-      remote: { taskWrites: saved.remote?.taskWrites === true },
+      remote: normalizeRemote(saved.remote),
+      peers: { tools: saved.peers?.tools === true },
+      calendar: normalizeCalendar(saved.calendar),
     };
   } catch {
     return { ...structuredClone(DEFAULTS), paused: true };
@@ -148,7 +168,11 @@ export function toolGroup(name) {
   if (name.startsWith("nightlight_")) return "nightlight";
   if (name.startsWith("vpn_")) return "vpn";
   if (name.startsWith("awake_")) return "awake";
-  if (name === "smcp_status" || name === "smcp_context") return "status";
+  // Where the raw exports live is part of the notes vault, so it follows the Notes switch.
+  if (name.startsWith("brain_")) return "notes";
+  if (name === "smcp_status" || name === "smcp_context" || name === "smcp_ping") return "status";
+  // Asking how an approval ended reads nothing personal: it only says whether the person pressed the button.
+  if (name === "approval_status") return "approvals";
   if (name === "smcp_remember") return "context";
   if (name === "run_command") return "terminal";
   // People and follow-ups gather from several areas, like the brief, and each part asks for its own permission.
@@ -164,7 +188,7 @@ export function denialFor(name, annotations, policy) {
   const group = toolGroup(name);
   // The brief has no switch of its own: each of its sections asks for the permission of the tool it reuses.
   // The person's own notes have no switch either; read-only mode still stops writing to them.
-  if (group === "brief") return null;
+  if (group === "brief" || group === "approvals") return null;
   if (group === "context") {
     return policy.readOnly && annotations?.readOnlyHint !== true ? "SMCP is in read-only mode, so this action did not run." : null;
   }
@@ -176,11 +200,35 @@ export function denialFor(name, annotations, policy) {
 }
 
 /**
- * Wraps registerTool so the policy is re-read on every call; changes apply at once.
- * Every call is also written to the activity log, without its arguments or results.
+ * What this computer still decides about a tool that runs on the person's server computer: a pause or
+ * read-only mode here stops it. The area switches that count are the server's, which checks them itself.
  */
-export function guarded(server, { source = "local", record = recordCall } = {}) {
+export function denialForRouted(name, annotations, policy) {
+  if (toolGroup(name) === "status") return null;
+  if (policy.paused) return "SMCP is paused. You can resume it from the app.";
+  if (policy.readOnly && annotations?.readOnlyHint !== true && annotations?.destructiveHint !== false) {
+    return "SMCP is in read-only mode, so this action did not run.";
+  }
+  return null;
+}
+
+/** The one argument kept in the activity log: the command a terminal call from outside this computer ran. */
+function auditDetail(name, source, args) {
+  if (source === "local" || name !== "run_command") return undefined;
+  return typeof args?.[0]?.command === "string" ? args[0].command : undefined;
+}
+
+/**
+ * Wraps registerTool so the policy is re-read on every call; changes apply at once.
+ * Every call is also written to the activity log, without its arguments or results; the one exception
+ * is a terminal command that came from outside this computer, which is kept whole.
+ *
+ * `deny(name)` adds a reason of the caller's own (a remote switch that is off, too many calls).
+ * `router` may send a call to the person's server computer instead of running it here.
+ */
+export function guarded(server, { source = "local", record = recordCall, client, deny, router } = {}) {
   const clientName = () => {
+    if (client) return typeof client === "function" ? client() : client;
     try {
       return server.server?.getClientVersion?.()?.name ?? null;
     } catch {
@@ -189,20 +237,29 @@ export function guarded(server, { source = "local", record = recordCall } = {}) 
   };
   return {
     registerTool(name, config, handler) {
-      return server.registerTool(name, config, async (...args) => {
+      const routed = router?.wrap(name, config);
+      return server.registerTool(name, routed?.config ?? config, async (...args) => {
         const started = Date.now();
-        const denial = denialFor(name, config.annotations, readPolicy());
+        const policy = readPolicy();
+        let denial;
         let result;
+        let target = null;
         try {
-          result = denial ? errorResult(denial) : await handler(...args);
+          const route = routed ? routed.resolve(args) : null;
+          target = route?.target ?? null;
+          denial = route?.error ?? deny?.(name, policy) ?? (target ? denialForRouted(name, config.annotations, policy) : denialFor(name, config.annotations, policy));
+          result = denial ? errorResult(denial) : target ? await route.call() : await handler(...(route ? route.args : args));
           return result;
         } finally {
           record({
             tool: name,
             source,
             client: clientName(),
-            outcome: denial ? "denied" : result === undefined ? "failed" : result.isError ? "error" : "ok",
+            // "waiting" means the person has not approved it yet; what happens next gets a line of its own.
+            outcome: denial ? "denied" : result === undefined ? "failed" : result.isError ? "error" : result._meta?.["smcp/waiting"] ? "waiting" : "ok",
             ms: Date.now() - started,
+            detail: auditDetail(name, source, args),
+            ...(target ? { to: target } : {}),
           });
         }
       });
