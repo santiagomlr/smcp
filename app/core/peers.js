@@ -1,7 +1,7 @@
 // Lets one person's computers running SMCP talk to each other over Tailscale:
 // see which version each one runs, ask one to update itself, or ask one to wake the PC.
 import { createServer } from "node:http";
-import { identifyFromServe } from "./tasks-hub.js";
+import { fromBrowser, identifyFromServe } from "./tasks-hub.js";
 
 export const PEER_PORT = 47824;
 export const PEER_LOCAL_PORT = 47825;
@@ -19,6 +19,7 @@ export function createPeerHub({ handlers, owner, host = "127.0.0.1", port = PEER
       res.end(JSON.stringify(body));
     };
     if (req.method !== "POST" || req.url !== "/peer") return send(404, { error: "Not found." });
+    if (fromBrowser(req)) return send(403, { error: "Requests from web pages are not accepted." });
     let size = 0;
     const chunks = [];
     req.on("data", (chunk) => {
