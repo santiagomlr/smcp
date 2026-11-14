@@ -2,7 +2,7 @@
 // see which version each one runs, ask one to update itself, or ask one to wake the PC.
 import { createServer } from "node:http";
 import { callPeer, PEER_OPERATIONS, PEER_PORT } from "../../src/peer-client.js";
-import { identifyFromServe } from "./tasks-hub.js";
+import { fromBrowser, identifyFromServe } from "./tasks-hub.js";
 
 export { callPeer, PEER_OPERATIONS, PEER_PORT };
 export const PEER_LOCAL_PORT = 47825;
@@ -20,6 +20,7 @@ export function createPeerHub({ handlers, owner, host = "127.0.0.1", port = PEER
       res.end(JSON.stringify(body));
     };
     if (req.method !== "POST" || req.url !== "/peer") return send(404, { error: "Not found." });
+    if (fromBrowser(req)) return send(403, { error: "Requests from web pages are not accepted." });
     let size = 0;
     const chunks = [];
     req.on("data", (chunk) => {

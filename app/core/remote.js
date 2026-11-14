@@ -44,10 +44,20 @@ button{width:100%;margin-top:12px;padding:12px;font:600 15px/1 system-ui,sans-se
 </style></head><body><main>${body}</main></body></html>`;
 }
 
-function pairingPage(clientName, requestId, error = "") {
+/** Anyone can register a client with any name, so the page also says where the access will be sent. */
+export function redirectHost(redirectUri) {
+  try {
+    return new URL(redirectUri).host || String(redirectUri);
+  } catch {
+    return String(redirectUri ?? "");
+  }
+}
+
+function pairingPage(clientName, requestId, error = "", destination = "") {
   return page(
     "Connect to SMCP",
     `<h1>Connect to SMCP</h1><p>${escapeHtml(clientName)} wants to access your computer. Open the SMCP app and enter the Remote access code here.</p>
+${destination ? `<p>Access will be sent to <strong>${escapeHtml(destination)}</strong>. Enter the code only if you started this from that app.</p>` : ""}
 ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
 <form method="post" action="/pair"><input type="hidden" name="request" value="${escapeHtml(requestId)}">
 <label for="code">Code</label><input id="code" name="code" required maxlength="12" autocomplete="off" autocapitalize="characters" autofocus>
@@ -127,7 +137,7 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
       for (const [id, item] of pending) if (item.expiresAt < now()) pending.delete(id);
       const requestId = token();
       pending.set(requestId, { client, params, expiresAt: now() + PENDING_TTL_MS });
-      res.status(200).type("html").send(pairingPage(client.client_name || "An app", requestId));
+      res.status(200).type("html").send(pairingPage(client.client_name || "An app", requestId, "", redirectHost(params.redirectUri)));
     },
     async challengeForAuthorizationCode(_client, code) {
       const item = authCodes.get(code);
@@ -219,7 +229,7 @@ export function createRemote({ baseUrl, buildServer, statePath = defaultRemoteSt
       }
       const error = checkPairing(req.body.code);
       if (error) {
-        res.status(400).type("html").send(pairingPage(item.client.client_name || "An app", String(req.body.request), error));
+        res.status(400).type("html").send(pairingPage(item.client.client_name || "An app", String(req.body.request), error, redirectHost(item.params.redirectUri)));
         return;
       }
       pending.delete(String(req.body.request));

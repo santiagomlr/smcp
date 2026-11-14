@@ -112,6 +112,34 @@ test("reports download progress up to 100 and clears it before verifying", async
   assert.equal(seen.at(-1), null);
 });
 
+test("una Mac Intel descarga su propio paquete, no el de Apple Silicon", async () => {
+  const build = { sha256: SHA, size: ZIP.length };
+  const text = JSON.stringify({
+    version: "0.2.0",
+    mac: { arm64: { file: "SMCP-0.2.0-mac-arm64.zip", ...build }, x64: { file: "SMCP-0.2.0-mac-x64.zip", ...build } },
+  });
+  const urls = [];
+  const fetchImpl = fakeFetch(text);
+  const { instance, calls } = updater({ arch: "x64", fetchImpl: async (url, options) => (urls.push(url), fetchImpl(url, options)) });
+  assert.equal((await instance.check()).canInstall, true);
+  await instance.install();
+  assert.equal(calls.quit, 1);
+  assert.equal(urls.some((url) => url.endsWith("/SMCP-0.2.0-mac-x64.zip")), true);
+  assert.equal(urls.some((url) => url.endsWith("-mac-arm64.zip")), false);
+});
+
+test("una Mac Intel no instala una versión que solo trae el paquete de Apple Silicon", async () => {
+  const { instance } = updater({ arch: "x64", fetchImpl: fakeFetch(manifestFor("0.2.0")) });
+  const state = await instance.check();
+  assert.equal(state.status, "available");
+  assert.equal(state.canInstall, false);
+});
+
+test("rechaza un paquete de Apple Silicon anotado como de Intel", () => {
+  const text = JSON.stringify({ version: "0.2.0", mac: { x64: { file: "SMCP-0.2.0-mac-arm64.zip", sha256: SHA, size: ZIP.length } } });
+  assert.throws(() => readSignedManifest(text, signed(text), PUBLIC), /incomplete/);
+});
+
 test("en Windows avisa de la versión nueva sin intentar instalarla", async () => {
   const text = manifestFor("0.2.0");
   const { instance } = updater({ platform: "win32", arch: "x64", fetchImpl: fakeFetch(text) });

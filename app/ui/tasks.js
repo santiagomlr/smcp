@@ -29,7 +29,17 @@ function el(tag, props = {}, ...children) {
 function showError(message) {
   $("error").textContent = message || "";
   $("error").hidden = !message;
-  if (message) setTimeout(() => ($("error").hidden = true), 6000);
+  if (message) {
+    replay($("error"));
+    setTimeout(() => ($("error").hidden = true), 6000);
+  }
+}
+
+/** Plays an element's CSS animation again, so a repeated error shakes even if it was already showing. */
+function replay(node) {
+  node.style.animation = "none";
+  void node.offsetWidth;
+  node.style.animation = "";
 }
 
 async function call(op, args) {
@@ -212,6 +222,7 @@ function renderList() {
     );
   }
   list.replaceChildren(...nodes);
+  list.removeAttribute("aria-busy");
 
   const canAdd = !state.search && !["done", "archive"].includes(state.section);
   $("add").hidden = !canAdd;
@@ -279,11 +290,40 @@ function editing() {
 let latestLoad = 0;
 let renderOwed = false;
 
-async function load(force = false) {
+// Under ~150 ms the list just appears; past that, placeholder rows show the answer is on its way.
+const SKELETON_AFTER = 150;
+
+function showSkeleton() {
+  const bones = Array.from({ length: 6 }, (_, index) => {
+    const bone = el("div", { className: "row skeleton" }, el("i", { className: "bone-check" }), el("i"), el("i"), el("i"));
+    bone.style.setProperty("--i", String(index));
+    return bone;
+  });
+  $("list").replaceChildren(...bones);
+  $("list").setAttribute("aria-busy", "true");
+  $("empty").hidden = true;
+  $("add").hidden = true;
+}
+
+/** `skeleton` is for a new view (section, search, first open), not for refreshing the one on screen. */
+async function load(force = false, { skeleton = false } = {}) {
   if (!force && editing()) return;
   // With the list on another computer, answers can arrive out of order. Only the newest one counts.
   const thisLoad = ++latestLoad;
   renderOwed ||= force;
+  const placeholder = skeleton ? setTimeout(() => thisLoad === latestLoad && showSkeleton(), SKELETON_AFTER) : null;
+  try {
+    await fetchAndRender(thisLoad);
+  } catch (error) {
+    // Never leave placeholders standing in for a list that isn't coming: put back what we had.
+    if ($("list").hasAttribute("aria-busy")) renderList();
+    throw error;
+  } finally {
+    clearTimeout(placeholder);
+  }
+}
+
+async function fetchAndRender(thisLoad) {
   const today = await api.tasks("query", { kind: "hoy" });
   const catalog = await api.tasks("catalog");
   if (thisLoad !== latestLoad) return;
@@ -310,7 +350,7 @@ function go(section, project = null) {
   $("project-pop").hidden = true;
   $("scroll").scrollTop = 0;
   closeDetail();
-  load(true);
+  load(true, { skeleton: true });
 }
 
 async function update(id, fields) {
@@ -525,7 +565,7 @@ $("search").oninput = (event) => {
   searchTimer = setTimeout(() => {
     state.search = event.target.value.trim();
     closeDetail();
-    load(true);
+    load(true, { skeleton: true });
   }, 160);
 };
 
@@ -556,7 +596,7 @@ api.onFocusTask?.(async (id) => {
 (async () => {
   const status = await api.calendarStatus();
   if (status.ok) state.calendar = status.value;
-  await load(true);
+  await load(true, { skeleton: true });
 })();
 setInterval(load, 20_000);
 window.addEventListener("focus", () => load());

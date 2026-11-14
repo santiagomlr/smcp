@@ -1,7 +1,7 @@
 # Installs everything a Mac build needs, reusing what earlier runs already downloaded or compiled.
 # The caches are only a speed-up: on a miss every step runs from scratch exactly as before.
 name: Build dependencies
-description: npm packages, Electron downloads and the native helpers in vendor/bin
+description: npm packages, Electron downloads and the native helpers in vendor/mac-arm64 and vendor/mac-x64
 
 # Electron and electron-builder download most of their tools while packaging, after this action
 # has finished, so the job saves that cache itself at the end with .github/actions/save-downloads.
@@ -28,25 +28,28 @@ runs:
       run: bash scripts/retry.sh npm ci
 
     # wacli, whisper-cli and smcp-nightlight only change when their install script or source changes.
+    # They are built for both kinds of Mac: vendor/mac-arm64 (Apple Silicon) and vendor/mac-x64 (Intel).
     - name: Restore native helpers
       id: vendor
       uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
       with:
-        path: vendor/bin
-        key: vendor-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-wacli.sh', 'scripts/install-whisper.sh', 'scripts/install-nightlight.sh', 'native/**') }}
+        path: vendor
+        key: vendor-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/mac-arch.sh', 'scripts/install-wacli.sh', 'scripts/install-whisper.sh', 'scripts/install-nightlight.sh', 'native/**') }}
 
     - name: Build native helpers
       if: steps.vendor.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        bash scripts/retry.sh npm run whatsapp:install
-        bash scripts/retry.sh npm run whatsapp:audio-install
-        npm run nightlight:install
+        for arch in arm64 x64; do
+          bash scripts/retry.sh npm run whatsapp:install -- "$arch"
+          bash scripts/retry.sh npm run whatsapp:audio-install -- "$arch"
+          npm run nightlight:install -- "$arch"
+        done
 
     # Saved right away, so a later failure in the job does not throw away a finished whisper.cpp build.
     - name: Save native helpers
       if: steps.vendor.outputs.cache-hit != 'true'
       uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
       with:
-        path: vendor/bin
+        path: vendor
         key: ${{ steps.vendor.outputs.cache-primary-key }}

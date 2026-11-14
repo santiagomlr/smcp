@@ -28,7 +28,9 @@ MCowBQYDK2VwAyEAEh47zB+6DGcWhZnY4dSmeGXZi+zdLLsC/7F8ZHlBKDA=
 -----END PUBLIC KEY-----`;
 
 const VERSION = /^\d+\.\d+\.\d+$/;
-const MAC_FILE = /^SMCP-\d+\.\d+\.\d+-mac-arm64\.zip$/;
+/** Each kind of Mac gets its own build: Apple Silicon (arm64) and Intel (x64). */
+export const MAC_ARCHES = ["arm64", "x64"];
+const macFile = (arch) => new RegExp(`^SMCP-\\d+\\.\\d+\\.\\d+-mac-${arch}\\.zip$`);
 
 export function isNewer(candidate, current) {
   if (!VERSION.test(candidate) || !VERSION.test(current)) return false;
@@ -45,10 +47,12 @@ export function readSignedManifest(text, signature, publicKey = UPDATE_PUBLIC_KE
   const valid = verifySignature(null, Buffer.from(text), createPublicKey(publicKey), Buffer.from(signature.trim(), "base64"));
   if (!valid) throw new Error("The update signature is not valid.");
   const manifest = JSON.parse(text);
-  const mac = manifest?.mac?.arm64;
   if (!VERSION.test(manifest?.version ?? "")) throw new Error("The update does not state a valid version.");
-  if (mac && (!MAC_FILE.test(mac.file ?? "") || !/^[0-9a-f]{64}$/.test(mac.sha256 ?? "") || !Number.isInteger(mac.size) || mac.size <= 0)) {
-    throw new Error("The Mac update is incomplete.");
+  for (const arch of MAC_ARCHES) {
+    const mac = manifest?.mac?.[arch];
+    if (mac && (!macFile(arch).test(mac.file ?? "") || !/^[0-9a-f]{64}$/.test(mac.sha256 ?? "") || !Number.isInteger(mac.size) || mac.size <= 0)) {
+      throw new Error("The Mac update is incomplete.");
+    }
   }
   return manifest;
 }
@@ -85,7 +89,7 @@ export function createUpdater({
   pid = process.pid,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
-  const macBuild = platform === "darwin" && arch === "arm64";
+  const macBuild = platform === "darwin" && MAC_ARCHES.includes(arch);
   let snapshot = { current: currentVersion, status: "idle", latest: null, message: "", canInstall: false, progress: null };
   let manifest = null;
 
@@ -152,7 +156,7 @@ export function createUpdater({
       if (!isNewer(manifest.version, currentVersion)) {
         set({ status: "latest", latest: manifest.version, canInstall: false });
       } else {
-        set({ status: "available", latest: manifest.version, canInstall: macBuild && Boolean(manifest.mac?.arm64) });
+        set({ status: "available", latest: manifest.version, canInstall: macBuild && Boolean(manifest.mac?.[arch]) });
       }
     } catch (error) {
       set({ status: "error", message: `Could not check: ${error.message}`, canInstall: false });
@@ -196,7 +200,7 @@ export function createUpdater({
     try {
       if (!appBundle?.endsWith(".app")) throw new Error("Only the installed app can be updated.");
       await access(dirname(appBundle), constants.W_OK);
-      const build = manifest.mac.arm64;
+      const build = manifest.mac[arch];
       set({ status: "installing", message: "Downloading…", progress: 0 });
       work = await mkdtemp(join(tempRoot, "smcp-update-"));
       const zip = join(work, build.file);
