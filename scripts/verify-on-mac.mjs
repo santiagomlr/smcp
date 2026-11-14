@@ -381,7 +381,7 @@ async function checkTailscale() {
   if (!/^(y|s)/i.test(await ask("  Share the test page now? [y/N] "))) return note("SKIP", "tailscale: the approval page", "not approved in this run");
 
   const approvals = createApprovals();
-  const page = createApprovalPage({ approvals, owner, port: APPROVAL_LOCAL_PORT });
+  const page = createApprovalPage({ approvals, owner, port: APPROVAL_LOCAL_PORT, publicHost: `${host}:${APPROVAL_PORT}` });
   let scheme = "https";
   let shared = false;
   const stop = async () => {
@@ -407,6 +407,21 @@ async function checkTailscale() {
     const url = `${scheme}://${host}:${APPROVAL_PORT}/`;
     const code = String(Math.floor(1000 + Math.random() * 9000));
     const request = approvals.request({ title: "SMCP: test approval", action: "Approve the test", body: `This is a test. Nothing is sent.\nCode: ${code}`, origin: { source: "remote", client: "verify-on-mac" } });
+
+    await check("tailscale: asked under another name with a forged login, as a rebinding web page would, the page refuses", async () => {
+      const { request: httpRequest } = await import("node:http");
+      const answer = await new Promise((resolve, reject) => {
+        const forged = httpRequest({ host: "127.0.0.1", port: APPROVAL_LOCAL_PORT, path: "/", headers: { host: `attacker.example:${APPROVAL_LOCAL_PORT}`, "tailscale-user-login": owner } }, (response) => {
+          let body = "";
+          response.on("data", (chunk) => (body += chunk));
+          response.on("end", () => resolve({ status: response.statusCode, body }));
+        });
+        forged.on("error", reject);
+        forged.end();
+      });
+      expect(answer.status === 403, `it answered ${answer.status}`);
+      expect(!answer.body.includes(code), "it showed the request under a name that is not its own");
+    });
 
     await check("tailscale: asked without going through Tailscale, the page refuses", async () => {
       const direct = await fetch(`http://127.0.0.1:${APPROVAL_LOCAL_PORT}/`, { signal: AbortSignal.timeout(5000) });

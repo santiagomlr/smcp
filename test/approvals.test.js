@@ -1,5 +1,6 @@
 // The approval page: only the person, only from their own devices, and only by pressing its own button.
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import { test } from "node:test";
 import { createApprovalPage } from "../app/core/approval-page.js";
 import { createApprovals, TOO_MANY_WAITING } from "../app/core/approvals.js";
@@ -144,4 +145,61 @@ test("a tool call hears about the approval it asked for", () => {
   assert.equal(approvals.pendingForCall("call-1"), request.id);
   assert.equal(approvals.get(request.id).source, "peer");
   stop();
+});
+
+/** A request with the Host a browser would send, which fetch() does not let a caller choose. */
+function rawRequest({ port, host, method = "GET", path = "/", headers = {}, body = "" }) {
+  return new Promise((resolve, reject) => {
+    const outgoing = httpRequest({ host: "127.0.0.1", port, method, path, headers: { host, ...headers, ...(body ? { "content-length": Buffer.byteLength(body) } : {}) } }, (response) => {
+      let text = "";
+      response.on("data", (chunk) => (text += chunk));
+      response.on("end", () => resolve({ status: response.statusCode, text }));
+    });
+    outgoing.on("error", reject);
+    outgoing.end(body);
+  });
+}
+
+test("a web page that points its own name at this computer cannot read or approve, even with a forged login", async () => {
+  // DNS rebinding: the page's requests count as same-origin in its browser, so it can set the login
+  // header itself. The Host it sends is still its own name, and the page only answers under its own.
+  const approvals = createApprovals();
+  const owner = "ana@example.com";
+  const page = createApprovalPage({ approvals, owner, port: 0, publicHost: "studio.tail1234.ts.net:47826" });
+  const port = await page.start();
+  try {
+    const request = approvals.request({ title: "Send", body: "secret text" });
+    const forged = { "tailscale-user-login": owner };
+    const attacker = `attacker.example:${port}`;
+
+    const read = await rawRequest({ port, host: attacker, headers: forged });
+    assert.equal(read.status, 403);
+    assert.ok(!read.text.includes("secret text"));
+    assert.ok(!read.text.includes(page.nonce(request.id)));
+
+    const form = new URLSearchParams({ id: request.id, nonce: page.nonce(request.id), answer: "approve" }).toString();
+    const approve = await rawRequest({
+      port,
+      host: attacker,
+      method: "POST",
+      path: "/decide",
+      body: form,
+      headers: { ...forged, "content-type": "application/x-www-form-urlencoded", origin: `http://${attacker}`, "sec-fetch-site": "same-origin" },
+    });
+    assert.equal(approve.status, 403);
+    assert.equal(approvals.get(request.id).status, "pending");
+
+    // Under the address Tailscale shares, and under this computer's own, it answers as before.
+    for (const host of ["studio.tail1234.ts.net:47826", "STUDIO.tail1234.ts.net:47826", `127.0.0.1:${port}`]) {
+      const ok = await rawRequest({ port, host, headers: forged });
+      assert.equal(ok.status, 200, host);
+      assert.ok(ok.text.includes("secret text"));
+    }
+    // The shared name on the wrong port, or with nothing after it, is not the page's address.
+    for (const host of ["studio.tail1234.ts.net", `studio.tail1234.ts.net:${port}`, "127.0.0.1", `127.0.0.1.attacker.example:${port}`]) {
+      assert.equal((await rawRequest({ port, host, headers: forged })).status, 403, host);
+    }
+  } finally {
+    await page.stop();
+  }
 });

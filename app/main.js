@@ -704,7 +704,7 @@ async function syncApprovalPage() {
   const owner = await tailscaleLogin();
   if (!owner) throw new Error(tr("Sign in to Tailscale to turn on remote access."));
   const host = new URL(await readBaseUrl()).host;
-  const page = createApprovalPage({ approvals, owner, tr, lang: () => SMCP_I18N.locale() });
+  const page = createApprovalPage({ approvals, owner, tr, lang: () => SMCP_I18N.locale(), publicHost: `${host}:${APPROVAL_PORT}` });
   await page.start();
   let scheme = "https";
   try {

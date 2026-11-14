@@ -422,6 +422,7 @@ Object.assign((globalThis.SMCP_DE ??= {}), {
   "Recent": "Zuletzt",
   "This page only opens on your own devices, signed in to your Tailscale account.": "Diese Seite öffnet sich nur auf deinen eigenen Geräten, die in deinem Tailscale-Konto angemeldet sind.",
   "That request did not come from this page.": "Diese Anfrage kam nicht von dieser Seite.",
+  "This page only opens at its own address.": "Diese Seite öffnet sich nur unter ihrer eigenen Adresse.",
   "That request is not valid. Open the page again.": "Diese Anfrage ist ungültig. Öffne die Seite erneut.",
   "Approved and done.": "Genehmigt und erledigt.",
   "Approved, but it did not work:": "Genehmigt, aber es hat nicht geklappt:",

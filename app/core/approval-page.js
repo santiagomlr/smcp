@@ -6,8 +6,8 @@
 //
 // A browser on the tailnet is "signed in" by where it is, not by a cookie, so any web page the person
 // has open could try to post here. Every button therefore carries a secret that only this page knows
-// and another site cannot read, the request must come from this page itself, and the page cannot be
-// framed.
+// and another site cannot read, the request must come from this page itself, the page cannot be
+// framed, and it only answers under its own address (see knownHost).
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { identifyFromServe } from "./tasks-hub.js";
@@ -43,7 +43,20 @@ ${refresh ? `<meta http-equiv="refresh" content="${refresh}">` : ""}<title>${esc
  * `approvals` is the store from approvals.js. `owner` is the person's Tailscale login.
  * `tr` words the page in the app's language; `lang` is that language's code.
  */
-export function createApprovalPage({ approvals, owner, identify = identifyFromServe, tr = plain, lang = () => "en", host = "127.0.0.1", port = APPROVAL_LOCAL_PORT, secret = randomBytes(32) }) {
+export function createApprovalPage({ approvals, owner, identify = identifyFromServe, tr = plain, lang = () => "en", host = "127.0.0.1", port = APPROVAL_LOCAL_PORT, secret = randomBytes(32), publicHost = null }) {
+  let listeningOn = port;
+  /**
+   * The page listens on localhost and trusts the login header Tailscale adds, so it must not answer
+   * under any other name. With DNS rebinding a web page's own domain starts pointing at 127.0.0.1:
+   * the browser then treats its requests as same-origin and lets it set that header. What the page
+   * cannot change is the Host its browser sends, which stays the attacker's domain. So only the
+   * address Tailscale shares (`publicHost`) and this computer's own loopback address are answered.
+   */
+  const knownHost = (req) => {
+    const asked = String(req.headers.host ?? "").toLowerCase();
+    const shared = typeof publicHost === "function" ? publicHost() : publicHost;
+    return asked === `127.0.0.1:${listeningOn}` || asked === `localhost:${listeningOn}` || (Boolean(shared) && asked === String(shared).toLowerCase());
+  };
   const nonce = (id) => createHmac("sha256", secret).update(id).digest("base64url");
   const sameNonce = (id, given) => {
     const expected = Buffer.from(nonce(id));
@@ -104,6 +117,7 @@ ${cards}${history ? `<h2 style="margin-top:28px">${escapeHtml(tr("Recent"))}</h2
       });
       res.end(html);
     };
+    if (!knownHost(req)) return send(403, page("SMCP", `<h1>SMCP</h1><p>${escapeHtml(tr("This page only opens at its own address."))}</p>`, { lang: lang() }));
     const user = identify(req);
     if (!user || user !== owner) {
       return send(403, page("SMCP", `<h1>SMCP</h1><p>${escapeHtml(tr("This page only opens on your own devices, signed in to your Tailscale account."))}</p>`, { lang: lang() }));
@@ -150,7 +164,10 @@ ${cards}${history ? `<h2 style="margin-top:28px">${escapeHtml(tr("Recent"))}</h2
     start: () =>
       new Promise((resolve, reject) => {
         server.once("error", reject);
-        server.listen(port, host, () => resolve(server.address().port));
+        server.listen(port, host, () => {
+          listeningOn = server.address().port;
+          resolve(listeningOn);
+        });
       }),
     stop: () =>
       new Promise((resolve) => {
