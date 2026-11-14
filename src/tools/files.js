@@ -30,6 +30,14 @@ export function blockedPaths() {
     inHome(".pc-remote"),
     inHome(".zsh_history"),
     inHome(".bash_history"),
+    inHome(".zsh_sessions"),
+    inHome(".git-credentials"),
+    inHome(".pypirc"),
+    inHome(".password-store"),
+    inHome(".mozilla"),
+    inHome(".local", "share", "keyrings"),
+    inHome(".config", "google-chrome"),
+    inHome(".config", "chromium"),
     inHome("Library", "Application Support", "smcp"),
     inHome("Library", "Application Support", "SMCP"),
     inHome("Library", "Application Support", "Claude"),
@@ -39,14 +47,23 @@ export function blockedPaths() {
     inHome("Library", "Cookies"),
     inHome("Library", "Messages"),
     inHome("Library", "Application Support", "Google", "Chrome"),
+    inHome("Library", "Application Support", "BraveSoftware"),
+    inHome("Library", "Application Support", "Microsoft Edge"),
+    inHome("Library", "Application Support", "Arc"),
     // Holds the WhatsApp session and the permissions, which file tools must not rewrite.
     inHome(".smcp"),
     storeDir(),
   ];
 }
 
-export function isBlocked(path) {
-  return blockedPaths().some((blocked) => path === blocked || path.startsWith(blocked + sep));
+/** macOS and Windows disks ignore case by default, so ~/.SSH is the same folder as ~/.ssh. */
+export function isBlocked(path, { ignoreCase = process.platform === "darwin" || process.platform === "win32" } = {}) {
+  const norm = (value) => (ignoreCase ? value.normalize("NFC").toLowerCase() : value);
+  const target = norm(path);
+  return blockedPaths().some((blocked) => {
+    const base = norm(blocked);
+    return target === base || target.startsWith(base + sep);
+  });
 }
 
 /** Resolves ~ and symlinks, including for paths that do not exist yet. */

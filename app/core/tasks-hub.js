@@ -32,6 +32,14 @@ export async function tailscaleLogin() {
  */
 export const identifyFromServe = (req) => req.headers["tailscale-user-login"] ?? null;
 
+/**
+ * The hubs listen on localhost, where a web page can reach them through DNS rebinding: its own name starts
+ * pointing at 127.0.0.1, so the request counts as same-origin and may carry any header, including a forged
+ * Tailscale login. Browsers always send Origin and Sec-Fetch-Site on a POST; SMCP's own calls (Node's fetch)
+ * send neither. Sec-Fetch-Mode is not a signal: Node's fetch sends it too.
+ */
+export const fromBrowser = (req) => Boolean(req.headers.origin || req.headers["sec-fetch-site"]);
+
 export async function enableServe(port = TASKS_PORT, localPort = LOCAL_PORT) {
   const result = await run(tailscaleBin(), ["serve", "--bg", "--yes", `--http=${port}`, `http://127.0.0.1:${localPort}`], { timeoutMs: 20_000 });
   if (result.code !== 0) throw new Error("Could not share the list over Tailscale.");
@@ -48,6 +56,7 @@ export function createTasksHub({ store, host = "127.0.0.1", port = LOCAL_PORT, o
       res.end(JSON.stringify(body));
     };
     if (req.method !== "POST" || req.url !== "/tasks") return send(404, { error: "Not found." });
+    if (fromBrowser(req)) return send(403, { error: "Requests from web pages are not accepted." });
     let size = 0;
     const chunks = [];
     req.on("data", (chunk) => {
