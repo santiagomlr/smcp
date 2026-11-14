@@ -434,8 +434,9 @@ async function checkTailscale() {
     if (self.status === 200 && self.body.includes(code)) note("PASS", "tailscale: opened from this computer through Tailscale, the page shows the request");
     else note("INFO", "tailscale: this computer could not open its own page through Tailscale", self.error ?? `status ${self.status}`);
 
-    console.log(`\n  Now open this address on your phone, with Tailscale on:\n\n      ${url}\n`);
-    console.log(`  You should see "SMCP: test approval" with the code ${code}. Press "Approve the test".`);
+    console.log(`\n  Now open this address in your phone's browser, with the Tailscale app connected:\n\n      ${url}\n`);
+    console.log(`  The page shows one request, "SMCP: test approval", with the code ${code}, and two buttons.`);
+    console.log('  There is nothing to type: press the button "Approve the test". It sends nothing.');
     console.log("  Waiting up to 5 minutes. Press Enter here to skip this step.\n");
     const reader = createInterface({ input: process.stdin });
     const outcome = await Promise.race([
@@ -465,8 +466,10 @@ const marks = (text) => [...text.matchAll(MARKER)].map((match) => match[1]);
 async function checkGmail({ vault }) {
   const { createGmail } = await import("../app/core/gmail.js");
   const { exportGmailAccount } = await import("../src/brain/gmail-export.js");
-  console.log("\n  This step is optional. It needs a Gmail app password, typed here: it is not shown, not saved");
-  console.log("  and not printed. Create one at https://myaccount.google.com/apppasswords and delete it afterwards.");
+  console.log("\n  This step is optional. It needs a Gmail app password: 16 letters that Google makes for one app,");
+  console.log("  not your normal password. Make one at https://myaccount.google.com/apppasswords (name it anything),");
+  console.log("  paste it here and press Enter. Nothing shows while you paste: that is normal. It is not saved or");
+  console.log("  printed. Delete it on that same page afterwards.");
   const email = (await ask("  Gmail account to check (Enter to skip): ")).toLowerCase();
   if (!email) return note("SKIP", "gmail", "no account given");
   const guess = existsSync(join(vault, "raw", "Personal", "gmail")) && email.endsWith("@gmail.com") ? "raw/Personal/gmail" : "raw/Senda/gmail";
@@ -596,10 +599,21 @@ async function main() {
   if (wants("calendar")) {
     section("Calendar (macOS may ask whether the terminal can use your calendars: allow it)");
     let made = null;
-    const ready = await check("calendar: a throwaway calendar is ready", async () => {
-      made = await throwaway({ eventKit, type: EVENTS, app: "Calendar", label: "calendar", make: "make new calendar with properties {name:(item 1 of argv)}", remove: "delete (first calendar whose name is (item 1 of argv))" });
-      return `"${made.item.title}" in ${made.item.account}`;
-    });
+    // Run from a terminal, macOS gives or refuses the calendar to the terminal app, not to SMCP.
+    const access = await eventKit.status(EVENTS).catch(() => "unknown");
+    const ready =
+      ["denied", "restricted", "writeOnly"].includes(access)
+        ? (note(
+            "FAIL",
+            "calendar: the terminal may read and write calendars",
+            `macOS says "${access}" for the app running this check. Open System Settings > Privacy & Security > Calendars, give your terminal app Full Access, then run this again with --only calendar`,
+          ),
+          false)
+        : await check("calendar: a throwaway calendar is ready", async () => {
+            made = await throwaway({ eventKit, type: EVENTS, app: "Calendar", label: "calendar", make: "make new calendar with properties {name:(item 1 of argv)}", remove: "delete (first calendar whose name is (item 1 of argv))" });
+            return `"${made.item.title}" in ${made.item.account}`;
+          });
+    if (!ready && access === "ask") console.log("  macOS asked whether the terminal may use your calendars and got no yes within a minute. Run this again with --only calendar and choose Full Access.");
     if (ready) {
       try {
         await checkCalendar({ eventKit, createCalendarOps, createAutoRegistry, splitNotes, calendar: made.item, historyDir });
