@@ -23,12 +23,18 @@ test("out of file descriptors, run() reports the error instead of crashing the a
   const script = join(dir, "emfile.mjs");
   await writeFile(
     script,
-    `import { openSync } from "node:fs";
+    `import { closeSync, openSync } from "node:fs";
 import { run } from ${JSON.stringify(UTIL)};
-process.on("uncaughtException", (error) => { console.log("CRASH " + error.message); process.exit(3); });
+// Open stdout before running out: Node opens it lazily and would fail to print the result.
+process.stdout.write("");
 const held = [];
+const release = () => { for (const fd of held.splice(0)) closeSync(fd); };
+process.on("uncaughtException", (error) => { release(); console.log("CRASH " + error.message); process.exit(3); });
 try { for (;;) held.push(openSync(process.execPath, "r")); } catch {}
+// One free descriptor: too few for the pipes a child needs, so spawning must fail.
+closeSync(held.pop());
 const result = await run("/bin/echo", ["hi"]);
+release();
 console.log(result.spawnError ? "REPORTED " + result.spawnError.code : "RAN");
 `,
   );
