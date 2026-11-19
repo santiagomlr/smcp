@@ -98,6 +98,8 @@ export const DEFAULT_PROBES = {
     return {
       on: state.active,
       ...(state.active ? { ends: state.ends, verified: state.verified } : {}),
+      // SMCP's own open files against its limit: a leak shows here before it takes the computer down.
+      ...(state.openFiles ? { openFiles: state.openFiles } : {}),
       ...(state.warnings?.length ? { warnings: state.warnings.map((warning) => warning.text) } : {}),
     };
   },

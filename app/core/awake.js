@@ -10,7 +10,7 @@
 //   end, at quit, and at the next launch if SMCP ever crashed with it off.
 // - On battery it stops at the person's floor, so a closed laptop never drains flat in a bag.
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname } from "node:path";
 import {
@@ -35,7 +35,7 @@ import {
   watchRunning,
 } from "../../src/awake.js";
 import { formatLocal } from "../../src/tools/calendar.js";
-import { run as runCommand } from "../../src/util.js";
+import { run as runCommand, shareCalls } from "../../src/util.js";
 
 const TICK_MS = 15_000;
 
@@ -43,6 +43,20 @@ const TICK_MS = 15_000;
 const MAX_QUICK_FAILURES = 3;
 const QUICK_FAILURE_MS = 5_000;
 const SUDO = "/usr/bin/sudo";
+
+const LID_READY_REUSE_MS = 10 * 60_000;
+
+/** Above this share of the open-file limit, SMCP warns: past the limit it can start no command at all. */
+const OPEN_FILES_WARN = 0.7;
+
+/** How many files, pipes and sockets this process has open, or null where that can't be read. */
+export function countOpenFiles() {
+  try {
+    return readdirSync("/dev/fd").length;
+  } catch {
+    return null;
+  }
+}
 
 function saveSettings(settings, path) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -100,6 +114,8 @@ export function createAwake({
   clearTimer = clearInterval,
   onChange = () => {},
   onEnded = () => {},
+  openFiles = countOpenFiles,
+  log = (line) => console.error(line),
 } = {}) {
   const mac = platform === "darwin";
   let keeper = null;
@@ -111,6 +127,8 @@ export function createAwake({
   let ticker = null;
   let lastError = null;
   let busy = Promise.resolve();
+  let fileLimit = null;
+  let warnedFiles = false;
 
   const read = () => readSettings(path);
   const write = (patch) => {
@@ -174,11 +192,47 @@ export function createAwake({
     return parsePowerSettings(result.stdout).sleepDisabled;
   }
 
+  /**
+   * Whether sudo allows SMCP's rule. The rule only changes at setup and removal, which reset this, so
+   * sudo is asked at most every LID_READY_REUSE_MS instead of on every tick and status.
+   */
+  const sudoAllowsLid = shareCalls(
+    async () => (await run(SUDO, ["-n", "-l", PMSET, "-a", "disablesleep", "1"], { timeoutMs: 10_000 })).code === 0,
+    { reuseMs: LID_READY_REUSE_MS, now },
+  );
+
   /** Whether this user may turn system sleep off without a password, through SMCP's rule. */
   async function lidReady() {
     if (!mac || !exists(SUDOERS_PATH)) return false;
-    const result = await run(SUDO, ["-n", "-l", PMSET, "-a", "disablesleep", "1"], { timeoutMs: 10_000 });
-    return result.code === 0;
+    return sudoAllowsLid();
+  }
+
+  /** The open-file limit SMCP's commands run under, read once: it does not change while SMCP runs. */
+  async function readFileLimit() {
+    if (fileLimit !== null || platform === "win32") return fileLimit;
+    const result = await run("/bin/sh", ["-c", "ulimit -n"], { timeoutMs: 5_000 });
+    const value = Number.parseInt(result.stdout, 10);
+    if (result.code === 0 && Number.isFinite(value) && value > 0) fileLimit = value;
+    return fileLimit;
+  }
+
+  /** Open files against the limit, so a leak shows up long before it stops SMCP and the Mac. */
+  function fileUse() {
+    const count = openFiles();
+    if (count === null) return null;
+    const high = fileLimit !== null && count >= fileLimit * OPEN_FILES_WARN;
+    return { count, limit: fileLimit, high };
+  }
+
+  function checkFiles() {
+    const use = fileUse();
+    if (!use?.high) {
+      warnedFiles = false;
+      return;
+    }
+    if (warnedFiles) return;
+    warnedFiles = true;
+    log(`SMCP has ${use.count} files open out of a limit of ${use.limit}. Something is leaking; quit and reopen SMCP if it keeps rising.`);
   }
 
   /** Puts the computer in the state the settings ask for. */
@@ -246,6 +300,7 @@ export function createAwake({
 
   /** Every few seconds: time up, watched app gone, battery low, or caffeinate gone. */
   async function tick() {
+    checkFiles();
     const settings = read();
     if (!settings.session) {
       if (settings.lidOwned) await apply();
@@ -279,7 +334,12 @@ export function createAwake({
       holding: Boolean(keeper),
       ...(lastError ? { error: lastError } : {}),
     };
-    if (!mac) return { ...base, closedLidSupported: false, warnings: [] };
+    const files = fileUse();
+    if (files) base.openFiles = { count: files.count, limit: files.limit };
+    const filesWarning = files?.high
+      ? { code: "open-files", text: `SMCP has ${files.count} files open out of ${files.limit}. If it keeps rising, quit and reopen SMCP before the Mac runs out.` }
+      : null;
+    if (!mac) return { ...base, closedLidSupported: false, warnings: filesWarning ? [filesWarning] : [] };
     const [assertions, power, settingsText, ready] = await Promise.all([
       run(PMSET, ["-g", "assertions"], { timeoutMs: 10_000 }),
       battery(),
@@ -292,7 +352,7 @@ export function createAwake({
     const others = owners
       .filter((owner) => owner.pid !== keeper?.pid && /Prevent\w*Sleep/.test(owner.type))
       .map((owner) => ({ process: owner.process, type: owner.type, name: owner.name }));
-    const warnings = [];
+    const warnings = filesWarning ? [filesWarning] : [];
     if (active && keeper && !verified) warnings.push({ code: "not-verified", text: "macOS does not show SMCP's keep-awake assertion yet. If this lasts, turn keep awake off and on." });
     if (active && settings.closedLid && !ready) warnings.push({ code: "lid-setup", text: "Closing the lid will still put the computer to sleep: closed-lid mode needs a one-time setup in SMCP's Settings." });
     if (active && settings.closedLid && power?.onBattery) warnings.push({ code: "lid-battery", text: "Running on battery with closed-lid mode: keep it ventilated, and it stops at the battery floor." });
@@ -322,8 +382,16 @@ export function createAwake({
     };
   }
 
+  // Everyone asking while a status is being read gets that same answer: each read starts four processes.
+  const sharedStatus = shareCalls(status);
+  /** After a change, the next status must read macOS again. */
+  const fresh = () => {
+    sharedStatus.invalidate();
+    return sharedStatus();
+  };
+
   return {
-    status,
+    status: sharedStatus,
 
     /** Starts (or replaces) a session. See makeSession for the endings. */
     start(options = {}) {
@@ -342,7 +410,7 @@ export function createAwake({
         lastError = null;
         await apply();
         onChange();
-        return status();
+        return fresh();
       });
     },
 
@@ -352,7 +420,7 @@ export function createAwake({
         missingSince = null;
         await apply();
         onChange();
-        return status();
+        return fresh();
       });
     },
 
@@ -371,7 +439,7 @@ export function createAwake({
         quickFailures = 0;
         await apply();
         onChange();
-        return status();
+        return fresh();
       });
     },
 
@@ -408,10 +476,11 @@ export function createAwake({
         if (/-128|cancel/i.test(result.stderr)) throw new Error("Setup was cancelled.");
         throw new Error("Closed-lid mode could not be set up.");
       }
+      sudoAllowsLid.invalidate();
       return serial(async () => {
         await apply();
         onChange();
-        return status();
+        return fresh();
       });
     },
 
@@ -421,8 +490,9 @@ export function createAwake({
       const result = await run("/usr/bin/osascript", ["-e", adminAppleScript(uninstallScript(), "SMCP will remove its closed-lid permission.")], { timeoutMs: 120_000 });
       if (result.code !== 0 && /-128|cancel/i.test(result.stderr)) throw new Error("Cancelled.");
       write({ closedLid: false, lidOwned: false });
+      sudoAllowsLid.invalidate();
       onChange();
-      return status();
+      return fresh();
     },
 
     /** At app start: undo a crash's leftovers, resume a session still in time, or start one for server mode. */
@@ -430,6 +500,7 @@ export function createAwake({
       return serial(async () => {
         const settings = read();
         if (settings.atLaunch && !isActive(settings, now())) write({ session: makeSession({ by: "person", reason: "Started with SMCP" }, now()) });
+        await readFileLimit();
         await apply();
         ticker = setTimer(() => serial(tick).catch(() => {}), TICK_MS);
         onChange();

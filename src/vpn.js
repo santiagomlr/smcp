@@ -2,11 +2,11 @@
 // Both can stay on together: while another VPN is up, SMCP stops Tailscale from taking over name lookups,
 // so the work VPN's internal names resolve and Tailscale (and the private URL) keep working.
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { fold, run as runFile } from "./util.js";
+import { fold, run as runFile, shareCalls } from "./util.js";
 
 export const TAILSCALE_ID = "tailscale";
 const SAFE_ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
@@ -152,13 +152,18 @@ export function parseTailscalePrefs(text) {
 const sleepFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Starts a VPN that keeps running in the foreground (openfortivpn, openconnect), logging to ~/.smcp. */
-function startInBackground(logPath) {
+export function startInBackground(logPath) {
   return (file, args) => {
     mkdirSync(dirname(logPath), { recursive: true, mode: 0o700 });
     const out = openSync(logPath, "a", 0o600);
-    const child = spawn(file, args, { detached: true, stdio: ["ignore", out, out] });
-    child.on("error", () => {});
-    child.unref();
+    try {
+      const child = spawn(file, args, { detached: true, stdio: ["ignore", out, out] });
+      child.on("error", () => {});
+      child.unref();
+    } finally {
+      // The child has its own copy; keeping ours would leak one descriptor per connect.
+      closeSync(out);
+    }
   };
 }
 
@@ -498,5 +503,25 @@ export function createVpn({
     };
   }
 
-  return { status, connect, disconnect, fixDns, reconcile, tailscale, listVpns };
+  // The window, the tray and tools all ask for the status and each read runs several commands:
+  // everyone asking while one is running gets that answer. A change drops it, so the next read is new.
+  const sharedStatus = shareCalls(status);
+  const changing =
+    (fn) =>
+    async (...args) => {
+      try {
+        return await fn(...args);
+      } finally {
+        sharedStatus.invalidate();
+      }
+    };
+  return {
+    status: sharedStatus,
+    connect: changing(connect),
+    disconnect: changing(disconnect),
+    fixDns: changing(fixDns),
+    reconcile: changing(reconcile),
+    tailscale,
+    listVpns,
+  };
 }

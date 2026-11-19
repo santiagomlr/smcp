@@ -301,7 +301,8 @@ async function awake(op, args) {
 
 $("p-aw-enabled").onchange = (event) => awake(event.target.checked ? "start" : "stop");
 $("p-aw-screen").onchange = (event) => awake("configure", { displayOn: event.target.checked });
-window.api.onAwakeChanged(() => awake("status"));
+// A closed panel reads nothing: each read starts processes, and it reads everything again when shown.
+window.api.onAwakeChanged(() => !document.hidden && awake("status"));
 
 $("panel-mark").append($("mark-template").content.firstElementChild.cloneNode(true));
 $("p-pause").onchange = async (event) => {
@@ -338,5 +339,5 @@ window.api.onPanelShown(() => {
   panelNode.classList.add("showing");
   refresh();
 });
-window.api.onStateChanged(refresh);
+window.api.onStateChanged(() => !document.hidden && refresh());
 document.fonts.ready.then(refresh);
