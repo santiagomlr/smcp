@@ -54,6 +54,11 @@ function saveSettings(settings, path = settingsPath()) {
 /** The real helper process: one JSON line in per change, one JSON line out per result. */
 function startHelperProcess(bin, { onExit, onMessage }) {
   const child = spawn(bin, [], { stdio: ["pipe", "pipe", "ignore"] });
+  // Before touching the pipes: when SMCP is out of file descriptors Node creates none, and an
+  // "error" with no listener would crash the app.
+  child.on("error", () => onExit());
+  child.on("exit", () => onExit());
+  if (!child.stdout || !child.stdin) return { send() {}, stop() {} };
   let buffer = "";
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
@@ -70,8 +75,6 @@ function startHelperProcess(bin, { onExit, onMessage }) {
     }
   });
   child.stdin.on("error", () => {});
-  child.on("error", () => onExit());
-  child.on("exit", () => onExit());
   return {
     send(message) {
       if (child.stdin.writable) child.stdin.write(`${JSON.stringify(message)}\n`);

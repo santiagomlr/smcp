@@ -1734,9 +1734,14 @@ $("nl-wake").onchange = (event) => {
 $("nl-location").onchange = (event) => nightLightCall("configure", { location: event.target.value.trim() || null });
 $("nl-pause").onclick = () => nightLightCall("pause", { minutes: 60 });
 $("nl-resume").onclick = () => nightLightCall("clearNow");
-window.api.onNightLightChanged(loadNightLight);
+window.api.onNightLightChanged(whileShown(loadNightLight));
 loadNightLight();
-setInterval(loadNightLight, 60_000);
+setInterval(whileShown(loadNightLight), 60_000);
+
+/** Runs `fn` only while the window is on screen. */
+function whileShown(fn) {
+  return (...args) => (document.hidden ? undefined : fn(...args));
+}
 
 // Keep awake
 
@@ -1789,12 +1794,20 @@ $("aw-lid").onchange = async (event) => {
   }
   return awakeCall("configure", { closedLid: true });
 };
-window.api.onAwakeChanged(loadAwake);
+window.api.onAwakeChanged(whileShown(loadAwake));
 loadAwake();
-setInterval(loadAwake, 60_000);
+setInterval(whileShown(loadAwake), 60_000);
 
 document.fonts.ready.then(moveIndicator);
 refresh();
-setInterval(refresh, 15_000);
+setInterval(whileShown(refresh), 15_000);
+// Closing the window only hides it, and SMCP runs for days: a hidden window reads nothing, and
+// catches up as soon as it is shown again.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  refresh();
+  loadAwake();
+  loadNightLight();
+});
 window.addEventListener("focus", refresh);
 window.addEventListener("resize", moveIndicator);

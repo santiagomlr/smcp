@@ -188,6 +188,7 @@ function fakeMac({ lidRule = true, battery = { onBattery: false, percent: 100 },
       if (args[1] === "log") return ok("");
     }
     if (file === "/bin/ps") return ok(sim.processes.join("\n"));
+    if (file === "/bin/sh" && args.join(" ") === "-c ulimit -n") return ok("256\n");
     return { code: 1, stdout: "", stderr: "unknown" };
   };
   const awake = createAwake({
@@ -450,4 +451,41 @@ test("screen always on also tells macOS the user is active every tick, so no scr
   advance(15_000);
   await awake.tick();
   assert.equal(declared(), 2, "stops with the session");
+});
+
+test("asking for the status at once from many places reads macOS once", async () => {
+  const { awake, sim } = fakeMac();
+  await awake.start({});
+  sim.calls.length = 0;
+  const all = await Promise.all([awake.status(), awake.status(), awake.status(), awake.status(), awake.status()]);
+  assert.ok(all.every((status) => status.active));
+  assert.equal(sim.calls.filter((call) => call === "/usr/bin/pmset -g assertions").length, 1);
+  // Asked again afterwards, it reads macOS again: nothing old is reused.
+  sim.displaySleep = 0;
+  assert.ok((await awake.status()).warnings.some((warning) => warning.code === "display-never"));
+});
+
+test("sudo is asked about the closed-lid rule once, not on every status and tick", async () => {
+  const { awake, sim } = fakeMac();
+  for (let i = 0; i < 4; i += 1) await awake.status();
+  await awake.tick();
+  await awake.tick();
+  assert.equal(sim.calls.filter((call) => call.startsWith("/usr/bin/sudo -n -l")).length, 1);
+});
+
+test("warns once when SMCP gets close to its open-file limit, and says it in the status", async () => {
+  let open = 40;
+  const lines = [];
+  const { awake } = fakeMac({ openFiles: () => open, log: (line) => lines.push(line) });
+  await awake.launch();
+  let status = await awake.status();
+  assert.deepEqual(status.openFiles, { count: 40, limit: 256 });
+  assert.ok(!status.warnings.some((warning) => warning.code === "open-files"));
+  open = 200;
+  await awake.tick();
+  await awake.tick();
+  assert.equal(lines.length, 1, "logged once while it stays high");
+  assert.match(lines[0], /200 files open out of a limit of 256/);
+  status = await awake.status();
+  assert.ok(status.warnings.some((warning) => warning.code === "open-files"));
 });

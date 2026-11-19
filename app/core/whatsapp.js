@@ -218,7 +218,7 @@ export function startLogin({ onQr, onDone }) {
     stdio: ["ignore", "ignore", "pipe"],
   });
   let buffer = "";
-  child.stderr.on("data", (chunk) => {
+  child.stderr?.on("data", (chunk) => {
     buffer += chunk.toString("utf8");
     const lines = buffer.split("\n");
     buffer = lines.pop();
