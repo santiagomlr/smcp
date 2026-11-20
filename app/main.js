@@ -668,6 +668,20 @@ async function resumeTasksHub() {
   if ((await readSettings()).tasksHub) await startTasksHub();
 }
 
+const HUB_CHECK_MS = 60_000;
+
+/** Starts whatever this computer serves to the others and is not running. Each step is a no-op when it already runs. */
+const keepHubsUp = coalesce(async () => {
+  if (quitting) return;
+  for (const [label, start] of [
+    ["tasks hub", resumeTasksHub],
+    ["peers", startPeerHub],
+    ["approvals", syncApprovalPage],
+  ]) {
+    await start().catch((error) => console.error(`${label}:`, error.message));
+  }
+});
+
 /* Remote access */
 
 /** The cheapest full check: build the connector's server and run its lightest tool, as a remote call would. */
@@ -1726,6 +1740,9 @@ if (!app.requestSingleInstanceLock()) {
     retry(resumeTasksHub).catch((error) => console.error("tasks hub:", error.message));
     retry(startPeerHub).catch((error) => console.error("peers:", error.message));
     retry(syncApprovalPage).catch((error) => console.error("approvals:", error.message));
+    // The attempts above give up after a few minutes; after an update the old copy can still hold the ports
+    // that long. Keep checking, so another computer never loses this one until SMCP is restarted by hand.
+    setInterval(keepHubsUp, HUB_CHECK_MS);
     // The exports need the Mac's WhatsApp store and Gmail accounts; elsewhere there is nothing to pull.
     if (IS_MAC && !SMOKE_TEST) brainExports.start();
     if (SMOKE_TEST) return smokeTest();
